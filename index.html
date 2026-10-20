@@ -1194,7 +1194,7 @@ const AP={
     footFree:{L:true},hold:{p:[-.03,-.12,.3],f:[.25,-.35,.9],u:[.1,.94,.3]}},
   sitCrate:{hips:[.0],spine:[.22],neck:[-.06],head:[-.1],hpL:[-1.5,.2,-.12],knL:[1.45],hpR:[-1.45,-.2,.14],knR:[1.35],
     shL:[-.5,.25,-.1],elL:[-1.15],shR:[-.45,-.25,.1],elR:[-1.2],seat:.44},
-  stretch:{spine:[-.12,0,0],neck:[-.28],head:[-.18],shL:[-2.45,.3,-.55],elL:[-1.5],wrL:[0,.3,0],shR:[-2.45,-.3,.55],elR:[-1.5],wrR:[0,-.3,0],
+  stretch:{spine:[-.12,0,0],neck:[-.28],head:[-.18],shL:[-2.05,.55,-.8],elL:[-2.1],wrL:[0,.3,0],shR:[-2.05,-.55,.8],elR:[-2.1],wrR:[0,-.3,0],
     osc:{spine:[.04,0,0,1.1],neck:[.05,0,0,1.1]},hpL:[-.02,0,.04],knL:[.03],anL:[0,-.12,0],hpR:[-.02,0,-.04],knR:[.03],anR:[0,.12,0]},
   warm:{spine:[.2],neck:[-.06],head:[-.12],shL:[-1.0,.35,-.05],elL:[-1.1],wrL:[0,.4,0],shR:[-1.0,-.35,.05],elR:[-1.1],wrR:[0,-.4,0],
     hpL:[-.05,0,.04],knL:[.1],anL:[0,-.12,0],hpR:[-.05,0,-.04],knR:[.1],anR:[0,.12,0],osc:{elL:[.12,0,0,6.5],elR:[-.12,0,0,6.5],wrL:[0,.18,0,6.5],wrR:[0,-.18,0,6.5]}},
@@ -2091,7 +2091,9 @@ function tickVM(dt){vmCam.position.copy(camera.position);vmCam.quaternion.copy(c
 
 /* ---------- quality / resize ---------- */
 function applyQuality(name){Q=QUAL[name]||QUAL.med;$('q').value=$('q2').value=name;buildGrass(Q.grassR);sun.shadow.mapSize.set(Q.shadow,Q.shadow);if(sun.shadow.map){sun.shadow.map.dispose();sun.shadow.map=null;}resize();try{localStorage.setItem('z12q',name);}catch(_){}}
-function resize(){const w=innerWidth,h=innerHeight,pr=Math.min(devicePixelRatio,1.5)*Q.pr;renderer.setPixelRatio(pr);renderer.setSize(w,h,false);makeRT(Math.floor(w*pr),Math.floor(h*pr));
+let DRS=1;/* dynamic resolution: keeps weaker GPUs near 50+ fps */
+const DRSs={n:0,t:performance.now()};
+function resize(){const w=innerWidth,h=innerHeight,pr=Math.min(devicePixelRatio,1.5)*Q.pr*DRS;renderer.setPixelRatio(pr);renderer.setSize(w,h,false);makeRT(Math.floor(w*pr),Math.floor(h*pr));
   camera.aspect=vmCam.aspect=w/h;camera.updateProjectionMatrix();vmCam.updateProjectionMatrix();fxScale(h*pr,camera.fov);postMat.uniforms.uRes.value.set(w*pr,h*pr);}
 addEventListener('resize',resize);
 ['q','q2'].forEach(id=>$(id).onchange=e=>applyQuality(e.target.value));
@@ -2135,7 +2137,9 @@ function frame(now){requestAnimationFrame(frame);const dt=clamp((now-clock.last)
   if((S.state==='play'||S.state==='view'||S.state==='paused')&&vmRoot.visible&&VM.gun){renderer.clearDepth();renderer.render(vmScene,vmCam);}
   renderer.setRenderTarget(null);P.tD.value=rt.texture;renderer.render(postScene,postCam);
   if(S.state==='inv'){doll.root.rotation.y+=dt*.5;dollR.render(dollS,dollC);}
-  fpsN++;fpsT+=dt;if(fpsT>1){$('fps').textContent=fpsN+' fps';fpsN=0;fpsT=0;}}
+  fpsN++;fpsT+=dt;if(fpsT>1){$('fps').textContent=fpsN+' fps';fpsN=0;fpsT=0;}
+  if(S.state==='play'||S.state==='ride'){DRSs.n++;const el=now-DRSs.t;if(el>2500){const f=DRSs.n*1000/el;DRSs.n=0;DRSs.t=now;
+    const old=DRS;if(f<42)DRS=Math.max(.55,DRS-.12);else if(f>57)DRS=Math.min(1,DRS+.05);if(Math.abs(old-DRS)>.01)resize();}}else{DRSs.n=0;DRSs.t=now;}}
 
 /* ---------- start / debug views ---------- */
 const DBG=(location.hash||'').slice(1).split('&')[0];
