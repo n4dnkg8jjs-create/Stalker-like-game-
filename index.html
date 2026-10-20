@@ -50,7 +50,7 @@ body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--display);us
 #card small{font-size:13px;letter-spacing:.32em;color:var(--accent);text-transform:uppercase}
 #card h2{font-size:clamp(40px,7vw,78px);margin:0;font-weight:700;line-height:.95}
 #card p{margin:0;font-family:var(--mono);font-size:13px;color:var(--dim);letter-spacing:.06em}
-.screen{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;overflow:auto;background:rgba(6,8,6,.94);padding-inline:max(16px,env(safe-area-inset-left,0px)) max(16px,env(safe-area-inset-right,0px))}
+.screen>*{margin-block:auto}.screen{position:fixed;inset:0;display:flex;align-items:flex-start;justify-content:center;overflow:auto;background:rgba(6,8,6,.94);padding-inline:max(16px,env(safe-area-inset-left,0px)) max(16px,env(safe-area-inset-right,0px))}
 .screen.off{display:none}
 .menu{max-width:640px;width:100%}
 .menu h1{font-size:clamp(44px,9vw,92px);line-height:.9;margin:0;font-weight:700;letter-spacing:-.01em}
@@ -674,7 +674,7 @@ PB.white=pbr(512,(u,v)=>{const n=N2(u,v,6,5),m=N2(u,v,3,4),fl=N2(u+.4,v+.2,6,4),
   c=mixc(c,[120,118,96],sstep(.6,.75,m)*.35);c=mixc(c,[70,62,52],sstep(.55,.8,N2(u*.4,v,4,3))*v*.5);return[c[0],c[1],c[2],.6+n*.1-flake*.35,.95];},{bump:4});
 /* painted armour steel: semi-gloss olive, rough chips to primer, rust blooms, dust */
 PB.paint=pbr(512,(u,v)=>{const n=N2(u,v,4,5),m=N2(u,v,24,3),s=N2(u*.2,v*2,6,3);const [w1,w2]=wor(u,v,18,4);
-  let c=[82+(n-.5)*14,94+(n-.5)*14,58+(n-.5)*10];const dust=sstep(.6,.78,s)*.4;c=mixc(c,[104,96,70],dust);
+  let c=[72+(n-.5)*12,82+(n-.5)*12,56+(n-.5)*9];const dust=sstep(.6,.78,s)*.4;c=mixc(c,[104,96,70],dust);
   const chip=sstep(.2,.12,w1)*sstep(.62,.72,N2(u,v,10,3));c=mixc(c,[52,48,40],chip);const rs=sstep(.86,.9,N2(u,v,12,2));c=mixc(c,[100,66,40],rs*.45);
   c=mixc(c,[110,108,80],sstep(.6,.8,m)*.15);return[c[0],c[1],c[2],.6-chip*.35-rs*.15+(n-.5)*.1,.55+dust*.35+chip*.25+rs*.35];},{bump:3});
 PB.rust=pbr(256,(u,v)=>{const n=N2(u,v,6,5),m=N2(u,v,20,3),f=N2(u,v,60,2);let c=[112+(n-.5)*60,62+(n-.5)*36,34+(n-.5)*20];const pt=sstep(.55,.7,m);c=mixc(c,[64,68,54],pt*.6);
@@ -1484,95 +1484,116 @@ let _btrGrime=null;function BTRGRIME(){if(_btrGrime)return _btrGrime;
       d[i]=k?150+n*30:72+n*26;d[i+1]=k?136+n*26:60+n*20;d[i+2]=k?104+n*20:42+n*14;d[i+3]=clamp(a,0,1)*255;}
     c.putImageData(im,0,0);});
   return _btrGrime=std({map:t,transparent:true,depthWrite:false,roughness:.95,envMapIntensity:.2,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2});}
-function buildBTR(opts={}){const g=new T.Group();const paint=M.paint,pp=M.paintP;
-  const S=(x,top,tw,uy,uw,ly,lw,by,bw)=>({x,pts:[[tw,top],[uw,uy],[lw,ly],[bw,by],[-bw,by],[-lw,ly],[-uw,uy],[-tw,top]]});
-  /* BTR-80 hull (from reference photos / drawings): flat roof from the turret ring back to the engine deck, a long
-     shallow upper glacis running down to a sharp nose at wheel-top height, steep lower glacis, inward-sloping upper
-     sides over a full-length chine, narrow lower hull; the front stays broad in plan rather than coming to a point */
-  const SECS=[S(-3.83,1.62,.98,1.42,1.3,.95,1.05,.75,.8),S(-3.35,1.95,1.02,1.43,1.42,.96,1.14,.55,.88),S(-2.95,2.05,1.05,1.43,1.46,.97,1.17,.5,.9),
-    S(1.7,2.05,1.05,1.43,1.46,.97,1.17,.5,.9),S(3.05,1.5,1.0,1.3,1.38,.95,1.12,.55,.86),S(3.83,1.1,.9,1.06,.95,.9,.86,.78,.62)];
-  const hull=mesh(loft(SECS),paint,0,0,0,g);hull.material=paint;
-  /* grime shell: the same hull with a mud / dust / streak layer mapped by height, so the paint isn't one clean colour */
+/* BTR-80, modelled from the side / top / front / rear reference drawings (scale 7.65 m x 2.9 m).
+   Local frame: +x forward (nose at x=+3.83), +y up, +z = the vehicle's right. Positions are written as metres back
+   from the nose (n), the way they were measured off the drawing, and converted with X(n). */
+function buildBTR(opts={}){const g=new T.Group();const paint=M.paint,pp=M.paintP,dk=M.gunD;
+  const X=n=>3.83-n;
+  const S=(n,top,tw,uy,uw,ly,lw,by,bw)=>({x:X(n),pts:[[tw,top],[uw,uy],[lw,ly],[bw,by],[-bw,by],[-lw,ly],[-uw,uy],[-tw,top]]});
+  /* hull: sharp nose at 1.35 m, low trim-vane deck, steep window plate up to a flat roof (1.88 m at the front rising to
+     1.97 m), inward-sloping upper sides over a 2.9 m chine at 1.3 m, lower hull narrowing to a 2 m belly at 0.52 m */
+  const SECS=[S(7.62,1.80,.95,1.36,1.22,.95,1.02,.66,.92),S(7.45,1.9,.96,1.33,1.34,.92,1.1,.56,.96),S(7.3,1.97,.97,1.3,1.45,.91,1.17,.52,1.0),
+    S(4.0,1.97,.97,1.3,1.45,.91,1.17,.52,1.0),S(1.32,1.88,.97,1.31,1.43,.91,1.17,.52,1.0),S(1.02,1.5,1.1,1.32,1.32,.92,1.12,.6,1.0),
+    S(.36,1.45,.98,1.33,1.05,1.17,1.02,1.04,.98),S(.03,1.41,.84,1.35,.88,1.31,.87,1.27,.84)];
+  const hull=mesh(loft(SECS),paint,0,0,0,g);
+  const roofY=n=>n<1.32?1.88:n>4?1.97:lerp(1.88,1.97,(n-1.32)/2.68);
+  const zU=y=>.97+(1.97-y)*.716,zL=y=>1.0+(y-.52)*.577;          /* upper / lower side plate z at height y */
+  /* grime shell: the same hull with a mud / dust / streak layer mapped by height */
   {const gg=loft(SECS),p=gg.attributes.position,n=gg.attributes.normal,uv=new Float32Array(p.count*2);
    for(let i=0;i<p.count;i++){const x=p.getX(i),y=p.getY(i),z=p.getZ(i);p.setXYZ(i,x+n.getX(i)*.004,y+n.getY(i)*.004,z+n.getZ(i)*.004);uv[i*2]=(x+(Math.abs(n.getX(i))>.7?z:0))*.32;uv[i*2+1]=clamp(y/2.1,0,1);}
    gg.setAttribute('uv',new T.BufferAttribute(uv,2));const gm=mesh(gg,BTRGRIME(),0,0,0,g,false);gm.renderOrder=1;}
-  /* worn edges along the hull chines: paint rubbed through to dark steel */
+  /* worn edges along the roof edge and chine */
   {const wm=std({color:C(0x4a4d3e),roughness:.45,metalness:.6});for(const i of [0,1,6,7]){const pts=SECS.map(sc=>V3(sc.x,sc.pts[i][1],sc.pts[i][0]));
-     mesh(new T.TubeGeometry(new T.CatmullRomCurve3(pts,false,'catmullrom',0),40,.011,4,false),wm,0,0,0,g,false);}}
+     mesh(new T.TubeGeometry(new T.CatmullRomCurve3(pts,false,'catmullrom',0),48,.011,4,false),wm,0,0,0,g,false);}}
+  const onU=(sd,n,y,w,h,mat=pp,t=.03)=>{const m=mesh(rbox(w,h,t,.008),mat,X(n),y,sd*(zU(y)+t*.4),g);m.rotation.x=-sd*.62;return m;};
+  const onL=(sd,n,y,w,h,mat=pp,t=.03)=>{const m=mesh(rbox(w,h,t,.008),mat,X(n),y,sd*(zL(y)+t*.4),g);m.rotation.x=sd*.52;return m;};
+  /* ---- wheels: 4 axles, 1.1 m tyres, track 2.4 m ---- */
   const tg=G('btrTire',tireGeo);const wheels=[];
-  [2.4,1.05,-.45,-1.8].forEach(x=>[-1,1].forEach(s=>{const w=new T.Mesh(tg,[M.tire,pp]);w.position.set(x,.56,s*1.27);if(s<0)w.rotation.y=Math.PI;w.castShadow=true;w.receiveShadow=true;g.add(w);wheels.push(w);}));
-  /* turret BPU-1 */
-  const tur=new T.Group();tur.position.set(.95,2.03,0);g.add(tur);
-  {const tg=lathe([[.74,0],[.73,.05],[.54,.44],[.5,.48],[.0,.48]],8).toNonIndexed();tg.rotateY(Math.PI/8);tg.computeVertexNormals();mesh(tg,pp,0,0,0,tur);
-   mesh(rbox(.3,.34,.46,.04),pp,.6,.22,0,tur);}
-  const gun=new T.Group();gun.position.set(.7,.26,.06);tur.add(gun);
-  mesh(xf(new T.CylinderGeometry(.075,.075,.5,14),.25,0,0,0,0,Math.PI/2),M.gunD,0,0,0,gun);
-  mesh(xf(new T.CylinderGeometry(.04,.045,1.55,12),1.2,0,0,0,0,Math.PI/2),M.gunD,0,0,0,gun);
-  mesh(xf(new T.CylinderGeometry(.055,.045,.22,12),2.05,0,0,0,0,Math.PI/2),M.gunD,0,0,0,gun);
-  mesh(xf(new T.CylinderGeometry(.018,.02,.75,8),.4,0,0,0,0,Math.PI/2),M.gunD,0,-.02,-.17,gun);
-  mesh(rbox(.18,.16,.14,.02),pp,-.05,.52,-.32,tur);mesh(rbox(.06,.05,.1,.01),M.glass,.05,.56,-.32,tur);
-  mesh(xf(new T.CylinderGeometry(.09,.09,.16,14),0,0,0,0,0,Math.PI/2),pp,.3,.45,.38,tur);mesh(new T.CircleGeometry(.075,14),M.glass,.39,.45,.38,tur).rotation.y=Math.PI/2;
-  [-1,1].forEach(s=>{for(let i=0;i<3;i++){const t=mesh(xf(new T.CylinderGeometry(.042,.042,.24,10),0,.12,0),M.gunD,-.42,.25+i*.09,s*(.42-i*.02),tur);t.rotation.set(s*-.6,0,.5);}});
-  mesh(new T.CylinderGeometry(.2,.2,.04,16),pp,-.1,.5,.12,tur);
-  /* hull details */
-  [-1,1].forEach(s=>{
-    const ws=mesh(rbox(.62,.05,.5,.02),pp,2.12,1.9,s*.45,g);ws.rotation.set(0,0,-.39);mesh(rbox(.04,.05,.46,.01),M.gunD,1.84,2.03,s*.45,g);
-    mesh(rbox(.5,.035,.5,.03),pp,1.42,2.065,s*.45,g);
-    mesh(rbox(.62,.035,.48,.03),pp,-.6,2.05,s*.45,g);
-    const d=mesh(rbox(.8,.62,.04,.02),pp,.32,1.7,s*1.255,g);d.rotation.x=-s*.58;
-    const d2=mesh(rbox(.8,.3,.04,.02),pp,.32,1.18,s*1.31,g);d2.rotation.x=s*.59;
-    for(let i=0;i<3;i++){const fp=mesh(xf(new T.CylinderGeometry(.06,.06,.04,12),0,0,0,Math.PI/2,0,0),pp,-1.6+i*.75+(i>0?.9:0),1.72,s*1.26,g);fp.rotation.x=Math.PI/2-s*.58;}
-    /* headlight cluster on a bracket at each front corner: main lamp, IR lamp and marker behind a guard frame */
-    {const hc=new T.Group();hc.position.set(3.2,1.5,s*.82);g.add(hc);mesh(rbox(.16,.05,.34,.01),M.gunD,-.04,-.05,0,hc);
-     [[0,.08,.1],[0,-.04,.075]].forEach(([dy,dz,r],i)=>{mesh(xf(new T.CylinderGeometry(r,r*1.08,.14,14),0,0,0,0,0,Math.PI/2),M.gunD,.02,.06,dz*s,hc);
-       mesh(new T.CircleGeometry(r*.85,14),i?std({color:C(0x3a1210),roughness:.2,metalness:.3}):M.glass,.095,.06,dz*s,hc,false).rotation.y=Math.PI/2;});
-     for(let i=0;i<4;i++)mesh(new T.BoxGeometry(.012,.24,.012),M.gunD,.13,.06,(i-1.5)*.08,hc);mesh(new T.BoxGeometry(.012,.012,.34),M.gunD,.13,.18,0,hc);
-     mesh(rbox(.05,.03,.08,.005),std({color:C(0xd08a20),roughness:.4}),.06,.2,s*.12,hc);}
-    mesh(xf(new T.TorusGeometry(.06,.016,6,12),0,0,0,0,Math.PI/2,0),M.gunD,3.8,.78,s*.32,g);
-    const rail=mesh(xf(new T.CylinderGeometry(.014,.014,3.6,6),0,0,0,0,0,Math.PI/2),M.gunD,-.5,2.13,s*1.0,g);
-    for(let i=0;i<4;i++)mesh(new T.CylinderGeometry(.012,.012,.12,6),M.gunD,-2.1+i*1.1,2.08,s*1.0,g);
-    mesh(rbox(.9,.28,.24,.03),pp,-2.8,1.55,s*1.33,g);
-    for(let i=0;i<3;i++)mesh(rbox(.12,.08,.06,.02),M.gunD,1.4-i*1.2,2.04,s*.98,g);
-    const ng=new T.Group();ng.position.set(-1.25,1.72,s*1.268);ng.rotation.y=s<0?Math.PI:0;g.add(ng);const n=new T.Mesh(G('btrNum',()=>new T.PlaneGeometry(.9,.45)),M.num);n.rotation.x=-.58;ng.add(n);});
-  /* trim vane folded flat on the upper glacis */
-  const tv=mesh(rbox(.46,.05,1.7,.02),pp,2.78,1.66,0,g);tv.rotation.z=-.42;
-  for(let i=0;i<5;i++)mesh(new T.BoxGeometry(.4,.03,.025),M.gunD,2.78,1.70,-.68+i*.34,g).rotation.z=-.42;
-  mesh(rbox(1.2,.04,1.3,.02),M.grille,-2.25,2.07,0,g);mesh(rbox(.5,.04,1.5,.02),M.grille,-3.15,2.02,0,g).rotation.z=.2;
-  mesh(rbox(.06,.5,1.4,.02),pp,-3.84,1.18,0,g);
-  mesh(rbox(.5,.22,.1,.02),M.grille,-3.0,1.55,-1.36,g).rotation.x=.3;
-  const ant=mesh(xf(new T.CylinderGeometry(.006,.012,3.2,5),0,1.6,0),M.black,-3.0,2.04,-.85,g);ant.rotation.z=.12;
-  mesh(rbox(.9,.22,.5,.04),M.olive,-1.6,2.16,.45,g);mesh(rbox(.7,.3,.4,.06),M.canvas,-1.55,2.2,-.5,g);
-  /* ---- finer detail: bolt rows, periscopes, hinges, tow cable, tools, exhaust housing, lights, flaps ---- */
-  {const dk=M.gunD,B=[];const bolt=(x,y,z,rx=0,rz=0)=>{const b=new T.CylinderGeometry(.013,.013,.012,6);xf(b,x,y,z,rx,0,rz);B.push(b);};
-   for(let x=-2.9;x<=1.65;x+=.22)[-1,1].forEach(s=>bolt(x,2.055,s*1.0));                         /* deck edge */
-   for(let x=-3.3;x<=2.0;x+=.3)[-1,1].forEach(s=>bolt(x,1.43,s*1.455,s*Math.PI/2,0));             /* side chine */
-   for(let z=-.9;z<=.9;z+=.2)bolt(1.72,2.05,z,0,-.2);for(let z=-.85;z<=.85;z+=.2)bolt(3.05,1.505,z,0,-.45);  /* glacis seams */
-   const bm=mesh(merge(B),pp,0,0,0,g);bm.castShadow=false;
-   [-1,1].forEach(s=>{
-     /* driver / commander periscopes and hatch hinges */
-     for(let i=0;i<3;i++){const zz=s*.45+(i-1)*.14;mesh(rbox(.09,.075,.11,.01),dk,1.74,2.09,zz,g);mesh(new T.PlaneGeometry(.075,.035),M.glass,1.788,2.095,zz,g,false).rotation.y=Math.PI/2;}
-     mesh(xf(new T.CylinderGeometry(.028,.028,.4,8),0,0,0,Math.PI/2,0,0),pp,1.16,2.1,s*.45,g);
-     mesh(xf(new T.TorusGeometry(.05,.008,4,10,Math.PI),0,0,0,0,Math.PI/2,0),dk,1.5,2.085,s*.45,g);
-     /* mud flaps behind the wheels */
-     [2.4,1.05,-.45,-1.8].forEach(ax=>mesh(rbox(.025,.3,.32,.004),M.tire,ax-.66,.86,s*1.3,g));
-     /* tail lights, rear marker */
-     mesh(rbox(.05,.08,.16,.01),dk,-3.86,1.45,s*.92,g);mesh(new T.PlaneGeometry(.12,.05),std({color:C(0x7a1810),roughness:.3,emissive:C(0x220000)}),-3.89,1.45,s*.92,g,false).rotation.y=-Math.PI/2;
-   });
-   /* tow cable laid along the deck with clamps, crowbar and shovel on the rear deck */
-   {const pts=[];for(let i=0;i<=30;i++){const t=i/30;pts.push(V3(-2.5+t*2.6,2.07+Math.sin(t*40)*.004,.74+Math.sin(t*Math.PI)*.03));}
-    mesh(new T.TubeGeometry(new T.CatmullRomCurve3(pts),60,.018,6,false),dk,0,0,0,g);
-    mesh(xf(new T.TorusGeometry(.09,.02,6,14),0,0,0,Math.PI/2,0,0),dk,-2.62,2.07,.74,g);mesh(xf(new T.TorusGeometry(.09,.02,6,14),0,0,0,Math.PI/2,0,0),dk,.2,2.07,.74,g);
-    for(let i=0;i<4;i++)mesh(rbox(.04,.03,.08,.005),pp,-2.2+i*.75,2.07,.74,g);
-    mesh(xf(new T.CylinderGeometry(.016,.016,1.1,6),0,0,0,0,0,Math.PI/2),dk,-2.3,2.08,-.86,g);
-    const sh=new T.Group();sh.position.set(-2.35,2.08,.88);g.add(sh);mesh(xf(new T.CylinderGeometry(.018,.018,.8,6),0,0,0,0,0,Math.PI/2),M.wood,-.15,0,0,sh);mesh(rbox(.24,.012,.18,.005),dk,.36,0,0,sh);}
-   /* exhaust housing on the left rear quarter */
-   {const ex=new T.Group();ex.position.set(-3.0,1.73,-1.25);ex.rotation.x=.58;g.add(ex);mesh(rbox(.8,.08,.26,.02),pp,0,0,0,ex);
-    for(let i=0;i<7;i++)mesh(rbox(.02,.03,.22,.004),M.dark,-.33+i*.11,.04,0,ex,false);}
-   /* rear towing pintle and front tow eyes already present; turret: hatch handle, periscope sight, antenna bases */
-   mesh(rbox(.16,.12,.12,.02),dk,-3.93,.9,0,g);mesh(xf(new T.TorusGeometry(.05,.015,6,10),0,0,0,0,0,Math.PI/2),dk,-4.0,.9,0,g);
-   mesh(rbox(.16,.12,.2,.02),dk,.32,.55,-.22,tur);mesh(new T.PlaneGeometry(.12,.06),M.glass,.405,.56,-.22,tur,false).rotation.y=Math.PI/2;
-   mesh(xf(new T.TorusGeometry(.06,.01,4,10,Math.PI),0,0,0,-Math.PI/2,0,0),dk,-.1,.53,.12,tur);
-   [[-3.0,-.85],[-3.0,.85]].forEach(([ax,az])=>mesh(new T.CylinderGeometry(.04,.05,.08,8),dk,ax,2.07,az,g));}
+  [1.78,3.2,4.85,6.25].forEach(n=>[-1,1].forEach(sd=>{const w=new T.Mesh(tg,[M.tire,pp]);w.position.set(X(n),.56,sd*1.2);if(sd<0)w.rotation.y=Math.PI;w.castShadow=w.receiveShadow=true;g.add(w);wheels.push(w);}));
+  /* ---- front: trim vane on the nose deck, window plate with armoured covers, headlight clusters, tow hooks ---- */
+  {const tv=new T.Group();tv.position.set(X(.43),1.465,0);tv.rotation.z=-.09;g.add(tv);mesh(rbox(.66,.045,1.7,.02),pp,0,0,0,tv);
+   for(let i=0;i<7;i++)mesh(rbox(.56,.03,.03,.006),dk,0,.035,-.72+i*.24,tv);[-1,1].forEach(sd=>mesh(rbox(.08,.06,.1,.01),dk,.28,.02,sd*.78,tv));}
+  const plate=(o,nx,ny)=>{const q=new T.Group();q.position.copy(o);q.quaternion.setFromRotationMatrix(new T.Matrix4().makeBasis(V3(nx,ny,0),V3(-ny,nx,0),V3(0,0,1)));g.add(q);return q;};
+  {const wp=plate(V3(X(1.17),1.69,0),.785,.62);   /* window plate normal (forward-up) */
+   [-1,1].forEach(sd=>{mesh(rbox(.02,.22,.42,.01),M.dark,.012,0,sd*.42,wp);mesh(new T.PlaneGeometry(.38,.18),M.glass,.024,0,sd*.42,wp,false).rotation.y=Math.PI/2;
+     const cv=new T.Group();cv.position.set(.02,.14,sd*.42);cv.rotation.z=-1.25;wp.add(cv);mesh(rbox(.03,.26,.48,.01),pp,.0,.13,0,cv);mesh(rbox(.04,.03,.06,.01),dk,.02,.24,sd*-.18,cv);});}
+  [-1,1].forEach(sd=>{const hc=new T.Group();hc.position.set(X(.95),1.6,sd*1.15);g.add(hc);
+    mesh(rbox(.3,.06,.36,.01),pp,0,-.03,0,hc);
+    [[1.78-1.6,-.2,.085,M.glass],[1.67-1.6,.05,.075,std({color:C(0x24221c),roughness:.25,metalness:.4})]].forEach(([dy,dz,r,gm])=>{mesh(xf(new T.CylinderGeometry(r,r*1.1,.16,14),0,0,0,0,0,Math.PI/2),dk,.06,dy+.05,dz*sd,hc);
+      mesh(new T.CircleGeometry(r*.82,14),gm,.141,dy+.05,dz*sd,hc,false).rotation.y=Math.PI/2;});
+    /* triangular guard over the lamps */
+    {const sh=new T.Shape();sh.moveTo(-.18,0);sh.lineTo(.2,0);sh.lineTo(-.18,.3);sh.closePath();const gg=new T.ExtrudeGeometry(sh,{depth:.025,bevelEnabled:false});gg.translate(0,0,-.012);
+     const gm=mesh(gg,pp,.0,.2,sd*.19,hc);const gm2=mesh(gg,pp,.0,.2,sd*-.22,hc);}
+    mesh(rbox(.05,.04,.08,.008),std({color:C(0xd08a20),roughness:.4}),X(.6),1.42,sd*1.02,g);
+    /* tow hooks */
+    mesh(xf(new T.TorusGeometry(.055,.018,6,12),0,0,0,0,Math.PI/2,0),dk,X(.12),1.2,sd*.42,g);mesh(rbox(.1,.08,.12,.01),dk,X(.17),1.2,sd*.42,g);});
+  /* ---- roof: driver / commander hatches with periscopes, troop hatches, engine deck louvres, rear grilles ---- */
+  [-1,1].forEach(sd=>{const h=mesh(new T.CylinderGeometry(.27,.27,.04,18),pp,X(1.62),roofY(1.62)+.02,sd*.45,g);
+    mesh(xf(new T.CylinderGeometry(.03,.03,.36,8),0,0,0,Math.PI/2,0,0),pp,X(1.88),roofY(1.88)+.035,sd*.45,g);
+    for(let i=0;i<3;i++)mesh(rbox(.07,.07,.1,.01),dk,X(1.4),roofY(1.4)+.06,sd*.45+(i-1)*.12,g);
+    mesh(xf(new T.TorusGeometry(.05,.008,4,10,Math.PI),0,0,0,0,Math.PI/2,0),dk,X(1.62),roofY(1.62)+.045,sd*.45,g);
+    const th=mesh(rbox(.6,.04,.55,.04),pp,X(4.3),1.99,sd*.55,g);mesh(xf(new T.CylinderGeometry(.025,.025,.5,8),0,0,0,Math.PI/2,0,0),pp,X(4.0),2.0,sd*.55,g);
+    mesh(new T.CylinderGeometry(.13,.13,.05,14),pp,X(4.3),2.02,sd*.55,g);
+    mesh(new T.CylinderGeometry(.11,.12,.06,14),pp,X(5.07),2.0,sd*.82,g);mesh(new T.CylinderGeometry(.04,.05,.08,8),dk,X(5.0),2.02,sd*.4,g);});
+  for(let i=0;i<6;i++){const zz=-.73+i*.292;mesh(rbox(.9,.05,.24,.1),pp,X(5.85),1.995,zz,g);for(let k=0;k<6;k++)mesh(rbox(.04,.02,.18,.005),M.dark,X(5.5)-k*.14,2.022,zz,g,false);}
+  mesh(rbox(.9,.04,1.6,.02),M.grille,X(6.9),1.99,0,g);mesh(rbox(.06,.05,1.75,.01),pp,X(6.42),2.0,0,g);
+  [-1,1].forEach(sd=>mesh(rbox(.3,.035,.5,.01),pp,X(7.2),1.99,sd*.6,g));
+  /* side-mounted ribbed tubes over the engine bay */
+  [-1,1].forEach(sd=>{const tb=mesh(xf(new T.CylinderGeometry(.14,.14,1.6,14),0,0,0,0,0,Math.PI/2),pp,X(6.5),1.9,sd*1.15,g);
+    const tp=mesh(xf(new T.CylinderGeometry(.14,.06,.45,14),0,0,0,0,0,Math.PI/2),pp,X(5.47),1.9,sd*1.15,g);
+    for(let k=0;k<8;k++)mesh(xf(new T.TorusGeometry(.142,.012,4,14),0,0,0,0,Math.PI/2,0),dk,X(5.8)-k*.2,1.9,sd*1.15,g);});
+  /* ---- sides: firing ports with armoured shields and vision blocks, two-part side door, handrails, suspension guards ---- */
+  [-1,1].forEach(sd=>{
+    [2.05,2.8,3.5,5.5].forEach(n=>{const y=1.58;const b=mesh(new T.SphereGeometry(.06,10,8),dk,X(n),y,sd*(zU(y)+.02),g);
+      const sh=onU(sd,n+.04,y+.01,.22,.16,pp,.03);sh.rotation.y=sd*.25;onU(sd,n,1.8,.14,.06,M.glass,.02);});
+    /* upper side door between the 2nd and 3rd axles with porthole and handle */
+    onU(sd,4.1,1.58,.72,.5,pp,.04);onU(sd,4.1,1.58,.64,.42,pp,.05);mesh(new T.CylinderGeometry(.05,.05,.04,10),dk,X(4.2),1.6,sd*(zU(1.6)+.06),g).rotation.x=Math.PI/2-sd*.62;
+    mesh(rbox(.14,.025,.03,.006),dk,X(3.85),1.66,sd*(zU(1.66)+.065),g).rotation.x=-sd*.62;
+    onL(sd,4.15,.92,.6,.62,pp,.04);mesh(rbox(.5,.04,.12,.01),dk,X(4.15),.6,sd*1.05,g);
+    /* handrails on the upper side */
+    [[2.0,3.5],[4.6,5.25]].forEach(([a,b])=>{const y=1.86,zz=sd*(zU(y)+.06);mesh(xf(new T.CylinderGeometry(.012,.012,b-a,6),0,0,0,0,0,Math.PI/2),dk,X((a+b)/2),y,zz,g);
+      [a,b].forEach(n=>mesh(new T.CylinderGeometry(.01,.01,.07,5),dk,X(n),y-.03,sd*(zU(y)+.03),g));});
+    /* V-shaped bump-stop guards under the chine between axle pairs */
+    [2.5,5.55].forEach(n=>{[-1,1].forEach(k=>{const v=mesh(rbox(.05,.42,.05,.01),dk,X(n)+k*.1,1.06,sd*(zL(1.06)+.04),g);v.rotation.z=k*.35;v.rotation.x=sd*.52;});});
+    /* mud flaps behind each wheel */
+    [1.78,3.2,4.85,6.25].forEach(n=>mesh(rbox(.025,.3,.36,.004),M.tire,X(n)-.62,.86,sd*1.22,g));
+    /* number on the upper side */
+    const ng=new T.Group();ng.position.set(X(5.05),1.55,sd*(zU(1.55)+.025));ng.rotation.y=sd<0?Math.PI:0;g.add(ng);const nm=new T.Mesh(G('btrNum',()=>new T.PlaneGeometry(.75,.36)),M.num);nm.rotation.x=-.62;ng.add(nm);
+    /* rear upper side grille panel */
+    onU(sd,6.9,1.6,.7,.28,M.grille,.03);
+    /* exhaust outlet on the left rear quarter */
+    if(sd<0){onU(sd,6.95,1.42,.6,.16,M.dark,.05);}
+  });
+  /* ---- rear: tail lights, louvred engine access hatches, water-jet cover, tow hitch ---- */
+  {const rx=X(7.62)-.02;[-1,1].forEach(sd=>{mesh(rbox(.05,.09,.2,.01),dk,rx,1.72,sd*.82,g);mesh(new T.PlaneGeometry(.16,.06),std({color:C(0x8a1a10),roughness:.3,emissive:C(0x220000)}),rx-.03,1.72,sd*.82,g,false).rotation.y=-Math.PI/2;
+     const ah=mesh(rbox(.04,.34,.62,.01),pp,rx-.01,1.45,sd*.6,g);for(let k=0;k<4;k++)mesh(rbox(.02,.03,.5,.004),M.dark,rx-.035,1.36+k*.06,sd*.6,g,false);});
+   mesh(xf(new T.CylinderGeometry(.2,.2,.04,18),0,0,0,0,0,Math.PI/2),pp,rx-.01,.98,0,g);mesh(rbox(.16,.12,.14,.02),dk,rx,.72,0,g);
+   mesh(xf(new T.TorusGeometry(.05,.015,6,10),0,0,0,0,0,Math.PI/2),dk,rx-.08,.72,0,g);}
+  /* bolt rows along the roof edge and chine */
+  {const B=[];const bolt=(x,y,z,rx=0)=>{const b=new T.CylinderGeometry(.013,.013,.012,6);xf(b,x,y,z,rx,0,0);B.push(b);};
+   for(let n=1.4;n<=7.2;n+=.22)[-1,1].forEach(sd=>bolt(X(n),roofY(n)+.006,sd*.94));for(let n=1.3;n<=7.2;n+=.3)[-1,1].forEach(sd=>bolt(X(n),1.31,sd*1.44,sd*Math.PI/2));
+   const bm=mesh(merge(B),pp,0,0,0,g);bm.castShadow=false;}
+  /* deck stowage: tow cable, crowbar and shovel */
+  {const cab=[];for(let i=0;i<=30;i++){const t=i/30;cab.push(V3(X(3.75)-t*1.3,roofY(3.75+t*1.3)+.03,-.25+Math.sin(t*Math.PI)*.04));}
+   mesh(new T.TubeGeometry(new T.CatmullRomCurve3(cab),60,.017,6,false),dk,0,0,0,g);
+   mesh(xf(new T.CylinderGeometry(.016,.016,1.1,6),0,0,0,0,0,Math.PI/2),dk,X(4.4),2.01,.05,g);
+   const sh=new T.Group();sh.position.set(X(4.4),2.01,.2);g.add(sh);mesh(xf(new T.CylinderGeometry(.018,.018,.8,6),0,0,0,0,0,Math.PI/2),M.wood,-.15,0,0,sh);mesh(rbox(.24,.012,.18,.005),dk,.36,0,0,sh);}
+  /* antenna */
+  const ant=mesh(xf(new T.CylinderGeometry(.006,.012,3.2,5),0,1.6,0),M.black,X(5.0),2.03,-.4,g);ant.rotation.z=.12;
+  /* ---- BPU-1 turret: faceted cone frustum with a flat roof, KPVT 14.5 mm + PKT, sight, searchlight, smoke launchers ---- */
+  const tur=new T.Group();tur.position.set(X(2.95),roofY(2.95)-.01,0);g.add(tur);
+  {const tgm=lathe([[.76,0],[.75,.05],[.54,.4],[.5,.42],[.0,.42]],8).toNonIndexed();tgm.rotateY(Math.PI/8);tgm.computeVertexNormals();mesh(tgm,pp,0,0,0,tur);
+   mesh(new T.CylinderGeometry(.79,.8,.06,24),pp,0,.0,0,tur);
+   mesh(rbox(.24,.28,.4,.04),pp,.6,.16,0,tur);
+   mesh(new T.CylinderGeometry(.2,.2,.04,16),pp,-.12,.44,.12,tur);mesh(xf(new T.TorusGeometry(.06,.01,4,10,Math.PI),0,0,0,-Math.PI/2,0,0),dk,-.12,.47,.12,tur);
+   mesh(rbox(.18,.14,.16,.02),dk,.3,.48,-.26,tur);mesh(new T.PlaneGeometry(.12,.07),M.glass,.392,.49,-.26,tur,false).rotation.y=Math.PI/2;
+   const sl=new T.Group();sl.position.set(.22,.5,.36);tur.add(sl);mesh(xf(new T.CylinderGeometry(.1,.1,.16,14),0,0,0,0,0,Math.PI/2),dk,0,0,0,sl);mesh(new T.CircleGeometry(.085,14),M.glass,.082,0,0,sl,false).rotation.y=Math.PI/2;mesh(rbox(.06,.08,.06,.01),dk,0,-.08,0,sl);
+   [-1,1].forEach(sd=>{for(let i=0;i<3;i++){const t=mesh(xf(new T.CylinderGeometry(.04,.04,.22,10),0,.11,0),dk,-.5,.25+i*.08,sd*(.44-i*.03),tur);t.rotation.set(sd*-.55,0,.55);}});}
+  const gun=new T.Group();gun.position.set(.62,.14,.05);tur.add(gun);
+  mesh(xf(new T.CylinderGeometry(.07,.07,.5,14),.2,0,0,0,0,Math.PI/2),dk,0,0,0,gun);
+  mesh(xf(new T.CylinderGeometry(.04,.045,1.25,12),1.05,0,0,0,0,Math.PI/2),dk,0,0,0,gun);
+  mesh(xf(new T.CylinderGeometry(.055,.05,.16,12),1.72,0,0,0,0,Math.PI/2),dk,0,0,0,gun);
+  mesh(xf(new T.CylinderGeometry(.016,.018,.62,8),.4,0,0,0,0,Math.PI/2),dk,0,-.02,-.18,gun);
   g.traverse(m=>{if(m.isMesh)m.receiveShadow=true;});
   g.userData={wheels,tur};return g;}
 
@@ -2325,7 +2346,7 @@ const btrSolid=solidAABB(0,0,0,0);
 function parkBTR(z){btr.position.set(0,0,z);btrSolid.x1=-1.55;btrSolid.x2=1.55;btrSolid.z1=z-3.95;btrSolid.z2=z+3.95;}
 parkBTR(btrPark.z);
 const riders=[[1.85,.62,.2,'guard5'],[1.75,-.66,-.25,'guard2']].map((p,ri)=>{const h=buildHuman({char:p[3],outfit:'ratnik',vest:true,helmet:true});
-  animate(h,{pose:'sitDeck',gun:buildAK(false),bump:t=>{const v=Math.abs(RIDE.v||0);return[Math.sin(t*9+ri)*.012*v/8+Math.sin(t*2.1)*.01,Math.sin(t*6.3+ri*2)*.015*v/8];}});h.root.position.set(p[0],2.03-.84,p[1]);h.root.rotation.y=Math.PI/2+p[2];btr.add(h.root);
+  animate(h,{pose:'sitDeck',gun:buildAK(false),bump:t=>{const v=Math.abs(RIDE.v||0);return[Math.sin(t*9+ri)*.012*v/8+Math.sin(t*2.1)*.01,Math.sin(t*6.3+ri*2)*.015*v/8];}});h.root.position.set(p[0],1.9-.84,p[1]);h.root.rotation.y=Math.PI/2+p[2];btr.add(h.root);
   return h;});
 const dust=(()=>{const n=160,g=new T.BufferGeometry(),a=new Float32Array(n*3);g.setAttribute('position',new T.BufferAttribute(a,3));const m=new T.Points(g,new T.PointsMaterial({color:C(0xa89a78),size:.9,transparent:true,opacity:.18,depthWrite:false}));m.frustumCulled=false;scene.add(m);
   return{m,a,life:new Float32Array(n),i:0,n};})();
