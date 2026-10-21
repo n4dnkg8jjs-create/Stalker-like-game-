@@ -1335,7 +1335,9 @@ const AP={
     hold:{p:[-.02,-.17,.3],f:[.3,-.25,.92],u:[.05,.97,.25]}},
   kneel:{hips:[.06],spine:[.18],neck:[-.05],head:[-.08],hpL:[.08,.08,-.07],knL:[1.48],anL:[-.38],hpR:[-1.45,-.15,.12],knR:[1.5],
     footFree:{L:true},hold:{p:[-.03,-.12,.3],f:[.25,-.35,.9],u:[.1,.94,.3]}},
-  sitCrate:{hips:[.0],spine:[.22],neck:[-.06],head:[-.1],hpL:[-1.5,.2,-.12],knL:[1.45],hpR:[-1.45,-.2,.14],knR:[1.35],
+  /* seated on a crate: the rig's thigh slant means ~-1.73 brings the thighs level on the seat; knees ~1.8 drop the shins
+     plumb so the boots stand flat on the ground (the right foot a little further out) */
+  sitCrate:{hips:[.0],spine:[.22],neck:[-.06],head:[-.1],hpL:[-1.74,.2,-.12],knL:[1.8],hpR:[-1.7,-.2,.14],knR:[1.66],
     shL:[-.5,.25,-.1],elL:[-1.15],shR:[-.45,-.25,.1],elR:[-1.2],seat:.44},
   /* lower-back stretch: fists in the small of the back, hips pushed forward, leaning back and rolling the neck -
      keeps the arms below the shoulder so the jacket never has to stretch over a raised arm */
@@ -1458,6 +1460,12 @@ class Animator{
        B['kn'+sd].getWorldPosition(AV);root.worldToLocal(AV);mn=Math.min(mn,AV.y-.055);}drop=mn;}
     const seatDrop=sv=>sv===undefined?null:sv<0?0:(this.hips0.y-.085-sv);
     const dA=seatDrop(seatA)??drop,dB=seatDrop(seatB)??drop;B.hips.position.y=this.hips0.y-lerp(dA,dB,w);
+    /* seated: the seat fixes the hips, so a shin that reaches lower than the floor would push the boot into the ground.
+       Unbend the knee (the foot swings forward and up) until the ankle sits at standing height, then set the sole flat */
+    if((seatA!==undefined&&seatA>=0&&w<.5)||(seatB!==undefined&&seatB>=0&&w>=.5)){const pz=w>=.5?b:a;
+      for(const sd of ['L','R']){if(pz.footFree&&pz.footFree[sd])continue;const K=B['kn'+sd],A=B['an'+sd];
+        for(let it=0;it<40;it++){A.rotation.x=-(B.hips.rotation.x+B['hp'+sd].rotation.x+K.rotation.x);root.updateMatrixWorld(true);
+          A.getWorldPosition(AV);root.worldToLocal(AV);if(AV.y>=this.ankH+.004||K.rotation.x<.2)break;K.rotation.x-=.015;}}}
     /* rifle: blend its hold, then reach both hands onto it */
     if(this.gun){const ha=a.hold||AP.ready.hold,hb=b.hold||AP.ready.hold;const H={};for(const k of ['p','f','u'])H[k]=V3(...ha[k].map((x,i)=>lerp(x,hb[k][i],w)));
       H.p.y+=br*.004;this.gun.position.copy(H.p);basisQ(V3(0,0,-1),V3(0,1,0),H.f,H.u,this.gun.quaternion);
@@ -2215,7 +2223,7 @@ const btrPark=V3(0,0,14);
     animate(sq,{pose:'squat',plan:[['squat',16,1.3],['relaxed',3,1.3],['warm',7,1.1],['relaxed',2.5,1],['stretch',3.2,1.4],['relaxed',2.5,1.3],['squat',14,1.4]]});
     crate(fx-1.15,fz+.25,.3);
     const sit=buildHuman({char:'guard4',outfit:'ratnik',vest:true,helmet:false});sit.root.position.set(fx-1.15,0,fz+.25);sit.root.rotation.y=Math.PI/2+.25;scene.add(sit.root);
-    animate(sit,{pose:'sitCrate'});
+    animate(sit,{pose:'sitCrate'});window.__sit=sit;
     const ak2=buildAK(false);ak2.rotation.set(1.18,.3+Math.PI,0,'YXZ');ak2.position.set(fx-1.15-.36*Math.sin(.3),.43,fz+.25-.36*Math.cos(.3));scene.add(ak2);
     const kn=buildHuman({char:'guard5',outfit:'ratnik',vest:true,helmet:true});kn.root.position.set(fx+.2,0,fz-1.25);kn.root.rotation.y=-.1;scene.add(kn.root);
     animate(kn,{gun:buildAK(false),pose:'kneel',plan:[['kneel',18],['ready',9,1.1],['kneel',14,1.1]]});
