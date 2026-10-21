@@ -624,7 +624,7 @@ M.wire=new T.LineBasicMaterial({color:C(0x2a2a26)});
 function pbr(n,fn,o={}){
   const A=document.createElement('canvas');A.width=A.height=n;const ga=A.getContext('2d');const ia=ga.createImageData(n,n),da=ia.data;
   const Hh=new Float32Array(n*n),Rr=new Float32Array(n*n);
-  for(let y=0;y<n;y++)for(let x=0;x<n;x++){const r=fn(x/n,y/n,x,y),i=y*n+x;da[i*4]=r[0];da[i*4+1]=r[1];da[i*4+2]=r[2];da[i*4+3]=255;Hh[i]=r[3];Rr[i]=r[4];}
+  for(let y=0;y<n;y++)for(let x=0;x<n;x++){const r=fn(x/n,y/n,x,y),i=y*n+x;da[i*4]=r[0];da[i*4+1]=r[1];da[i*4+2]=r[2];da[i*4+3]=r.length>5?r[5]:255;Hh[i]=r[3];Rr[i]=r[4];}
   ga.putImageData(ia,0,0);
   /* normal = normalize(-dh/du*k, -dh/dv*k, 1); canvas rows grow downward while v grows upward */
   const N=document.createElement('canvas');N.width=N.height=n;const gn=N.getContext('2d');const inn=gn.createImageData(n,n),dn=inn.data;
@@ -638,7 +638,7 @@ function pbr(n,fn,o={}){
   gn.putImageData(inn,0,0);gr.putImageData(ir,0,0);
   const mk=(c,srgb)=>{const t=new T.CanvasTexture(c);t.wrapS=t.wrapT=T.RepeatWrapping;t.anisotropy=8;if(srgb)t.encoding=T.sRGBEncoding;if(o.rep)t.repeat.set(o.rep[0],o.rep[1]);return t;};
   return{a:mk(A,true),n:mk(N,false),r:mk(Rc,false)};}
-const PB={};
+const PB={};window.__PB=PB;
 const N2=(u,v,p,o)=>fbmT(u,v,p,o);
 /* --- grass turf: thousands of painted blades over soil; height = blade coverage --- */
 function turfTex(n,dry,seed){const c=document.createElement('canvas');c.width=c.height=n;const g=c.getContext('2d');
@@ -657,9 +657,24 @@ PB.grass=pbrFromCanvas(turfTex(256,false,7),h=>.9-h*.15,{bump:4,pack:true});
 PB.dry=pbrFromCanvas(turfTex(256,true,11),h=>.94-h*.08,{bump:4,pack:true});
 /* --- mud: lumpy clay with tyre/boot impressions and pooled water (low = glossy) --- */
 PB.mud=pbr(256,(u,v)=>{const a=N2(u,v,4,5),b=N2(u+.2,v,16,3),c=N2(u,v,48,2);const [w1,w2]=wor(u,v,12,5);
-  const h=a*.6+b*.3+c*.1-sstep(.06,0,w2)*.08;const pool=sstep(.42,.36,h);
-  let col=mixc([74,60,44],[106,88,64],sstep(.35,.7,h));col=mixc(col,[52,44,34],pool*.7);
-  return[col[0],col[1],col[2],h,.9-pool*.72-(1-h)*.1];},{bump:5,pack:true});
+  const h=a*.6+b*.3+c*.1-sstep(.06,0,w2)*.08;const low=sstep(.42,.34,h);
+  let col=mixc([74,60,44],[106,88,64],sstep(.35,.7,h));col=mixc(col,[62,52,40],low*.35);
+  return[col[0],col[1],col[2],h,.9-low*.15-(1-h)*.1];},{bump:5,pack:true});
+/* --- dirt road (u across 7.6 m, v along): compacted clay and fines, two BTR-gauge tyre ruts pressed lower and darker
+   with chevron tread prints, loose pebbles thrown out of the ruts, a grassy crown down the middle, ragged grass edges --- */
+PB.road=pbr(512,(u,v)=>{const a=N2(u,v,4,5),b=N2(u+.3,v,16,3),c=N2(u,v,64,2),e=N2(u+.6,v+.2,8,4);
+  let rut=0,tread=0;for(const rc of [.342,.658]){const d=(u-rc)/(.05+e*.02);const r=Math.exp(-d*d);rut=Math.max(rut,r);
+    if(Math.abs(d)<1.4){const ch=Math.sin((v*40+Math.abs(u-rc)*7+N2(u,v,8,2)*.5)*6.2832);tread=Math.max(tread,sstep(.45,.9,ch)*sstep(1.4,.5,Math.abs(d))*sstep(.25,.55,e));}}
+  const [s1]=wor(u,v,46,9),[s2]=wor(u+.37,v+.11,90,4);const pb=sstep(.34,.12,s1)*sstep(.42,.6,b)*(1-rut*.85),fp=sstep(.3,.1,s2)*.6*(1-rut*.5);
+  const edge=Math.min(u,1-u),crown=Math.exp(-Math.pow((u-.5)/(.06+a*.03),2));
+  const gz=sstep(.46,.7,b*.55+c*.45)*(crown*.95+sstep(.17,.05,edge))*(1-rut);
+  const h=.5+(a-.5)*.22+(c-.5)*.1-rut*.3+tread*.07+pb*.1*Math.sqrt(Math.max(0,1-s1/.34))+fp*.03+gz*.08+crown*.06;
+  let col=mixc([118,104,82],[140,126,102],sstep(.3,.75,a*.7+c*.3));
+  col=mixc(col,[84,72,56],rut*(.55+e*.35));col=mixc(col,[72,62,48],tread*rut*.5);
+  col=mixc(col,[132,126,114].map(x=>x*(.75+hash(Math.floor(u*46),Math.floor(v*46))*.4)),pb);col=mixc(col,[150,142,128],fp*.5);
+  col=mixc(col,[78+c*30,90+c*26,48],gz*.9);
+  const al=sstep(.0,.1+a*.07,edge+(c-.5)*.03);
+  return[col[0],col[1],col[2],h,.93-rut*.12-tread*rut*.1-pb*.1,al*255];},{bump:3,rep:[1,109]});
 /* --- gravel / packed dirt with stones --- */
 PB.gravel=pbr(256,(u,v)=>{const [s1,s2]=wor(u,v,26,6);const [t1]=wor(u+.5,v+.5,60,7);const a=N2(u,v,8,4);
   const st=sstep(.42,.2,s1),fine=sstep(.4,.15,t1);let col=mixc([96,86,70],[122,112,96],a);col=mixc(col,[118,111,100],st*.7);col=mixc(col,[110,104,94],fine*.4);
@@ -720,18 +735,28 @@ function splatMat(scale=.45){const m=std({color:0xffffff,vertexColors:true,rough
     s.fragmentShader=dec+'uniform float sScale;varying vec4 vSpl;varying float vWet;varying vec3 vWPt;varying vec3 vWNt;\n'+
      `vec4 spA(sampler2D t,vec2 uv){return mix(texture2D(t,uv),texture2D(t,uv*.27+vec2(.37,.11)),.35);}
       vec3 spN(sampler2D t,vec2 uv){return texture2D(t,uv).rgb;}
-      vec4 SPw;vec3 SPn;float SPr;
+      vec4 SPw;vec3 SPn;float SPr;float SPp;
+      float spH(vec2 p){vec3 q=fract(vec3(p.xyx)*.1031);q+=dot(q,q.yzx+33.33);return fract((q.x+q.y)*q.z);}
+      float spV(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(spH(i),spH(i+vec2(1,0)),f.x),mix(spH(i+vec2(0,1)),spH(i+1.),f.x),f.y);}
       void splatEval(){vec2 uv=vWPt.xz*sScale;vec2 uv2=uv*1.13+vec2(.5,.3);
         vec4 a0=spA(sA0,uv),a1=spA(sA1,uv2),a2=spA(sA2,uv*.8),a3=spA(sA3,uv*2.3);
         vec3 n0=spN(sN0,uv),n1=spN(sN1,uv2),n2=spN(sN2,uv*.8),n3=spN(sN3,uv*2.3);
         /* height-aware blend: brighter (taller) texels win at the borders */
         vec4 w=vSpl*vec4(dot(a0.rgb,vec3(.4))+.4,dot(a1.rgb,vec3(.4))+.4,dot(a2.rgb,vec3(.4))+.4,dot(a3.rgb,vec3(.4))+.4);w=pow(max(w,1e-4),vec4(3.0));w/=dot(w,vec4(1.0));
-        SPw=a0*w.x+a1*w.y+a2*w.z+a3*w.w;vec3 np=n0*w.x+n1*w.y+n2*w.z+n3*w.w;SPr=np.b;SPn=vec3(np.xy*2.0-1.0,0.0);SPn.z=sqrt(max(1.0-dot(SPn.xy,SPn.xy),0.0));}
+        SPw=a0*w.x+a1*w.y+a2*w.z+a3*w.w;vec3 np=n0*w.x+n1*w.y+n2*w.z+n3*w.w;SPr=np.b;SPn=vec3(np.xy*2.0-1.0,0.0);SPn.z=sqrt(max(1.0-dot(SPn.xy,SPn.xy),0.0));
+        /* standing water: shaped by world-space noise (never repeats with the texture tile), only in mud, more where the
+           ground is wet; a darker saturated rim of wet soil round each one */
+        vec2 wp=vWPt.xz;float pn=spV(wp*.43+vec2(17.,3.))*.55+spV(wp*1.7+vec2(3.1,9.))*.3+spV(wp*6.1+7.)*.15;
+        float mudW=smoothstep(.3,.75,w.z)*(.45+.55*clamp(vWet*1.8,0.,1.));
+        SPp=smoothstep(.655,.685,pn)*mudW;float rim=clamp(smoothstep(.6,.66,pn)*mudW-SPp,0.,1.);
+        SPw.rgb*=(1.-.38*SPp)*(1.-.2*rim);SPw.rgb=mix(SPw.rgb,SPw.rgb*vec3(.92,.95,1.),SPp);
+        SPr=mix(mix(SPr,.4,rim),.04,SPp);SPn=normalize(mix(SPn,vec3(0.,0.,1.),SPp*.96));}
       `+s.fragmentShader.replace('#include <map_fragment>',`splatEval();diffuseColor*=sRGBToLinear(SPw);diffuseColor.rgb*=1.0-vWet*.38;`)
-      .replace('#include <roughnessmap_fragment>',`float roughnessFactor=mix(SPr,0.48,vWet*.75);{vec3 dnx=dFdx(vWNt),dny=dFdy(vWNt);float var_=.25*(dot(dnx,dnx)+dot(dny,dny));roughnessFactor=max(roughnessFactor,clamp(sqrt(var_)*6.+.18,0.,1.));}`)
+      .replace('#include <roughnessmap_fragment>',`float roughnessFactor=mix(SPr,0.48,vWet*.75);{vec3 dnx=dFdx(vWNt),dny=dFdy(vWNt);float var_=.25*(dot(dnx,dnx)+dot(dny,dny));roughnessFactor=max(roughnessFactor,clamp(sqrt(var_)*6.+.18,0.,1.)*(1.-SPp*.85));}`)
+      .replace('#include <aomap_fragment>','#include <aomap_fragment>\nreflectedLight.indirectSpecular*=1.+SPp*4.;')
       .replace('#include <normal_fragment_maps>',`{vec3 Nw=normalize(vWNt);vec3 Tw=normalize(vec3(1.,0.,0.)-Nw*Nw.x);vec3 Bw=normalize(cross(Tw,Nw));
         vec3 tn=SPn;tn.xy*=1.0-vWet*.6;vec3 nw=normalize(Tw*tn.x+Bw*tn.y+Nw*tn.z);normal=normalize((viewMatrix*vec4(nw,0.0)).xyz);}`);};
-  m.customProgramCacheKey=()=>'splat';return m;}
+  m.customProgramCacheKey=()=>'splat2';return m;}
 
 /* ---------- triplanar micro-detail for gear: height (R) + roughness (G) tiles, bump-mapped by screen derivatives ---------- */
 function dtex(n,fn){return tex(n,n,(g,w,h)=>{const im=g.createImageData(w,h),d=im.data;for(let y=0;y<h;y++)for(let x=0;x<w;x++){const r=fn(x/w,y/h,x,y),i=(y*w+x)*4;d[i]=r[0]*255;d[i+1]=r[1]*255;d[i+2]=0;d[i+3]=255;}g.putImageData(im,0,0);},{data:true});}
@@ -771,6 +796,24 @@ M.crate.normalMap=PB.planks.n;M.crate.normalScale=new T.Vector2(.6,.6);M.crate.n
 if(M.sandbag){M.sandbag.normalMap=PB.canvas.n;M.sandbag.normalScale=new T.Vector2(1.2,1.2);}
 if(M.slate){M.slate.normalMap=PB.corrug.n;M.slate.roughnessMap=PB.rust.r;}
 
+/* road material: PBR road tile; a second, stretched sample and a low-frequency world tint break the 7.6 m repeat;
+   water lies in the ruts where world-space noise says so */
+function roadMat(){const m=std({map:PB.road.a,normalMap:PB.road.n,roughnessMap:PB.road.r,transparent:true,depthWrite:false,roughness:1,envMapIntensity:.25,
+    polygonOffset:true,polygonOffsetFactor:-2,normalScale:new T.Vector2(.9,.9)});
+  m.onBeforeCompile=s=>{s.vertexShader='varying vec3 vRW;\n'+s.vertexShader.replace('#include <fog_vertex>','#include <fog_vertex>\nvRW=(modelMatrix*vec4(transformed,1.)).xyz;');
+    s.fragmentShader='varying vec3 vRW;float rH(vec2 p){vec3 q=fract(vec3(p.xyx)*.1031);q+=dot(q,q.yzx+33.33);return fract((q.x+q.y)*q.z);}\n'+
+      'float rV(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(rH(i),rH(i+vec2(1,0)),f.x),mix(rH(i+vec2(0,1)),rH(i+1.),f.x),f.y);}\n'+
+      'float RP;\n'+s.fragmentShader
+      .replace('#include <map_fragment>',`vec4 tA=texture2D(map,vUv),tB=texture2D(map,vec2(vUv.x,vUv.y*.41+.29));float bw=smoothstep(.3,.7,rV(vRW.xz*.09));
+        vec4 texelColor=mapTexelToLinear(mix(tA,vec4(tB.rgb,tA.a),bw*.55));texelColor.rgb*=.86+.28*rV(vRW.xz*.05+5.);
+        float ru=max(exp(-pow((vUv.x-.342)/.06,2.)),exp(-pow((vUv.x-.658)/.06,2.)));
+        float pn=rV(vRW.xz*vec2(1.1,.35))*.6+rV(vRW.xz*3.3+2.)*.3+rV(vRW.xz*9.)*.1;RP=smoothstep(.6,.64,pn)*ru;
+        texelColor.rgb*=1.-.45*RP;diffuseColor*=texelColor;`)
+      .replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nroughnessFactor=mix(roughnessFactor,.04,RP);')
+      .replace('#include <aomap_fragment>','#include <aomap_fragment>\nreflectedLight.indirectSpecular*=1.+RP*4.;')
+      .replace('#include <normal_fragment_maps>','#include <normal_fragment_maps>\nnormal=normalize(mix(normal,(viewMatrix*vec4(0.,1.,0.,0.)).xyz,RP*.95));');};
+  m.customProgramCacheKey=()=>'road2';return m;}
+
 /* ---------- terrain ---------- */
 const HX=40,HZ=-380;           // farmhouse centre
 const DROPZ=-292;              // BTR drop point in Sector 1
@@ -809,7 +852,7 @@ function groundMix(x,z){const n1=fbm(x/46,z/46,3),n2=fbm(x/11+50,z/11,2),n3=fbm(
   const m=mesh(g,splatMat(.45),0,0,0,scene,false);shootables.push(m);
   const far=new T.Mesh(new T.PlaneGeometry(4000,4000),std({color:C(0x66744a),roughness:1,envMapIntensity:.2}));far.rotation.x=-Math.PI/2;far.position.y=-2.5;scene.add(far);
   const road=new T.PlaneGeometry(7.6,830,1,1);road.rotateX(-Math.PI/2);road.translate(0,.025,-115);
-  const rm=mesh(road,std({map:TX.road,transparent:true,depthWrite:false,roughness:1,envMapIntensity:.2,polygonOffset:true,polygonOffsetFactor:-2}),0,0,0,scene,false);rm.renderOrder=1;
+  const rm=mesh(road,roadMat(),0,0,0,scene,false);rm.renderOrder=1;
 })();
 
 /* height + grass density texture for the GPU grass */
@@ -1280,10 +1323,12 @@ const AQ=new T.Quaternion(),AQ2=new T.Quaternion(),AE=new T.Euler(),AV=new T.Vec
 const ABONES=['hips','spine','neck','head','shL','elL','wrL','shR','elR','wrR','hpL','knL','anL','hpR','knR','anR'];
 /* poses: bone -> euler [x,y,z]. Conventions: limb bones at 0 hang/continue straight down their parent; -x swings forward,
    knees bend with +x, elbows with -x; game side L is x<0 (the character's right). 'hold' = rifle placement in spine space. */
+/* standing legs: the rig's rest pose is splayed and bow-legged, so a standing leg needs the hip rolled in (+.19 L) and
+   the knee rolled back out (-.19 L) - that puts knee and ankle straight under the hip joint, feet about hip-width apart */
 const AP={
   relaxed:{spine:[.02],neck:[.06],head:[-.04],shL:[.03,.12,-.07],elL:[-.28],wrL:[0,.1,0],shR:[.03,-.12,.07],elR:[-.28],wrR:[0,-.1,0],
-    hpL:[-0.120,0,0.072],knL:[.04],anL:[0,-.12,0],hpR:[-0.120,0,-0.072],knR:[.04],anR:[0,.12,0]},
-  ready:{spine:[.05],neck:[.04],head:[-.03],hpL:[-0.140,0,0.065],knL:[.06],anL:[0,-.16,0],hpR:[-0.110,0,-0.075],knR:[.04],anR:[0,.1,0],
+    hpL:[-0.27,0,0.19],knL:[0.3,0,-0.19],anL:[0,-.12,0],hpR:[-0.27,0,-0.19],knR:[0.3,0,0.19],anR:[0,.12,0]},
+  ready:{spine:[.05],neck:[.04],head:[-.03],hpL:[-0.31,0,0.19],knL:[0.36,0,-0.19],anL:[0,-.16,0],hpR:[-0.27,0,-0.19],knR:[0.3,0,0.19],anR:[0,.1,0],
     hold:{p:[-.04,-.09,.3],f:[.5,-.36,.79],u:[.08,.93,.36]}},
   squat:{hips:[.2],spine:[.42,0,0],neck:[-.18],head:[-.22],hpL:[-2.05,.18,-.32],knL:[2.45],hpR:[-2.0,-.18,.32],knR:[2.45],
     shL:[-.55,.2,-.12],elL:[-1.05],shR:[-.5,-.2,.12],elR:[-1.1],contactKnee:false,
@@ -1295,10 +1340,10 @@ const AP={
   /* lower-back stretch: fists in the small of the back, hips pushed forward, leaning back and rolling the neck -
      keeps the arms below the shoulder so the jacket never has to stretch over a raised arm */
   stretch:{hips:[-.06],spine:[-.2,0,0],neck:[-.06],head:[-.04],shL:[.6,1.2,-.3],elL:[-1.7],wrL:[.15,.35,0],shR:[.6,-1.2,.3],elR:[-1.7],wrR:[.15,-.35,0],
-    osc:{spine:[.05,.03,0,.9],neck:[.04,0,.08,.7],head:[0,.1,0,.7]},hpL:[-0.080,0,0.080],knL:[.1],anL:[0,-.12,0],hpR:[-0.080,0,-0.080],knR:[.1],anR:[0,.12,0]},
+    osc:{spine:[.05,.03,0,.9],neck:[.04,0,.08,.7],head:[0,.1,0,.7]},hpL:[-0.28,0,0.19],knL:[0.32,0,-0.19],anL:[0,-.12,0],hpR:[-0.28,0,-0.19],knR:[0.32,0,0.19],anR:[0,.12,0]},
   warm:{spine:[.2],neck:[-.06],head:[-.12],shL:[-1.0,.35,-.05],elL:[-1.1],wrL:[0,.4,0],shR:[-1.0,-.35,.05],elR:[-1.1],wrR:[0,-.4,0],
-    hpL:[-0.150,0,0.070],knL:[.1],anL:[0,-.12,0],hpR:[-0.150,0,-0.070],knR:[.1],anR:[0,.12,0],osc:{elL:[.12,0,0,6.5],elR:[-.12,0,0,6.5],wrL:[0,.18,0,6.5],wrR:[0,-.18,0,6.5]}},
-  watch:{spine:[.06],neck:[.25],head:[.18,.1,0],shL:[.03,.12,-.07],elL:[-.28],shR:[-.35,-.6,.25],elR:[-1.9],wrR:[0,-.8,0],hpL:[-0.120,0,0.072],knL:[.04],anL:[0,-.12,0],hpR:[-0.120,0,-0.072],knR:[.04],anR:[0,.12,0]},
+    hpL:[-0.3,0,0.19],knL:[0.36,0,-0.19],anL:[0,-.12,0],hpR:[-0.3,0,-0.19],knR:[0.36,0,0.19],anR:[0,.12,0],osc:{elL:[.12,0,0,6.5],elR:[-.12,0,0,6.5],wrL:[0,.18,0,6.5],wrR:[0,-.18,0,6.5]}},
+  watch:{spine:[.06],neck:[.25],head:[.18,.1,0],shL:[.03,.12,-.07],elL:[-.28],shR:[-.35,-.6,.25],elR:[-1.9],wrR:[0,-.8,0],hpL:[-0.27,0,0.19],knL:[0.3,0,-0.19],anL:[0,-.12,0],hpR:[-0.27,0,-0.19],knR:[0.3,0,0.19],anR:[0,.12,0]},
   /* BTR driver: seated low, leaning slightly into the wheel, both hands up on the rim */
   drive:{hips:[.0],spine:[.12],neck:[.02],head:[-.06],hpL:[-1.62,.1,-.08],knL:[.5],anL:[.2],hpR:[-1.6,-.1,.08],knR:[.45],anR:[.2],footFree:{L:true,R:true},
     shL:[-.95,.3,-.18],elL:[-1.15],wrL:[0,.3,.2],shR:[-.95,-.3,.18],elR:[-1.15],wrR:[0,-.3,-.2],seat:.44},
@@ -1890,7 +1935,7 @@ function pkm(x,y,z,ry){const g=new T.Group();g.position.set(x,y,z);g.rotation.y=
 /* ---------- barrel fire: rusted, heat-scorched drum with air holes; inside, an ash bed with glowing coals and a stack
    of split logs - bark on the cooler upper ends, charred alligator-cracked wood lower down whose cracks glow and breathe;
    a ray-marched volumetric flame (turbulent 3D noise shaped into tongues, temperature-coloured); thin smoke and sparks ---------- */
-const FIRE={list:[]};
+const FIRE={list:[]};window.__fire=FIRE;
 /* charred wood: black-grey crazed surface; the glow mask is the crack network */
 const CHARTEX=(()=>{const N=256;const c=document.createElement('canvas');c.width=c.height=N;const g=c.getContext('2d');const im=g.createImageData(N,N),d=im.data;
   const gc=document.createElement('canvas');gc.width=gc.height=N;const gg=gc.getContext('2d');const gi=gg.createImageData(N,N),gd=gi.data;
@@ -1899,49 +1944,75 @@ const CHARTEX=(()=>{const N=256;const c=document.createElement('canvas');c.width
     const gl=crack*(.55+.45*n)+sstep(.7,.9,1-f1)*.15;gd[i]=gd[i+1]=gd[i+2]=Math.min(255,gl*255);gd[i+3]=255;}
   g.putImageData(im,0,0);gg.putImageData(gi,0,0);
   const t1=new T.CanvasTexture(c),t2=new T.CanvasTexture(gc);[t1,t2].forEach(t=>{t.wrapS=t.wrapT=T.RepeatWrapping;t.anisotropy=8;});t1.encoding=T.sRGBEncoding;return{map:t1,glow:t2};})();
-/* log material: bark/wood (logs texture) blended to char by a per-vertex 'charA'; glowing cracks scaled by heat */
-function logFireMat(){const m=M.logs.clone();m.color=new T.Color(.62,.5,.4);m.emissive=new T.Color(1,.32,.06);m.emissiveIntensity=1;
+/* firewood: its own texture (not the house logs) - pine bark in fissured plates on the outside, pale split wood with
+   grain on the flat faces - blended per vertex into charred, crazed wood ('charA'); the crack network glows and breathes */
+const BARKTEX=(()=>{const N=256;return tex(N,N,(g,w,h)=>{const im=g.createImageData(w,h),d=im.data;for(let y=0;y<h;y++)for(let x=0;x<w;x++){const u=x/w,v=y/h;
+    const [f1,f2]=wor(u*1.2,v*.35,6,9);const plate=sstep(.02,.08,f2);const n=fbmT(u,v,16,3),gr=fbmT(u*.3,v*4,20,2);const bark=[58+n*30,44+n*22,34+n*16].map(c=>c*(.45+.55*plate));
+    const split=u>.78;const wood=[176+gr*40,140+gr*30,96+gr*22].map(c=>c*(.85+.15*Math.sin(v*90+gr*8)));const c=split?wood:bark;const i=(y*w+x)*4;d[i]=c[0];d[i+1]=c[1];d[i+2]=c[2];d[i+3]=255;}
+  g.putImageData(im,0,0);},{rep:[1,1]});})();
+function logFireMat(){const m=std({map:BARKTEX,roughness:.92,envMapIntensity:.2,emissive:new T.Color(1,.32,.06),emissiveIntensity:1});
   m.onBeforeCompile=s=>{s.uniforms.tChar={value:CHARTEX.map};s.uniforms.tGlow={value:CHARTEX.glow};s.uniforms.uT=FIRE.uT||(FIRE.uT={value:0});
-    s.vertexShader='attribute float charA;varying float vChar;varying vec3 vLP;\n'+s.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvChar=charA;vLP=position;');
-    s.fragmentShader='uniform sampler2D tChar,tGlow;uniform float uT;varying float vChar;varying vec3 vLP;\n'+s.fragmentShader
-      .replace('#include <map_fragment>','#include <map_fragment>\nvec2 cuv=vec2(atan(vLP.x,vLP.z)*.6,vLP.y*1.7);vec3 chc=sRGBToLinear(texture2D(tChar,cuv)).rgb;diffuseColor.rgb=mix(diffuseColor.rgb,chc,smoothstep(.0,.6,vChar));')
-      .replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nroughnessFactor=mix(roughnessFactor,.7,vChar);')
-      .replace('#include <emissivemap_fragment>',`float gm=texture2D(tGlow,cuv).r;float br=.55+.45*sin(uT*1.7+vLP.y*9.+gm*6.)*sin(uT*.73+vLP.x*7.);
-        float heat=smoothstep(.45,1.,vChar);totalEmissiveRadiance*=gm*heat*br*3.2+heat*heat*.08;`);};
-  m.customProgramCacheKey=()=>'logfire';return m;}
-/* a split log as a slightly irregular prism, charA = 1 at the burning end fading to 0 */
-function fireLog(len,r,burnEnd){const g=new T.CylinderGeometry(r*.92,r,len,7,6);const p=g.attributes.position,ca=new Float32Array(p.count);
-  for(let i=0;i<p.count;i++){const y=p.getY(i),a=Math.atan2(p.getX(i),p.getZ(i));const k=1+.12*Math.sin(a*3+len*7)+.06*Math.sin(a*5);p.setX(i,p.getX(i)*k);p.setZ(i,p.getZ(i)*k);
-    const t=(y/len+.5);ca[i]=clamp(burnEnd>0?(1.85-t*1.75):(t*1.75-.2),0,1);
-    if(ca[i]>.7){const sh=1-(ca[i]-.7)*.35;p.setX(i,p.getX(i)*sh);p.setZ(i,p.getZ(i)*sh);}}           /* burnt end tapers */
-  g.setAttribute('charA',new T.BufferAttribute(ca,1));g.computeVertexNormals();return g;}
+    s.vertexShader='attribute float charA;varying float vChar;varying vec3 vLP;varying vec3 vLN;\n'+s.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvChar=charA;vLP=position;vLN=normal;');
+    s.fragmentShader='uniform sampler2D tChar,tGlow;uniform float uT;varying float vChar;varying vec3 vLP;varying vec3 vLN;\n'+s.fragmentShader
+      .replace('#include <map_fragment>','vec4 texelColor=mapTexelToLinear(texture2D(map,vec2(atan(vLP.x,vLP.z)/6.2832+.5,vLP.y*2.2)));diffuseColor*=texelColor;\nvec2 cuv=vec2(atan(vLP.x,vLP.z)*.6,vLP.y*1.7);vec3 chc=sRGBToLinear(texture2D(tChar,cuv)).rgb;float chM=smoothstep(.05,.55,vChar);float cap=step(.8,abs(normalize(vLN).y));float rr=length(vLP.xz);float ring=.5+.5*sin(rr*260.+sin(atan(vLP.x,vLP.z)*3.)*1.5);vec3 eg=mix(vec3(.30,.20,.11),vec3(.42,.29,.16),ring)*(.8+.2*texture2D(tChar,vLP.xz*3.).r);diffuseColor.rgb=mix(diffuseColor.rgb,eg,cap);diffuseColor.rgb=mix(diffuseColor.rgb,chc,max(chM,cap*(.55+.45*smoothstep(.0,.03,rr))));')
+      .replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nroughnessFactor=mix(roughnessFactor,.75,vChar);')
+      .replace('#include <emissivemap_fragment>',`float gm=mix(texture2D(tGlow,cuv).r,texture2D(tGlow,vLP.xz*2.5).r*.8+.25*step(.03,length(vLP.xz)),step(.8,abs(normalize(vLN).y)));float br=.5+.5*sin(uT*1.7+vLP.y*9.+gm*6.)*sin(uT*.73+vLP.x*7.+vLP.z*5.);
+        float heat=smoothstep(.5,1.,vChar);totalEmissiveRadiance*=gm*heat*(.35+br)*3.4+heat*heat*.1;`);};
+  m.customProgramCacheKey=()=>'logfire3';return m;}
+/* a split log as an irregular prism (radius r, length len), axis along y */
+function fireLog(len,r){const g=new T.CylinderGeometry(r*.94,r,len,8,6);const p=g.attributes.position;
+  for(let i=0;i<p.count;i++){const a=Math.atan2(p.getX(i),p.getZ(i));const k=1+.1*Math.sin(a*3+len*7)+.05*Math.sin(a*5);p.setX(i,p.getX(i)*k);p.setZ(i,p.getZ(i)*k);}
+  g.setAttribute('charA',new T.BufferAttribute(new Float32Array(p.count),1));g.computeVertexNormals();return g;}
+/* segment-segment distance (capsule collision) */
+function segDist(p1,q1,p2,q2){const d1=q1.clone().sub(p1),d2=q2.clone().sub(p2),r=p1.clone().sub(p2);const a=d1.dot(d1),e=d2.dot(d2),f=d2.dot(r);let s,t;
+  const c=d1.dot(r),b=d1.dot(d2),den=a*e-b*b;s=den>1e-9?clamp((b*f-c*e)/den,0,1):0;t=(b*s+f)/e;if(t<0){t=0;s=clamp(-c/a,0,1);}else if(t>1){t=1;s=clamp((b-c)/a,0,1);}
+  return p1.clone().addScaledVector(d1,s).distanceTo(p2.clone().addScaledVector(d2,t));}
 /* the volumetric flame */
-function flameVolume(W,H){const g=new T.BoxGeometry(W,H,W);g.translate(0,H/2,0);
-  const m=new T.ShaderMaterial({transparent:true,depthWrite:false,blending:T.AdditiveBlending,side:T.BackSide,fog:false,
-    uniforms:{uT:FIRE.uT||(FIRE.uT={value:0}),uCam:{value:new T.Vector3()},uH:{value:H},uW:{value:W*.5},uI:{value:1},uWind:{value:new T.Vector2(.12,.05)}},
+function flameVolume(W,H,R,rim){const g=new T.BoxGeometry(W,H,W);g.translate(0,H/2,0);
+  const m=new T.ShaderMaterial({transparent:true,depthWrite:false,blending:T.CustomBlending,blendSrc:T.OneFactor,blendDst:T.OneMinusSrcAlphaFactor,blendSrcAlpha:T.ZeroFactor,blendDstAlpha:T.OneFactor,side:T.FrontSide,fog:false,
+    uniforms:{uT:FIRE.uT||(FIRE.uT={value:0}),uCam:{value:new T.Vector3()},uH:{value:H},uW:{value:W*.5},uI:{value:1},uWind:{value:new T.Vector2(.12,.05)},uR:{value:R},uRim:{value:rim}},
     vertexShader:'uniform vec3 uCam;varying vec3 vO;varying vec3 vC;void main(){vO=position;vC=uCam;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
-    fragmentShader:`uniform float uT,uH,uW,uI;uniform vec2 uWind;varying vec3 vO;varying vec3 vC;
-      float h3(vec3 p){p=fract(p*.3183099+.1);p*=17.;return fract(p.x*p.y*p.z*(p.x+p.y+p.z));}
-      float n3(vec3 x){vec3 i=floor(x),f=fract(x);f=f*f*(3.-2.*f);return mix(mix(mix(h3(i),h3(i+vec3(1,0,0)),f.x),mix(h3(i+vec3(0,1,0)),h3(i+vec3(1,1,0)),f.x),f.y),
-        mix(mix(h3(i+vec3(0,0,1)),h3(i+vec3(1,0,1)),f.x),mix(h3(i+vec3(0,1,1)),h3(i+vec3(1,1,1)),f.x),f.y),f.z);}
-      float fb(vec3 p){float s=0.,a=.5;for(int i=0;i<4;i++){s+=a*n3(p);p=p*2.07+vec3(1.3,-2.1,.7);a*=.5;}return s;}
-      vec3 ramp(float t){/* blackbody-ish: deep red -> orange -> yellow -> white core */
-        return mix(mix(vec3(.55,.07,.01),vec3(1.,.38,.06),smoothstep(.0,.45,t)),mix(vec3(1.,.72,.25),vec3(1.,.95,.78),smoothstep(.75,1.,t)),smoothstep(.4,.8,t));}
-      void main(){vec3 ro=vC,rd=normalize(vO-vC);vec3 bmin=vec3(-uW,0.,-uW),bmax=vec3(uW,uH,uW);
-        vec3 t0=(bmin-ro)/rd,t1=(bmax-ro)/rd;vec3 tn=min(t0,t1),tf=max(t0,t1);float a=max(max(max(tn.x,tn.y),tn.z),0.),b=min(min(tf.x,tf.y),tf.z);if(b<=a)discard;
-        const int NS=26;float dt=(b-a)/float(NS);vec3 col=vec3(0.);float tr=1.;float j=h3(vec3(gl_FragCoord.xy,uT*60.));
-        for(int i=0;i<NS;i++){vec3 p=ro+rd*(a+(float(i)+j)*dt);float y=p.y/uH;
-          vec2 q=p.xz-uWind*y*y*uH;                         /* the tongues lean with the draught */
-          float nz=fb(vec3(q*7.,p.y*5.-uT*3.2)+vec3(0.,0.,uT*.3));float nz2=fb(vec3(q*15.+3.,p.y*9.-uT*5.));
-          float rad=uW*(.95-.75*y)*(.75+.5*nz);float r=length(q)/max(rad,1e-3);
-          float d=smoothstep(1.,.25,r+(nz2-.5)*.6)*smoothstep(1.,.15,y+(nz-.5)*.55)*smoothstep(0.,.08,y);
-          d*=smoothstep(.15,.55,nz+.35-y*.35);
-          if(d>.001){float temp=clamp(d*1.3*(1.-y*.85)+.1*(1.-r),0.,1.);float e=d*dt*28.*uI;col+=tr*ramp(temp)*e*(.6+temp*1.6);tr*=exp(-d*dt*9.);}
-          if(tr<.02)break;}
-        gl_FragColor=vec4(col,1.);}`});
+    fragmentShader:`uniform float uT,uH,uW,uI,uR,uRim;uniform vec2 uWind;varying vec3 vO;varying vec3 vC;
+float h3(vec3 p){p=fract(p*.1031);p+=dot(p,p.zyx+31.32);return fract((p.x+p.y)*p.z);}
+float n3(vec3 x){vec3 i=floor(x),f=fract(x);f=f*f*(3.-2.*f);return mix(mix(mix(h3(i),h3(i+vec3(1,0,0)),f.x),mix(h3(i+vec3(0,1,0)),h3(i+vec3(1,1,0)),f.x),f.y),
+  mix(mix(h3(i+vec3(0,0,1)),h3(i+vec3(1,0,1)),f.x),mix(h3(i+vec3(0,1,1)),h3(i+vec3(1,1,1)),f.x),f.y),f.z);}
+float fb(vec3 p){float s=0.,a=.5;for(int i=0;i<5;i++){s+=a*n3(p);p=p*2.03+vec3(1.3,-2.1,.7);a*=.5;}return s;}
+float fb2(vec3 p){return .66*n3(p)+.34*n3(p*2.1+vec3(4.1,1.7,-2.3));}
+vec3 ramp(float t){
+  vec3 c=mix(vec3(.4,.03,.0),vec3(1.,.22,.02),smoothstep(0.,.3,t));
+  c=mix(c,vec3(1.,.42,.06),smoothstep(.28,.55,t));
+  c=mix(c,vec3(1.,.66,.22),smoothstep(.55,.82,t));
+  return mix(c,vec3(1.,.86,.6),smoothstep(.86,1.,t));}
+void main(){vec3 ro=vC,rd=normalize(vO-vC);vec3 bmin=vec3(-uW,0.,-uW),bmax=vec3(uW,uH,uW);
+  vec3 t0=(bmin-ro)/rd,t1=(bmax-ro)/rd;vec3 tn=min(t0,t1),tf=max(t0,t1);float a=max(max(max(tn.x,tn.y),tn.z),0.),b=min(min(tf.x,tf.y),tf.z);if(b<=a)discard;
+  const int NS=40;float dt=(b-a)/float(NS);vec3 col=vec3(0.);float tr=1.;float j=h3(vec3(gl_FragCoord.xy,fract(uT*7.)*91.));
+  float t=uT;
+  /* the drum: an open-topped steel cylinder (radius uR, rim at uRim). A sample is seen only if the sight line to it does
+     not pass through the wall below the rim */
+  float A=dot(rd.xz,rd.xz),B=dot(ro.xz,rd.xz),Cc=dot(ro.xz,ro.xz)-uR*uR,disc=B*B-A*Cc;
+  float tE=1e9,tX=1e9;if(disc>0.&&A>1e-6){float sq=sqrt(disc);tE=(-B-sq)/A;tX=(-B+sq)/A;}
+  float yE=ro.y+rd.y*tE,yX=ro.y+rd.y*tX;bool hitWall=disc>0.&&Cc>0.&&yE<uRim;float tStop=hitWall?tE:(yX<uRim?tX:1e9);
+  for(int i=0;i<NS;i++){float ts=a+(float(i)+j)*dt;if(ts>tStop)break;vec3 p=ro+rd*ts;float y=p.y/uH;
+    if(p.y<uRim&&dot(p.xz,p.xz)>uR*uR)continue;
+    vec2 q=p.xz-uWind*y*y*uH;
+    /* large slow curl: the whole flame sways and twists, more at the top */
+    vec3 wp=vec3(q*2.4,p.y*1.3-t*1.2);
+    vec2 w=vec2(fb2(wp),fb2(wp+vec3(5.2,1.3,2.8)))-.5;
+    q+=w*(.08+.4*y)*uW*2.;
+    /* tongue field: advected upward fast, stretched vertically (features ~3x taller than wide) */
+    float n=fb(vec3(q*10.5,p.y*2.9-t*3.6))*.78+fb2(vec3(q*24.+3.1,p.y*5.2-t*5.6))*.22;
+    float r=length(q)/uW;
+    float cone=1.-r/max(.1,1.-.5*y);
+    float f=cone*.95+(n-.5)*2.5-y*.78;
+    float d=smoothstep(0.,.05,f)*(.55+.45*smoothstep(.0,.35,f))*(.15+.85*smoothstep(.05,.32,y));
+    if(d>.001){float temp=clamp(f*1.3+(1.-y)*.25-.06,0.,1.);
+      float e=d*dt*uI*7.5*(.3+temp*1.6);
+      col+=tr*ramp(temp)*e;tr*=exp(-d*dt*6.);}
+  }
+  gl_FragColor=vec4(col,(1.-tr)*.62);}`});
   const fm=new T.Mesh(g,m);fm.renderOrder=7;fm.frustumCulled=true;return fm;}
 /* build the whole barrel fire at (x,0,z); returns the handle the frame loop animates */
-function barrelFire(x,z){const g=new T.Group();g.position.set(x,0,z);scene.add(g);const R0=.29,Hd=.88;
+function barrelFire(x,z){const g=new T.Group();g.position.set(x,0,z);scene.add(g);const R0=.29,Hd=.88,FLOORY=.56;
   /* scorched drum texture: rust lower down, burnt blue-black and flaking near the hot top */
   const drT=tex(256,256,(c,w,h)=>{c.drawImage(TX.rust.image,0,0,w,h);const gr=c.createLinearGradient(0,0,0,h);gr.addColorStop(0,'rgba(18,16,18,.9)');gr.addColorStop(.35,'rgba(40,30,30,.55)');gr.addColorStop(.7,'rgba(0,0,0,0)');c.fillStyle=gr;c.fillRect(0,0,w,h);
     const r=rng(17);for(let i=0;i<160;i++){c.fillStyle=`rgba(${120+r()*60},${60+r()*30},${30},${.2+r()*.4})`;c.beginPath();c.arc(r()*w,h*.25+r()*h*.75,1+r()*4,0,7);c.fill();}},{rep:[2,1]});
@@ -1954,33 +2025,64 @@ function barrelFire(x,z){const g=new T.Group();g.position.set(x,0,z);scene.add(g
     const rimR=mesh(new T.RingGeometry(.024,.034,12),std({color:C(0x1a1410),roughness:.8}),Math.sin(a)*(R0+.004),.16+(i%2)*.03,Math.cos(a)*(R0+.004),g,false);rimR.rotation.y=a;}
   /* ash bed with coals */
   const ashT=tex(128,128,(c,w,h)=>{c.fillStyle='#5a5652';c.fillRect(0,0,w,h);pix2(c,w,h,.6);},{});
-  const ashG=tex(128,128,(c,w,h)=>{c.fillStyle='#000';c.fillRect(0,0,w,h);const r2=rng(5);for(let i=0;i<70;i++){const gr=c.createRadialGradient(0,0,0,0,0,6);const x=w/2+(r2()-.5)*w*.75,y=h/2+(r2()-.5)*h*.75;
-     c.save();c.translate(x,y);const k=r2();gr.addColorStop(0,`rgba(255,${120+k*80|0},40,${.5+k*.5})`);gr.addColorStop(1,'rgba(0,0,0,0)');c.fillStyle=gr;c.scale(1+r2()*2,1+r2());c.fillRect(-6,-6,12,12);c.restore();}},{});
-  const ash=mesh(new T.CircleGeometry(R0-.01,24),std({map:ashT,roughness:1,color:C(0x8a8680),emissive:C(0xff5a18),emissiveMap:ashG,emissiveIntensity:1}),0,.5,0,g,false);FIRE.ashMat=ash.material;ash.rotation.x=-Math.PI/2;
-  const coalM=std({color:C(0x1a1612),roughness:.85,emissive:C(0xff4a10),emissiveIntensity:1});FIRE.coalMat=coalM;
-  const r=rng(31);for(let i=0;i<48;i++){const a=r()*6.28,d=Math.sqrt(r())*(R0-.04);const s=.012+r()*.022;const cm=mesh(new T.IcosahedronGeometry(s,0),coalM,Math.sin(a)*d,.5+s*.4,Math.cos(a)*d,g,false);cm.rotation.set(r()*3,r()*3,r()*3);cm.scale.set(1,.6+r()*.4,1+r()*.5);}
-  /* logs: a loose teepee of split logs leaning in, burnt ends down in the coals, upper ends sticking out above the rim */
-  const lm=logFireMat();FIRE.logMat=lm;
-  [[0,.62,.042],[1.3,.58,.038],[2.5,.66,.045],[3.8,.56,.036],[5.0,.64,.04]].forEach(([a,len,rad],i)=>{
-    const lg=new T.Mesh(fireLog(len,rad,1),lm);lg.castShadow=true;const tilt=.4+r()*.14;const a2=a+(r()-.5)*.3;
-    const base=V3(Math.sin(a)*.17,.49,Math.cos(a)*.17),dir=V3(-Math.sin(a2)*Math.sin(tilt),Math.cos(tilt),-Math.cos(a2)*Math.sin(tilt)).normalize();
-    lg.position.copy(base).addScaledVector(dir,len/2);lg.quaternion.setFromUnitVectors(V3(0,1,0),dir);lg.rotateY(r()*3);g.add(lg);});
-  /* two short pieces lying across the coals */
-  [[.6,.0],[2.2,.9]].forEach(([a,o])=>{const lg=new T.Mesh(fireLog(.34,.036,1),lm);lg.position.set(Math.sin(o)*.06,.53,Math.cos(o)*.06);lg.rotation.set(Math.PI/2,a,0);g.add(lg);});
+  const ashG=tex(256,256,(c,w,h)=>{c.fillStyle='#000';c.fillRect(0,0,w,h);const r2=rng(5);
+    for(let i=0;i<900;i++){const x=r2()*w,y=r2()*h,dd=Math.hypot(x-w/2,y-h/2)/(w/2);if(dd>.95)continue;const k=r2()*(1.1-dd*.6),rr=.6+r2()*r2()*2.6;
+      c.fillStyle=`rgba(255,${90+k*120|0},${20+k*40|0},${Math.min(1,.25+k*.8)})`;c.beginPath();c.ellipse(x,y,rr*(1+r2()),rr,r2()*3,0,7);c.fill();}},{});
+  const ash=mesh(new T.CircleGeometry(R0-.01,24),std({map:ashT,roughness:1,color:C(0x8a8680),emissive:C(0xff5a18),emissiveMap:ashG,emissiveIntensity:1}),0,FLOORY,0,g,false);FIRE.ashMat=ash.material;ash.rotation.x=-Math.PI/2;
+  const coalM=std({color:C(0x0d0b0a),roughness:.95,emissive:C(0xa82a06),emissiveIntensity:1});FIRE.coalMat=coalM;
+  const r=rng(31);for(let i=0;i<48;i++){const a=r()*6.28,d=Math.sqrt(r())*(R0-.04);const s=.008+r()*.016;const cm=mesh(new T.IcosahedronGeometry(s,1),coalM,Math.sin(a)*d,FLOORY+s*.4,Math.cos(a)*d,g,false);cm.rotation.set(r()*3,r()*3,r()*3);cm.scale.set(1,.6+r()*.4,1+r()*.5);}
+  /* logs dropped into the drum one at a time: each is lowered until it rests on the ash, on a log already in, or would
+     hit the drum wall - capsule collision, so nothing interpenetrates. First the bed logs lie nearly flat, later ones lean. */
+  const lm=logFireMat();FIRE.logMat=lm;const placed=[],BED=FLOORY,RIM=Hd;
+  const wallOK=(p,q,rad,over=.03)=>[p,q].every(e=>Math.hypot(e.x,e.z)<=R0-rad-.012)&&Math.max(p.y,q.y)+rad<RIM+over;
+  /* lower a log (fixed plan position) from above until it touches the ash or another log - returns its resting ends */
+  const hits=(p,q,rad)=>Math.min(p.y,q.y)-rad<BED||placed.some(L=>segDist(p,q,L.p,L.q)<rad+L.r+.002);
+  const inWall=(p,q,rad)=>[p,q].every(e=>Math.hypot(e.x,e.z)<=R0-rad-.012);
+  /* lower a log from above until it touches the ash or another log, then let it settle under gravity: repeatedly try a
+     straight drop and pivots about points along the log (both ways, in its vertical plane), keeping any move that lowers
+     its centre without touching the ash, another log or the drum wall - so it rolls off a single contact and comes to rest
+     on two supports, or leans against the wall */
+  const drop=(P0,Q0,rad)=>{let last=null;for(let dy=1.4;dy>-1;dy-=.002){const p=P0.clone(),q=Q0.clone();p.y+=dy;q.y+=dy;if(hits(p,q,rad))break;last=[p,q];}
+    if(!last)return null;let [p,q]=last;const len=p.distanceTo(q);
+    const ok=(a,b)=>!hits(a,b,rad)&&inWall(a,b,rad);
+    for(let it=0;it<1500;it++){const cy=(p.y+q.y)/2;let best=null;
+      const dn=[p.clone(),q.clone()];dn[0].y-=.002;dn[1].y-=.002;if(ok(dn[0],dn[1]))best=dn;
+      if(!best){const d=q.clone().sub(p).divideScalar(len),hl=Math.hypot(d.x,d.z),th=Math.atan2(d.y,hl),hx=hl>1e-6?d.x/hl:1,hz=hl>1e-6?d.z/hl:0;
+        for(const sp of [0,.15,.3,.45,.55,.7,.85,1]){const c=p.clone().lerp(q,sp);for(const sg of [-1,1]){const t2=th+sg*.01;
+          const nd=V3(hx*Math.cos(t2),Math.sin(t2),hz*Math.cos(t2));const a=c.clone().addScaledVector(nd,-sp*len),b=c.clone().addScaledVector(nd,(1-sp)*len);
+          if((a.y+b.y)/2<cy-1e-5&&ok(a,b)){best=[a,b];break;}}if(best)break;}}
+      if(!best)break;[p,q]=best;}
+    return[p,q];};
+  const put=(p,q,rad)=>{placed.push({p,q,r:rad});const len=p.distanceTo(q),dir=q.clone().sub(p).normalize();
+    const lg=new T.Mesh(fireLog(len,rad),lm);lg.castShadow=true;lg.position.copy(p).add(q).multiplyScalar(.5);lg.quaternion.setFromUnitVectors(V3(0,1,0),dir);lg.rotateY(r()*6.28);g.add(lg);
+    /* char: everything low in the drum is burnt through and glowing; higher, cooler ends keep some bark */
+    lg.updateMatrix();const P=lg.geometry.attributes.position,CA=lg.geometry.attributes.charA,v=V3();
+    for(let i=0;i<P.count;i++){v.fromBufferAttribute(P,i).applyMatrix4(lg.matrix);CA.setX(i,clamp(1.3-(v.y-BED)/.3+(hash(v.x*40,v.z*40)-.5)*.3,.25,1));}};
+  /* bed: three split logs laid in a loose triangle on the coals - they cross near their ends, the middle stays open */
+  const a0=r()*6.28;[[.37,.045],[.36,.042],[.37,.044]].forEach(([len,rad],i)=>{for(let k=0;k<40;k++){const ai=a0+i*2.094+(r()-.5)*.12,io=.112+r()*.01;
+    const c=V3(Math.sin(ai)*io,0,Math.cos(ai)*io),d=V3(Math.cos(ai),(r()-.5)*.06,-Math.sin(ai)).normalize();
+    const P0=c.clone().addScaledVector(d,-len/2),Q0=c.clone().addScaledVector(d,len/2);if(!wallOK(P0,Q0,rad))continue;const e=drop(P0,Q0,rad);if(e&&wallOK(e[0],e[1],rad)){put(e[0],e[1],rad);break;}}});
+  /* leaners: split logs stood in round the drum, foot near the middle, head resting against the wall just under the rim */
+  const NL=6;for(let i=0;i<NL;i++){const rad=.032+r()*.012;let done=false;
+    for(let k=0;k<220&&!done;k++){const len=.5-(k%110)*.0018-r()*.05,a=(k<40?i/NL*6.283+.5:r()*6.283)+(r()-.5)*.45,rt=R0-rad-.014,rb=.03+r()*.1,ab=a+Math.PI+(r()-.5)*.9;
+      const hs=Math.hypot(Math.sin(a)*rt-Math.sin(ab)*rb,Math.cos(a)*rt-Math.cos(ab)*rb);if(hs>=len*.95)continue;const vs=Math.sqrt(len*len-hs*hs);
+      const P0=V3(Math.sin(ab)*rb,0,Math.cos(ab)*rb),Q0=V3(Math.sin(a)*rt,vs,Math.cos(a)*rt);const e=drop(P0,Q0,rad);if(e&&wallOK(e[0],e[1],rad,.1)){put(e[0],e[1],rad);done=true;}}}
+  /* check: report any interpenetrating pair (should be none) */
+  let worst=1;for(let i=0;i<placed.length;i++)for(let j=i+1;j<placed.length;j++){const A=placed[i],B=placed[j];worst=Math.min(worst,segDist(A.p,A.q,B.p,B.q)-A.r-B.r);}FIRE.logGap=worst;FIRE.nLogs=placed.length;
   /* flame volume over the coals */
-  const fl=flameVolume(.5,.95);fl.position.set(0,.5,0);g.add(fl);FIRE.flameMat=fl.material;
-  const light=new T.PointLight(C(0xff8a3a),2.4,10,2);light.position.set(0,1.15,0);g.add(light);
+  const fl=flameVolume(.56,1.15,R0-.004,Hd-FLOORY);fl.position.set(0,FLOORY,0);g.add(fl);FIRE.flameMat=fl.material;
+  const light=new T.PointLight(C(0xff8a3a),2.4,10,2);light.position.set(0,1.55,0);g.add(light);
   const h={g,light,p:V3(x,.85,z),fl,smokeAcc:0,emAcc:0};FIRE.list.push(h);return h;}
-function fireUpdate(dt,t){if(!FIRE.list.length)return;FIRE.uT.value=t;
+function fireUpdate(dt,t){if(!FIRE.list.length)return;FIRE.uT.value=t%1200;
   for(const f of FIRE.list){/* flicker: layered sines + a little noise; drives light, coals, crack glow, flame intensity */
     const k=.82+Math.sin(t*11.3)*.07+Math.sin(t*6.9+1.3)*.09+Math.sin(t*23.1)*.04+(Math.random()-.5)*.05;
     f.light.intensity=2.5*k;f.light.position.x=Math.sin(t*5.1)*.04;f.light.position.z=Math.cos(t*4.3)*.04;
-    if(FIRE.coalMat)FIRE.coalMat.emissiveIntensity=.8+.35*Math.sin(t*1.3)+.15*k;if(FIRE.ashMat)FIRE.ashMat.emissiveIntensity=.7+.3*Math.sin(t*.9)+.2*k;if(FIRE.logMat)FIRE.logMat.emissiveIntensity=.9*k;
+    if(FIRE.coalMat)FIRE.coalMat.emissiveIntensity=.45+.2*Math.sin(t*1.3)+.1*k;if(FIRE.ashMat)FIRE.ashMat.emissiveIntensity=.7+.3*Math.sin(t*.9)+.2*k;if(FIRE.logMat)FIRE.logMat.emissiveIntensity=.9*k;
     if(FIRE.holeMat)FIRE.holeMat.color.setRGB(.9*k,.75*k,.6*k);f.fl.material.uniforms.uI.value=.85+.25*k;f.fl.updateMatrixWorld();f.fl.material.uniforms.uCam.value.copy(camera.position);f.fl.worldToLocal(f.fl.material.uniforms.uCam.value);
     /* thin, smooth smoke: a few large soft puffs a second that rise, spread and fade */
     f.smokeAcc+=dt*2.6;while(f.smokeAcc>1){f.smokeAcc--;FX.smoke.spawn(_w.set(f.p.x+rnd(-.08,.08),f.p.y+.55,f.p.z+rnd(-.08,.08)),_v.set(rnd(-.05,.05)+.12,rnd(.45,.65),rnd(-.05,.05)+.04),
       rnd(5,7),rnd(.18,.26),rnd(1.4,2.1),[.17,.16,.15,.16],[.42,.42,.41,0],{drag:.25,spin:rnd(-.25,.25)});}
-    f.emAcc+=dt*3.5;while(f.emAcc>1){f.emAcc--;FX.ember.spawn(_w.set(f.p.x+rnd(-.1,.1),f.p.y+.1,f.p.z+rnd(-.1,.1)),_v.set(rnd(-.25,.25),rnd(1.1,2.3),rnd(-.25,.25)),rnd(.8,1.8),.011,.003,[1,.65,.25,1],[1,.25,.05,0],{drag:.5,up:.25});}}}
+    f.emAcc+=dt*9;while(f.emAcc>1){f.emAcc--;FX.ember.spawn(_w.set(f.p.x+rnd(-.1,.1),f.p.y+.1,f.p.z+rnd(-.1,.1)),_v.set(rnd(-.3,.3),rnd(1.4,3.0),rnd(-.3,.3)),rnd(1.2,2.8),.012,.004,[1,.65,.25,1],[1,.25,.05,0],{drag:.5,up:.25});}}}
 
 /* ---------- F.O.B. "Kurgan" ---------- */
 const LOOT=[],NPCS=[];let flagMesh=null;
@@ -2815,9 +2917,13 @@ function gait(dt,v,ph,run,crouch){const G=GAIT,B=playerBody.P.bones;G.a=damp(G.a
   const vr=1+.06*Math.sin(G.t*.83)+.04*Math.sin(G.t*2.17+1.3);
   const cyc=x=>x/(Math.PI*2);const hx=lerp(0,.1,rn)*a+crouch*.05;
   const leg=(sd,phi)=>{const u=cyc(phi);const W=GK.walk,Rn=GK.run;const mix=(k)=>lerp(gkey(W[k],u),gkey(Rn[k],u),rn);
-    const hip=mix('hip')*a*vr-.1*(1-a*.5)-crouch*.8,knee=.04+mix('knee')*a*vr+crouch*.9,pitch=mix('foot')*a;
-    B['hp'+sd].rotation.set(hip,(sd==='L'?1:-1)*.04*a,(sd==='L'?.075:-.075)-(sd==='L'?1:-1)*.03*a*Math.max(0,-Math.cos(phi)));
-    B['kn'+sd].rotation.set(knee,0,0);
+    /* the rig's rest pose has the thigh slanted back ~.24 rad with the knee locked; -.24 / +.24 straightens it */
+    const hip=mix('hip')*a*vr-.24-.05*(1-a)-crouch*.8,knee=.24+.06*(1-a)+mix('knee')*a*vr+crouch*.9,pitch=mix('foot')*a;
+    /* the rest pose is also splayed and bow-legged: hip rolled in .19 and knee rolled back out .19 stacks knee and ankle
+       straight under the hip joint (feet about hip-width); in the stride the swing leg comes slightly toward the midline */
+    const sg=sd==='L'?1:-1;
+    B['hp'+sd].rotation.set(hip,sg*.04*a,sg*(.19-crouch*.1)-sg*.03*a*Math.max(0,-Math.cos(phi)));
+    B['kn'+sd].rotation.set(knee,0,-sg*(.19-crouch*.1));
     /* ankle = undo the chain's pitch so the sole is flat, then apply the gait's foot pitch; a touch of roll onto the outside edge in swing */
     B['an'+sd].rotation.set(-(hx+hip+knee)+pitch,(sd==='L'?-.1:.1),(sd==='L'?1:-1)*.06*a*Math.max(0,Math.sin(phi-3.6)));};
   leg('L',ph);leg('R',ph+Math.PI);
@@ -3142,7 +3248,7 @@ function begin(){initAudio();$('menu').classList.add('off');mountWeapon('pm');
 $('start').onclick=begin;
 $('again').onclick=()=>location.reload();
 function debugView(v){$('menu').classList.add('off');$('fade').style.opacity=0;$('fps').style.display='block';mountWeapon(v==='ak'||v==='adsak'?'ak':'pm');S.state='view';$('hud').style.opacity=1;setBoard(false);
-  const V={fob:[0,1.65,26,0,-.05],gnd:[-4,1.65,10,.6,-.6],csold:[HX-.2,FL+2.3,HZ+.9,0,-1.0],fire4:[-14.9,1.2,7.7,.75,-.55],fire2:[-14.4,1.35,8.1,.75,-.42],fire3:[-15.5,1.75,7.55,0,-1.1],gate2:[2,1.9,24,2.29,-.12],gate3:[2,1.9,-24,.85,-.12],gen:[-12,2.2,-20,.45,-.25],zsg:[-12,1.8,40,.4,-.05],gnd2:[5,1.65,-298,.3,-.5],gate:[-14,1.65,46,-.45,0],btr:[7,1.7,19,.75,-.1],field:[2.9,1.64+H(2.9,-294),-294,Math.atan2(-(HX-2.9),-(HZ+294)),0],
+  const V={fob:[0,1.65,26,0,-.05],road1:[1.2,1.7,78,.08,-.28],road2:[-2.5,1.4,120,-.5,-.45],gnd:[-4,1.65,10,.6,-.6],csold:[HX-.2,FL+2.3,HZ+.9,0,-1.0],fire4:[-14.9,1.2,7.7,.75,-.55],fire2:[-14.4,1.35,8.1,.75,-.42],fire3:[-15.5,1.75,7.55,0,-1.1],gate2:[2,1.9,24,2.29,-.12],gate3:[2,1.9,-24,.85,-.12],gen:[-12,2.2,-20,.45,-.25],zsg:[-12,1.8,40,.4,-.05],gnd2:[5,1.65,-298,.3,-.5],gate:[-14,1.65,46,-.45,0],btr:[7,1.7,19,.75,-.1],field:[2.9,1.64+H(2.9,-294),-294,Math.atan2(-(HX-2.9),-(HZ+294)),0],
     gatev:[HX-.4,1.7,HZ+15,0,-.05],room1:[HX+3.0,FL+1.7,HZ+2.6,.72,-.35],cbed:[HX-1.3,FL+1.3,HZ+.6,1.35,-.55],cst:[HX-.4,FL+1.3,HZ-1.5,-1.57,-.55],cfl:[HX+1.2,FL+1.5,HZ-.2,1.18,-.75],fridge:[HX+.55,FL+1.2,HZ-1.2,0,-.12],paper:[HX-2.2,FL+.75,HZ+1.25,.3,-1.2],doorv:[HX-1.6,FL+1.6,HZ+.8,-.6,-.35],room2:[HX-3.0,FL+1.7,HZ-2.5,-2.4,-.38],room3:[HX+.6,FL+2.4,HZ+.2,0,-1.2],shedv:[HX-9.5,2.2,HZ-1,-2.3,-.15],shedb:[HX-3.5,3.4,HZ-8,2.4,-.3],house:[HX-6,1.64,HZ+14,-.35,-.02],inside:[HX-.4,FL+1.62,HZ+2.6,.35,-.32],corpse:[HX+.2,FL+1.5,HZ+.9,1.0,-.55],sign:[-3,1.64,-256,.25,0],corner:[50,1.7,44,.69,-.05],btr:[5.5,2.4,19.5,.785,-.2],btrref:[-5.2,2.3,7.6,-2.44,-.14],drvwin:[-.62,1.95,8.6,-2.6,-.3],btrside:[-9,1.4,14,-1.5708,0],btrr:[-5,2.6,8,-2.4,-.2],uazc:[-22,1.9,-319,1.0,-.15],bags:[-8,1.5,30.2,.2,-.2],mgnest:[13,1.8,-23.2,.15,-.25],fuel:[24.2,1.7,-1.6,-.69,-.2],zsign:[-10.5,1.7,40,0,0],walls:[0,14,60,0,-.32],
     vm:[0,1.64,20,0,0],ak:[0,1.64,20,0,0],ads:[0,1.64,20,0,0],adsak:[0,1.64,20,0,0],tents:[-12,1.65,-2,1.4,-.05],bed:[HX-1.7,FL+1.5,HZ+1.3,1.35,-.5],stove:[HX-.5,FL+1.45,HZ-.9,-1.75,-.4],soldier:[HX-.4,FL+1.6,HZ+1.6,0.2,-.95],west:[HX+1.5,FL+1.6,HZ+.5,1.45,-.25],front:[HX,FL+1.6,HZ-1.6,Math.PI,-.15],east:[HX-1.8,FL+1.6,HZ,-1.5,-.2],plan:[HX,FL+4.6,HZ+.01,0,-1.5707],wide:[30,8,60,.35,-.12],camp:[-12.6,1.55,9.6,.86,-.2],fire:[-14.2,1.3,8.4,.75,-.3],uaz:[-22.5,1.5,-318.5,.55,-.12],net:[9,2.2,16,-.85,-.05],gate:[-6.5,1.6,33.2,Math.PI,-.05]};
   if(v==='ridecam'){parkBTR(-40);btr.updateMatrixWorld(true);camera.position.copy(SEAT).applyMatrix4(btr.matrixWorld);camera.rotation.set(-.1,.15,0);vmRoot.visible=false;$('hud').style.opacity=0;say('DRIVER','Hold on. The road is bad past the north gate.',99);S.where='sector';return;}
@@ -3164,5 +3270,3 @@ window.__z={get VM(){return VM;},playerBody,gait,GAIT,ANIMS,SHADOW,spawnShadow,F
 }catch(e){const p=document.createElement('pre');p.style.cssText='position:fixed;left:8px;bottom:8px;right:8px;z-index:99;color:#f88;background:#000c;font:12px monospace;white-space:pre-wrap;padding:8px';p.textContent='Zone 12 failed to start: '+(e&&e.stack||e);document.body.appendChild(p);}},30));
 window.addEventListener('error',e=>{const p=document.createElement('pre');p.style.cssText='position:fixed;left:8px;top:8px;right:8px;z-index:99;color:#f88;background:#000c;font:12px monospace;white-space:pre-wrap;padding:8px';p.textContent='Error: '+e.message+' @'+e.lineno;document.body.appendChild(p);});
 </script>
-
-</html>
