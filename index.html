@@ -2795,23 +2795,47 @@ function movePlayer(dt){
    the swing, knee loading bump after heel strike and a big swing-phase bend, toe-off push, pelvis rotation and drop,
    vertical bob, counter-rotating torso, opposite arm swing with more elbow bend when running. Everything is blended
    by a smoothed speed so starts and stops ease in, and it settles into a natural relaxed stance when still. */
-const GAIT={a:0,run:0,t:0};
-function gait(dt,v,ph,run,crouch){const G=GAIT,B=playerBody.P.bones;G.a=damp(G.a,clamp(v/2.6,0,1),7,dt);G.run=damp(G.run,run?1:0,4,dt);const a=G.a,rn=G.run;
-  const wrap=x=>{x%=(Math.PI*2);return x<0?x+Math.PI*2:x;},gs=(x,c,w)=>{let d=Math.abs(wrap(x)-c);d=Math.min(d,Math.PI*2-d);return Math.exp(-(d*d)/w);};
-  const leg=(sd,phi)=>{const hipA=lerp(.34,.6,rn),kSw=lerp(1.0,1.5,rn),kLd=lerp(.15,.3,rn);
-    const hip=-(hipA*Math.cos(phi))*a-.1;                                   /* -x swings the thigh forward; -.1 = neutral stance */
-    const knee=.05+(kLd*gs(phi,.4,.15)+kSw*gs(phi,lerp(4.5,4.4,rn),lerp(.42,.55,rn)))*a+crouch*.9;
-    const ank=(.25*gs(phi,2.6,.2)*a-.15*gs(phi,.1,.12)*a);                 /* toe-off plantarflexion, heel strike dorsiflexion */
-    B['hp'+sd].rotation.set(hip-crouch*.8,0,(sd==='L'?.075:-.075));B['kn'+sd].rotation.set(knee,0,0);
-    B['an'+sd].rotation.set(-(hip-crouch*.8+knee)*.95+ank,sd==='L'?-.1:.1,0);};
+const GAIT={a:0,run:0,t:0,var:1};
+/* gait curves over one stride cycle (0 = heel strike of that leg), from motion-capture style references:
+   hip flexion (negative = thigh forward), knee flexion, and foot pitch relative to the ground (+ = toes down).
+   The foot pitch is what makes the boot roll: toes up at heel strike, flat through stance, heel lifting and toes
+   pushing down at toe-off, then the foot dorsiflexing back up through the swing. */
+const GK={
+  walk:{hip:[[0,-.4],[.15,-.3],[.5,.2],[.6,.24],[.75,-.02],[.88,-.38]],
+        knee:[[0,.05],[.12,.3],[.3,.08],[.45,.06],[.58,.45],[.72,1.05],[.85,.55],[.95,.07]],
+        foot:[[0,-.24],[.08,0],[.42,0],[.5,.14],[.6,.6],[.68,.4],[.8,-.02],[.93,-.24]]},
+  run:{hip:[[0,-.6],[.18,-.05],[.36,.44],[.48,.32],[.66,-.4],[.82,-.88],[.93,-.78]],
+        knee:[[0,.32],[.12,.62],[.28,.38],[.38,.28],[.55,1.3],[.68,1.75],[.84,.95],[.95,.4]],
+        foot:[[0,-.08],[.1,.06],[.26,.18],[.37,.88],[.5,.95],[.64,.4],[.84,-.22],[.95,-.16]]}};
+function gkey(k,u){/* periodic smooth (Catmull-Rom) interpolation of [u,v] keys */u=((u%1)+1)%1;const n=k.length;let i=n-1;for(let j=0;j<n;j++)if(k[j][0]<=u)i=j;
+  const k0=k[(i-1+n)%n],k1=k[i],k2=k[(i+1)%n],k3=k[(i+2)%n];const u1=k1[0],u2=k2[0]+(i+1>=n?1:0);const t=(u-u1)/Math.max(u2-u1,1e-4);
+  const p0=k0[1],p1=k1[1],p2=k2[1],p3=k3[1];return .5*((2*p1)+(-p0+p2)*t+(2*p0-5*p1+4*p2-p3)*t*t+(-p0+3*p1-3*p2+p3)*t*t*t);}
+function gait(dt,v,ph,run,crouch){const G=GAIT,B=playerBody.P.bones;G.a=damp(G.a,clamp(v/2.6,0,1),7,dt);G.run=damp(G.run,run?1:0,4,dt);const a=G.a,rn=G.run;G.t+=dt;
+  /* stride-to-stride variation so no two steps are identical */
+  const vr=1+.06*Math.sin(G.t*.83)+.04*Math.sin(G.t*2.17+1.3);
+  const cyc=x=>x/(Math.PI*2);const hx=lerp(0,.1,rn)*a+crouch*.05;
+  const leg=(sd,phi)=>{const u=cyc(phi);const W=GK.walk,Rn=GK.run;const mix=(k)=>lerp(gkey(W[k],u),gkey(Rn[k],u),rn);
+    const hip=mix('hip')*a*vr-.1*(1-a*.5)-crouch*.8,knee=.04+mix('knee')*a*vr+crouch*.9,pitch=mix('foot')*a;
+    B['hp'+sd].rotation.set(hip,(sd==='L'?1:-1)*.04*a,(sd==='L'?.075:-.075)-(sd==='L'?1:-1)*.03*a*Math.max(0,-Math.cos(phi)));
+    B['kn'+sd].rotation.set(knee,0,0);
+    /* ankle = undo the chain's pitch so the sole is flat, then apply the gait's foot pitch; a touch of roll onto the outside edge in swing */
+    B['an'+sd].rotation.set(-(hx+hip+knee)+pitch,(sd==='L'?-.1:.1),(sd==='L'?1:-1)*.06*a*Math.max(0,Math.sin(phi-3.6)));};
   leg('L',ph);leg('R',ph+Math.PI);
-  const h=B.hips;h.rotation.set(lerp(0,.08,rn)*a,.09*Math.sin(ph)*a,.035*Math.sin(2*ph)*a);
-  if(!G.h0)G.h0=h.position.clone();h.position.y=G.h0.y-(.018+.02*rn)*(1-Math.cos(2*ph))*a*.5-crouch*.02;
-  B.spine.rotation.set(lerp(.03,.22,rn)*a+.02+crouch*.25,-.12*Math.sin(ph)*a,-.02*Math.sin(2*ph)*a);
-  B.neck.rotation.set(-lerp(0,.12,rn)*a,.05*Math.sin(ph)*a,0);
-  const armA=lerp(.32,.75,rn)*a;
-  B.shL.rotation.set(armA*Math.cos(ph+Math.PI)+.03,.1,-.1);B.elL.rotation.set(-lerp(.3,1.4,rn*a)-Math.max(0,-Math.cos(ph+Math.PI))*.25*a,0,0);
-  B.shR.rotation.set(armA*Math.cos(ph)+.03,-.1,.1);B.elR.rotation.set(-lerp(.3,1.4,rn*a)-Math.max(0,-Math.cos(ph))*.25*a,0,0);}
+  /* pelvis: rotation with the stepping leg, drop on the swing side, bob - lowest at mid-stance, highest in the run's flight */
+  const h=B.hips;h.rotation.set(hx,.1*Math.sin(ph)*a*lerp(1,.8,rn),.04*Math.sin(2*ph+.4)*a);
+  if(!G.h0)G.h0=h.position.clone();
+  const bobW=-(1-Math.cos(2*ph))*.5*.02,bobR=-(.5+.5*Math.cos(2*(ph-.15*Math.PI*2)))*.05;
+  h.position.y=G.h0.y+lerp(bobW,bobR,rn)*a-crouch*.02;h.position.x=G.h0.x+.012*Math.sin(ph)*a*(1-rn*.5);
+  /* torso counter-rotates the pelvis, leans into the run, bends a little toward the stance leg; head stays level */
+  const sp=lerp(.03,.17,rn)*a+.02+crouch*.25+.02*Math.sin(2*ph-.6)*rn*a;
+  B.spine.rotation.set(sp,-.14*Math.sin(ph)*a,-.03*Math.sin(ph)*a);
+  B.neck.rotation.set(-(sp-.02)*.6-hx*.5,.06*Math.sin(ph)*a,.025*Math.sin(ph)*a);B.head.rotation.set(-(sp-.02)*.3,.03*Math.sin(ph)*a,0);
+  /* arms swing opposite to the legs; elbows bend more as the arm comes forward; in a run the hands cross toward the midline */
+  const armA=lerp(.3,.78,rn)*a*vr;
+  [['L',ph+Math.PI,1],['R',ph,-1]].forEach(([sd,p,s])=>{const sw=Math.cos(p);
+    B['sh'+sd].rotation.set(armA*sw+.03+rn*a*.1,s*(.1+rn*a*.18*Math.max(0,-sw)),-s*(.1+rn*a*.06));
+    B['el'+sd].rotation.set(-lerp(.28,1.35,rn*a)-Math.max(0,-sw)*lerp(.25,.45,rn)*a+.08*Math.sin(p*2)*a,0,0);
+    B['wr'+sd].rotation.set(.1*a*sw,0,s*.1);});}
 function surface(){const x=player.pos.x,z=player.pos.z;if(inHouse(x,z))return'wood';if(Math.abs(x)<4)return'dirt';if(Math.abs(x)<42&&Math.abs(z)<33)return'dirt';return'grass';}
 /* the player's own body is invisible but still casts a shadow */
 const playerBody=buildHuman({char:'player',outfit:'ratnik',vest:true,helmet:true,holster:true});scene.add(playerBody.root);
