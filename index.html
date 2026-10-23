@@ -651,7 +651,7 @@ M.hairDark=std({color:C(0x2a2622),roughness:1});
 M.gun=std({map:TX.steel,color:C(0x8a8e96),roughness:.42,metalness:.85,envMapIntensity:1});
 M.gunD=std({map:TX.steel,color:C(0x5a5c62),roughness:.5,metalness:.8,envMapIntensity:1});
 M.bore=std({color:0x000000,roughness:1});
-M.gripPM=std({map:TX.gripPM,roughness:.55});
+M.gripPM=std({map:TX.gripPM,color:C(0x8a7a72),roughness:.5});
 M.akWood=std({map:TX.wood,roughness:.45,envMapIntensity:.8});
 M.bakelite=std({color:C(0x4a2416),roughness:.4,envMapIntensity:.8});
 M.hesco=std({map:TX.hesco,bumpMap:TB.hesco,bumpScale:.03,roughness:1,envMapIntensity:.3});
@@ -766,20 +766,20 @@ PB.gravel=pbr(256,(u,v)=>{const [s1,s2]=wor(u,v,26,6);const [t1]=wor(u+.5,v+.5,6
 /* --- gun finishes (planar-mapped on the parts at ~6 px/mm): worn bluing that goes to bright bare steel on the edges and
    where hands rub it, fine scratches and pitting; dark phosphate; varnished birch with grain and dents; moulded bakelite --- */
 PB.blued=pbr(256,(u,v)=>{const a=N2(u,v,8,4),b=N2(u+.4,v,40,2),w=sstep(.62,.8,N2(u*1.3,v*1.3,5,4)),sc=Math.pow(Math.abs(Math.sin((u*.3+v)*170+N2(u,v,20,2)*6)),40);
-  const k=24+a*14,bare=[96+b*30,94+b*30,92+b*28];let col=mixc([k*.92,k*.96,k*1.08],bare,w*.55+sc*.2);
+  const k=34+a*14,bare=[96+b*30,94+b*30,92+b*28];let col=mixc([k*.92,k*.96,k*1.08],bare,w*.55+sc*.2);
   return[col[0],col[1],col[2],.5+b*.1-sc*.1,.48-w*.2-sc*.15+a*.12];},{bump:2,rep:[1,1]});
-PB.phos=pbr(256,(u,v)=>{const a=N2(u,v,24,3),b=N2(u,v,90,2),w=sstep(.68,.85,N2(u+.2,v,4,4));const k=30+a*10+b*8;
+PB.phos=pbr(256,(u,v)=>{const a=N2(u,v,24,3),b=N2(u,v,90,2),w=sstep(.68,.85,N2(u+.2,v,4,4));const k=44+a*10+b*8;
   let col=mixc([k*.95,k*.99,k*1.06],[78,78,80],w*.35);return[col[0],col[1],col[2],.5+b*.2,.72-w*.18+b*.08];},{bump:2,rep:[1,1]});
 PB.birch=pbr(256,(u,v)=>{const g=N2(u*.5,v*4,8,5),f=N2(u,v,60,2);const ring=.5+.5*Math.sin((u*8+g*5)*Math.PI*2);const dent=sstep(.84,.95,N2(u+.6,v,12,2));
   const k=.72+ring*.2+f*.08;let col=[142*k,62*k,36*k];col=mixc(col,[70,32,20],dent*.6);return[col[0],col[1],col[2],.5+ring*.08-dent*.25,.38+f*.12+dent*.3];},{bump:2,rep:[1,1]});
 PB.bake=pbr(128,(u,v)=>{const a=N2(u,v,30,3);const k=.8+a*.25;return[84*k,36*k,22*k,.5+a*.15,.42+a*.1];},{bump:2,rep:[1,1]});
 /* black glass-filled polyamide: fine moulded stipple, a faint plum cast, rubbed-smooth highlights; magazine one shade warmer;
    checkered grip panel (1.6 mm pyramids) */
-PB.poly=pbr(256,(u,v)=>{const a=N2(u,v,12,3),b=N2(u,v,140,2),w=sstep(.66,.86,N2(u+.3,v,5,4));const k=25+a*6;
-  const col=mixc([k*.95,k*.98,k*1.07],[54,55,58],w*.4);return[col[0],col[1],col[2],.5+b*.25,.62-w*.2+a*.06];},{bump:1.4,rep:[1,1]});
-PB.polyMag=pbr(256,(u,v)=>{const a=N2(u+.5,v,12,3),b=N2(u,v,140,2),w=sstep(.68,.88,N2(u,v+.3,5,4));const k=27+a*6;
+PB.poly=pbr(256,(u,v)=>{const a=N2(u,v,12,3),b=N2(u,v,140,2),w=sstep(.66,.86,N2(u+.3,v,5,4));const k=40+a*7;
+  const col=mixc([k*.95,k*.98,k*1.07],[54,55,58],w*.4);return[col[0],col[1],col[2],.5+b*.25,.5-w*.18+a*.06];},{bump:1.4,rep:[1,1]});
+PB.polyMag=pbr(256,(u,v)=>{const a=N2(u+.5,v,12,3),b=N2(u,v,140,2),w=sstep(.68,.88,N2(u,v+.3,5,4));const k=42+a*7;
   const col=mixc([k*1.05,k*.98,k*1.0],[58,56,57],w*.4);return[col[0],col[1],col[2],.5+b*.25,.6-w*.2+a*.06];},{bump:1.4,rep:[1,1]});
-PB.chk=pbr(128,(u,v)=>{const cu=Math.abs((u*24)%1-.5),cv=Math.abs((v*24)%1-.5);const h=1-Math.max(cu,cv)*2;const a=N2(u,v,8,2);const k=23+a*5+h*5;
+PB.chk=pbr(128,(u,v)=>{const cu=Math.abs((u*24)%1-.5),cv=Math.abs((v*24)%1-.5);const h=1-Math.max(cu,cv)*2;const a=N2(u,v,8,2);const k=36+a*5+h*6;
   return[k,k,k*1.03,h,.62-h*.12];},{bump:7,rep:[1,1]});
 /* hot-dip galvanised steel: zinc spangle cells of slightly different sheen, dull white-rust bloom, light scratches */
 PB.galv=pbr(256,(u,v)=>{const [f1,f2]=wor(u,v,9,3);const cell=hash(Math.floor(u*9*3+f1*5),Math.floor(v*9*3));const a=N2(u,v,6,4),b=N2(u,v,60,2);
@@ -2126,7 +2126,7 @@ const POSE={
 /* ---------- weapons from real side profiles (millimetres), extruded and bevelled ---------- */
 function ext(pts,depth,o={}){const s=new T.Shape(pts.map(p=>new T.Vector2(p[0],p[1])));
   (o.holes||[]).forEach(hp=>s.holes.push(new T.Path(hp.map(p=>new T.Vector2(p[0],p[1])))));
-  const b=o.bevel===undefined?1:o.bevel;const g=new T.ExtrudeGeometry(s,{depth:Math.max(depth-2*b,.1),bevelEnabled:b>0,bevelThickness:b,bevelSize:b*.8,bevelSegments:2,curveSegments:10});
+  const b=o.bevel===undefined?1:o.bevel;const g=new T.ExtrudeGeometry(s,{depth:Math.max(depth-2*b,.1),bevelEnabled:b>0,bevelThickness:b,bevelSize:b*(o.bsize||.8),bevelSegments:o.bseg||2,curveSegments:o.cseg||10});
   g.translate(0,0,-(depth-2*b)/2+(o.z||0));if(o.uvScale)worldUV(g,o.uvScale);g.userData.kind='ext';return g;}
 function cylMM(r,len,u0,v,z=0,seg=16){const g=new T.CylinderGeometry(r,r,len,seg);g.rotateZ(Math.PI/2);g.translate(u0+len/2,v,z);return g;}
 function gunGroup(u0,v0){const outer=new T.Group(),mm=new T.Group();mm.scale.setScalar(.001);mm.rotation.y=Math.PI/2;mm.position.set(0,0,0);outer.add(mm);
@@ -2208,8 +2208,9 @@ function buildPM(opt){const G0=gunGroup(55,80);const a=G0.add;
   a(ext([[10,80],[150,80],[150,71],[112,70],[108,64],[104,52],[98,44],[88,40],[72,40],[64,44],[58,30],[52,2],[48,-2],[18,-2],[14,2],[6,40],[3,62],[4,74]],22,{bevel:1.2,holes:[[[100,65],[97,53],[91,47],[80,46],[70,47],[66,55],[66,66]]]}),M.gunD);
   a(ext([[84,66],[86,60],[84,52],[80,49],[81,55],[80,62]],5,{bevel:.6}),M.gunD);
   [-1,1].forEach(sd=>a(xf(new T.CylinderGeometry(1.6,1.6,1,10),102,66.5,sd*11.3,Math.PI/2,0,0),M.gun));
-  [-1,1].forEach(s=>{const g=ext([[56,60],[57,36],[51,8],[22,5],[11,38],[11,60]],3.5,{bevel:.8,z:s*12.2});
-    const p=g.attributes.position,uv=g.attributes.uv;for(let i=0;i<p.count;i++)uv.setXY(i,(p.getX(i)-8)/52,(p.getY(i)-4)/58);a(g,M.gripPM);});
+  /* the one-piece wraparound grip: moulded dark brown plastic round the back strap, checkered on the sides, star medallion */
+  {const g=ext([[57,63],[57.5,38],[52,10],[48,2],[44,-1],[16,-1],[9,3],[5,30],[3.5,52],[4,63]],30,{bevel:4.6,bsize:.95,bseg:5,cseg:16});
+    const p=g.attributes.position,uv=g.attributes.uv;for(let i=0;i<p.count;i++)uv.setXY(i,(p.getX(i)-6)/52,(p.getY(i)-4)/58);a(g,M.gripPM);}
   a(xf(new T.TorusGeometry(4.5,1.1,6,12),9,-4,0,0,Math.PI/2,0),M.gunD);
   /* slide stop on the left above the grip panel; heel magazine catch at the bottom of the back strap */
   a(ext([[44,70],[64,70],[66,74],[60,76.5],[46,75]],1.6,{bevel:.4,z:-11.9}),M.gun);for(let i=0;i<4;i++)a(xf(rbox(.6,4,.8,.2),56+i*2,73,-12.9),M.gun);
@@ -2229,7 +2230,9 @@ function buildPM(opt){const G0=gunGroup(55,80);const a=G0.add;
     a(g,std({color:C(0x3b2d1f),roughness:.68,side:T.DoubleSide}));G0.end();}
   /* magazine: steel single-stack body up the grip, follower with the top round showing between the lips, floorplate */
   G0.part('mag',33,-4);
-  a(xf(rbox(29,64,10.2,1.4),33.5,28,0,0,0,.06),M.gun);a(xf(rbox(36,5,24,1.5),33,-4,0),M.gunD);
+  /* (the body runs the full height of the grip and its floorplate stands proud below it, with the heel lip for the catch) */
+  a(xf(rbox(29,78,10.2,1.4),33.5,21,0,0,0,.06),M.gun);for(let i=0;i<5;i++)a(xf(new T.CylinderGeometry(1.6,1.6,1.2,10),30.5+i*.6,12+i*9,-5.4,Math.PI/2,0,0),M.bore);
+  a(ext([[13,-19],[52,-19],[55,-16.5],[54,-13],[50,-11],[16,-11],[12,-12.5],[11,-16]],22,{bevel:1.2}),M.gunD);a(xf(rbox(5,3.2,12,.6),12.5,-10,0),M.gunD);
   a(xf(rbox(22,1.4,6.6,.4),35,58,0),M.bore);cartridge(a,22,62,0,'918');
   G0.end();
   const o=G0.outer;o.userData={muzzle:V3(0,(92-80)*.001,-(161-55)*.001),sightY:(109.2-80)*.001,parts:G0.parts};return o;}
@@ -2270,7 +2273,13 @@ function buildAK(sup,opt){const G0=gunGroup(318,0);const a=G0.add;const P=GUNMAT
   /* stock: rim plates with the long side recess over a solid core; steel butt plate with the trap door */
   {const O=[[236,30],[200,25],[120,13],[40,1],[7,-3],[0,-8],[0,-117],[3,-123],[10,-126],[80,-104],[160,-80],[236,-53]];
     const slot=[[66,-12],[180,-2],[184,-6],[184,-26],[180,-30],[66,-38],[62,-34],[62,-16]];
-    a(ext(O,22,{bevel:2}),P);[-1,1].forEach(sd=>a(ext(O,4,{bevel:1.2,z:sd*12.5,holes:[slot]}),P));
+    /* one rounded moulding, 30 mm thick; on each side a raised rim round a long recess holding a matte rubbery pad */
+    a(ext(O,30,{bevel:4.5,bsize:.9,bseg:4,cseg:12}),P);const inner=[[71,-15.5],[176,-6],[178.5,-8.5],[178.5,-23.5],[176,-26],[71,-34.5],[68,-31.5],[68,-18.5]];
+    const RUB=std({color:C(0x151515),roughness:.86,metalness:0});
+    [-1,1].forEach(sd=>{a(ext(slot,1.8,{bevel:.6,z:sd*15.5,holes:[inner]}),P);a(ext(inner,1,{bevel:.3,z:sd*14.7}),RUB);});
+    /* the stock latch button by the hinge, and the sling slot through the butt */
+    a(xf(new T.CylinderGeometry(4.6,4.6,2.4,16),214,-24,-15.4,Math.PI/2,0,0),St);a(xf(new T.CylinderGeometry(2.2,2.2,1,10),214,-24,-16.7,Math.PI/2,0,0),Bl);
+    [-1,1].forEach(sd=>a(xf(rbox(18,4,1,.8),24,-106,sd*15.1,0,0,.3),M.bore));
     a(ext([[0,-8],[-6,-9],[-6,-118],[0,-117]],28,{bevel:1}),St);a(xf(rbox(1,40,16,.4),-6.4,-60,0),M.bore);
     a(xf(rbox(14,5,8,1),40,-111,0,0,0,.33),M.bore);}
   /* pistol grip with checkered panels */
@@ -2290,7 +2299,14 @@ function buildAK(sup,opt){const G0=gunGroup(318,0);const a=G0.add;const P=GUNMAT
   G0.part('bolt');a(xf(rbox(7,7,20,1.2),458,21,24),Bl);a(xf(new T.CylinderGeometry(5.5,5,13,12),458,21,38,Math.PI/2,0,0),Bl);
   for(let i=0;i<5;i++)a(xf(new T.TorusGeometry(5.3,.35,4,14),458,21,33.5+i*2,0,0,0),Bl);G0.end();
   /* left side: optic mount rail */
-  a(ext([[318,-16],[402,-16],[402,-2],[318,-2]],3,{bevel:.6,z:-16.4}),St);[330,390].forEach(u=>a(xf(new T.CylinderGeometry(2.4,2.4,1.4,10),u,-9,-18.2,Math.PI/2,0,0),Bl));
+  /* left side: the optic mount rail over the grip, with its lightening cuts and rivets; trunnion rivets; the oval
+     magazine-guide dimple; the stamped factory mark */
+  {const cut=(u0,u1,v0,v1)=>[[u0,v0],[u1,v0],[u1,v1],[u0,v1]];
+   a(ext([[244,-18],[352,-18],[357,-13.5],[357,-2],[244,-2]],3,{bevel:.6,z:-16.4,holes:[cut(262,282,-14,-6),cut(298,318,-14,-6),cut(331,345,-13,-7)]}),St);
+   [[252,-10],[290,-10],[324,-10],[350,-6]].forEach(([u,v])=>a(xf(new T.CylinderGeometry(2.6,2.6,1.6,10),u,v,-18.4,Math.PI/2,0,0),Bl));
+   [[450,-4],[461,-13],[450,-22]].forEach(([u,v])=>a(xf(new T.CylinderGeometry(2.4,2.6,1.2,10),u,v,-15.6,Math.PI/2,0,0),St));
+   {const d=a(new T.TorusGeometry(5.2,1.1,6,18),M.bore);d.position.set(378,-10,-15.5);d.scale.set(1.9,1,1);}
+   a(xf(rbox(10,4,.6,.2),436,-21,-15.4),M.bore);}
   /* rivets and fire-control pins, both sides */
   [-1,1].forEach(sd=>{[[466,-6],[466,-22],[478,-6],[478,-22],[262,12],[262,-12],[274,-24],[488,12]].forEach(([u,v])=>a(xf(new T.CylinderGeometry(2.1,2.3,1.2,10),u,v,sd*15.5,Math.PI/2,0,0),St));
     [[348,-12],[369,-21],[393,-10]].forEach(([u,v])=>a(xf(new T.CylinderGeometry(2.6,2.6,1.4,12),u,v,sd*15.6,Math.PI/2,0,0),Bl));});
@@ -2305,12 +2321,16 @@ function buildAK(sup,opt){const G0=gunGroup(318,0);const a=G0.add;const P=GUNMAT
     const leaf=stamp(34,8,(c,W,H)=>{c.lineWidth=3;for(let i=0;i<=10;i++){const x=12+i*(W-24)/10;c.beginPath();c.moveTo(x,H*.62);c.lineTo(x,H*.95);c.stroke();}
       c.font=`bold ${H*.42}px sans-serif`;c.textAlign='center';['П','2','3','4','5','6','7','8','9','10'].forEach((d,i)=>c.fillText(d,12+(i+.5)*(W-24)/10,H*.5));});
     const lg=new T.PlaneGeometry(34,8);lg.rotateX(-Math.PI/2);lg.rotateZ(-.137);lg.translate(515,36.4,0);lg.userData.wuv=1;a(lg,leaf);
+    const mk=stamp(30,14,(c,W,H)=>{c.lineWidth=3;c.beginPath();c.moveTo(W*.08,H*.85);c.lineTo(W*.25,H*.15);c.lineTo(W*.42,H*.85);c.closePath();c.stroke();c.beginPath();c.moveTo(W*.25,H*.85);c.lineTo(W*.25,H*.45);c.stroke();
+      c.font=`bold ${H*.62}px sans-serif`;c.fillText('АК',W*.48,H*.78);});
+    const mg_=new T.PlaneGeometry(30,14);mg_.rotateY(Math.PI);mg_.translate(408,-2,-15.62);mg_.userData.wuv=1;a(mg_,mk);
     const sel=stamp(18,16,(c,W,H)=>{c.font=`bold ${H*.36}px sans-serif`;c.textAlign='center';c.fillText('АВ',W/2,H*.42);c.fillText('ОД',W/2,H*.88);});
     const sg=new T.PlaneGeometry(18,16);sg.translate(431,-9,15.62);sg.userData.wuv=1;a(sg,sel);}
   /* upper handguard over the gas tube, lower handguard with grip ribs, retainer band */
   a(loftU(secSE(3.2,28,.04),[[537,11,8,32],[541,12.6,7,33],[600,13,7,33.5],[640,13,7,33.5],[647,11.5,9,32],[651,9,13,30.5]]),P);
   a(loftU(secSE(3.4,28,0),[[483,15,-20,6],[487,18.5,-27,6],[494,20,-31,6],[530,20.2,-31,6],[600,20,-28,6],[648,19.6,-25.5,6],[655,18,-23,6],[658,15.5,-19,6]]),P);
-  [-1,1].forEach(sd=>{for(let i=0;i<5;i++)a(xf(rbox(64,1.6,1.2,.4),524,-2-i*5.2,sd*20.1),P);});
+  /* lower handguard: the rack of long ribs at its rear, short upright ribs at the front of its top edge */
+  [-1,1].forEach(sd=>{for(let i=0;i<6;i++)a(xf(rbox(46,1.5,1.4,.4),510,2.5-i*3.6,sd*20.3),P);for(let i=0;i<4;i++)a(xf(rbox(1.5,9,1.4,.4),598+i*5,-1,sd*20.2),P);});
   a(ext([[655,-25],[665,-25],[665,8],[655,8]],42,{bevel:1}),St);
   /* barrel, gas tube with vents, 90-degree gas block with the cleaning-rod lug, cleaning rod */
   a(cylMM(8.6,260,493,0),Bl);a(cylMM(8,90,750,0),Bl);a(cylMM(7.6,98,650,22),Bl);a(cylMM(8.6,6,742,22),St);
@@ -2318,11 +2338,18 @@ function buildAK(sup,opt){const G0=gunGroup(318,0);const a=G0.add;const P=GUNMAT
   a(ext([[746,-24],[768,-24],[770,-12],[770,16],[766,30],[748,30],[744,16],[744,-12]],22,{bevel:2}),St);
   a(xf(new T.TorusGeometry(5,1.4,6,12),757,-24,-11.5),Bl);
   a(cylMM(2.8,205,640,-17),Bl);a(cylMM(3.6,10,836,-17),Bl);
+  /* the exposed gas tube is fluted */
+  [-.95,-.32,.32,.95].forEach(t=>a(xf(rbox(78,1.3,1.8,.3),698,22+7.25*Math.cos(t),7.25*Math.sin(t),t,0,0),M.bore));
+  /* barrel collar ahead of the handguard retainer */
+  a(cylMM(9.6,5,668,0),St);
   /* front sight block, bayonet lug, windage drum, protective ears and post (tip level with the notch floor) */
   a(ext([[828,-26],[864,-26],[864,10],[858,16],[836,16],[828,10]],22,{bevel:1.5}),St);
   a(ext([[838,-26],[860,-26],[860,-33],[842,-33]],10,{bevel:1}),St);
   a(xf(new T.CylinderGeometry(5.2,5.2,7,14),848,19,0),St);
-  [-1,1].forEach(z=>a(ext([[837,16],[859,16],[854,58],[848,58],[838,27]],3,{bevel:.6,z:z*7.6}),St));
+  /* the hood: two tall ears, joined over the top, each pierced with a round hole */
+  {const hole=[];for(let i=0;i<14;i++){const t=i/14*Math.PI*2;hole.push([847.5+Math.cos(t)*4.2,43+Math.sin(t)*4.2]);}
+   [-1,1].forEach(z=>a(ext([[836,16],[860,16],[856,52],[852,62],[843,62],[839,52]],3.2,{bevel:.6,z:z*7.6,holes:[hole]}),St));
+   a(xf(rbox(10,3,18,.8),847.5,61,0),St);}
   a(xf(new T.CylinderGeometry(1.1,1.6,34,8),848,35.2,0),St);
   a(xf(new T.CylinderGeometry(1.6,1.6,4,8),862,11,0),Bl);
   if(!sup){/* AK-74 brake: threaded collar, expansion body, front cup with side windows (the bore shows through) */
@@ -2340,6 +2367,9 @@ function buildAK(sup,opt){const G0=gunGroup(318,0);const a=G0.add;const P=GUNMAT
   {const Cc=[1100,-33],Rf=612,Rr=675,a0=-.02,a1=.315,mg=[];const pt=(R,t)=>[Cc[0]-R*Math.cos(t),Cc[1]-R*Math.sin(t)];
     for(let i=0;i<=14;i++)mg.push(pt(Rf,a0+(a1-a0)*i/14));for(let i=14;i>=0;i--)mg.push(pt(Rr,a0+(a1-a0)*i/14));
     a(ext(mg,24,{bevel:2}),PM_);
+    /* raised ribs along the front and rear edges of each side */
+    {const strip=(R0,R1)=>{const q=[];for(let i=0;i<=16;i++)q.push(pt(R0,a0+.01+(a1-a0-.03)*i/16));for(let i=16;i>=0;i--)q.push(pt(R1,a0+.01+(a1-a0-.03)*i/16));return q;};
+     [-1,1].forEach(sd=>{a(ext(strip(Rf+2,Rf+5.5),1.4,{bevel:.4,z:sd*12.3}),PM_);a(ext(strip(Rr-5.5,Rr-2),1.4,{bevel:.4,z:sd*12.3}),PM_);});}
     for(let i=0;i<5;i++){const t=.035+i*.05,[u,v]=pt(Rf+12,t);[-1,1].forEach(sd=>a(xf(rbox(20,1.6,1,.3),u,v,sd*12.3,0,0,t),PM_));}
     {const fp=[pt(Rf-3,a1-.012),pt(Rr+3,a1-.012),pt(Rr+3,a1+.004),pt(Rf-3,a1+.004)];a(ext(fp,28,{bevel:1.4}),PM_);}
     {const [u,v]=pt(Rr-2,.0);a(xf(rbox(8,10,14,1),u-3,v-2,0),PM_);}
@@ -4280,7 +4310,9 @@ function handsVM(dt){if(!VM.hands)return;const sq=VM.kick*.14,t=VM.t||0;
   for(const [h,P,sd] of VM.hands){const f=P.f.map((r,i)=>{const e=sq+.025*Math.sin(t*(.9+i*.37)+i*1.7+sd);return[r[0]+(i===0&&P===HANDS.trig?-sq*1.6:e),r[1]+e*.8,r[2]+e*.5,r[3]];});
     poseHand(h,f,P.th.map((r,k)=>k?[r[0]-sq*.5]:r),sd);}}
 /* grip placement per weapon, gun space: [palm point, finger direction, palm normal, forearm direction, forearm roll, hand shape] */
-const VMG={pm:{r:[V3(.019,-.045,.024),V3(-.1,-.3,-.95),V3(-1,0,0),V3(-.26,.36,-.9),0,'trig'],l:[V3(-.03,-.058,.02),V3(.25,-.45,-.86),V3(.95,.2,0),V3(.3,.36,-.88),0,'cup']},
+/* PM: a proper two-handed grip - the shooting hand's web high under the tang and its palm round the back strap, the
+   support palm filling the left side with its fingers wrapped over the shooting fingers; from behind, two closed fists */
+const VMG={pm:{r:[V3(0,-.04,.058),V3(-.35,-.32,-.88),V3(-.3,0,-.95),V3(-.15,.34,-.93),0,'trig'],l:[V3(-.012,-.055,.05),V3(.5,-.25,-.83),V3(.4,0,-.92),V3(.22,.3,-.93),0,'cup']},
   ak:{r:[V3(.018,-.085,.012),V3(-.15,-.25,-.95),V3(-1,0,0),V3(-.35,.35,-.87),0,'trig'],l:[V3(-.024,-.03,-.29),V3(.75,.45,-.48),V3(.88,.45,0),V3(.42,.32,-.85),0,'guard']}};
 function mountWeapon(id){while(vmRoot.children.length)vmRoot.remove(vmRoot.children[0]);VM={id,kick:0,t:0,sx:0,sy:0};if(!id)return;
   const sup=id==='ak'&&S.equip.attach&&S.equip.attach.id==='pbs';const gun=id==='pm'?buildPM({lanyard:true}):buildAK(sup,{sling:true});gun.traverse(m=>{m.castShadow=false;});vmRoot.add(gun);VM.gun=gun;
@@ -4354,11 +4386,11 @@ const RL={
   /* PM: raise and roll the pistol, thumb the heel catch, draw the magazine down the grip, fetch a full one, push it home and
      slap the floorplate; from empty the slide is locked back, so the support hand comes over the top and slingshots it */
   pm:(empty)=>{const G0=[0,0,0,0,0,0],GT=[-.03,.03,.04,.28,.06,-.42],L0=L0key('pm');
-    const MG={f:'mag',p:[-.004,-.09,.024],F:[.25,.25,-.94],N:[0,1,0],A:[.35,.75,-.56],h:'base'};
+    const MG={f:'mag',p:[-.004,-.103,.024],F:[.25,.25,-.94],N:[0,1,0],A:[.35,.75,-.56],h:'base'};
     const b0=empty?30:0;
     const K=[{t:0,g:G0,m:[0,0,0],b:b0,L:L0,R:'trig'},
       {t:.14,g:[-.012,.014,.018,.12,.03,-.18],L:{f:'gun',p:[-.03,-.11,.03],F:[.3,.2,-.93],N:[.3,.95,0],A:[.35,.7,-.62],h:'open'},R:'trigOff'},
-      {t:.3,g:GT,L:Object.assign({},MG,{p:[-.004,-.1,.026],h:'open'})},
+      {t:.3,g:GT,L:Object.assign({},MG,{p:[-.004,-.113,.026],h:'open'})},
       {t:.38,L:MG},
       {t:.44,L:{h:'grabP'},ev:'paddle'},
       {t:.52,m:[.6,-10,0],L:{h:'base'},ev:'magout'},
@@ -4757,6 +4789,10 @@ function tickStats(dt){const px=player.pos.x,pz=player.pos.z;let rate=.1+fbm(px/
   for(const n of NPCS){const d=Math.hypot(px-n.x,pz-n.z);if(d<3.2&&!n.said){n.said=true;say('SENTRY',n.line,4.5);}if(d>7)n.said=false;}}
 
 /* ---------- viewmodel animation ---------- */
+const VMS={p:V3(),v:V3(),r:V3(),w:V3(),init:false},_vmT=V3(),_vmR=V3();
+/* a damped spring on three axes, sub-stepped so it stays stable at any frame rate */
+function spring3(x,v,tg,k,z,dt){const n=Math.max(1,Math.ceil(dt/.006)),h=dt/n,c=2*z*Math.sqrt(k);
+  for(let i=0;i<n;i++){v.x+=(k*(tg.x-x.x)-c*v.x)*h;v.y+=(k*(tg.y-x.y)-c*v.y)*h;v.z+=(k*(tg.z-x.z)-c*v.z)*h;x.x+=v.x*h;x.y+=v.y*h;x.z+=v.z*h;}}
 function tickVM(dt){vmCam.position.copy(camera.position);vmCam.quaternion.copy(camera.quaternion);vmCam.fov=camera.fov*.82;vmCam.updateProjectionMatrix();
   vmSun.position.copy(camera.position).addScaledVector(SUN,10);vmSun.target.position.copy(camera.position);
   const inside=inHouse(player.pos.x,player.pos.z);vmSun.intensity=damp(vmSun.intensity,inside?.15:2.4,4,dt);vmHemi.intensity=damp(vmHemi.intensity,inside?.18:.6,4,dt);
@@ -4768,10 +4804,17 @@ function tickVM(dt){vmCam.position.copy(camera.position);vmCam.quaternion.copy(c
   const tx=ads?0:w.hip[0],ty=ads?-VM.sight:w.hip[1],tz=ads?w.ads[2]:w.hip[2];
   const br=Math.sin(VM.t*1.4)*.0018*(ads?.3:1);
   const bx=Math.sin(player.ph)*.012*A*(ads?.15:1),by=(Math.abs(Math.cos(player.ph))-.6)*.012*A*(ads?.15:1);
-  vmRoot.position.x=damp(vmRoot.position.x,tx+bx+VM.sx-spr*.05,14,dt);vmRoot.position.y=damp(vmRoot.position.y,ty+by+br+VM.sy-spr*.05-(S.reloading>0&&!VM.anim?.08:0),14,dt);vmRoot.position.z=damp(vmRoot.position.z,tz+k*.05,18,dt);
-  const hr=ads?[0,0,0]:(w.hipR||[0,.03,0]);vmRoot.rotation.x=damp(vmRoot.rotation.x,hr[0]+k*.28+(S.reloading>0&&!VM.anim?.35:0)-spr*.35+VM.sy*2,14,dt);
-  vmRoot.rotation.y=damp(vmRoot.rotation.y,hr[1]+spr*.7+VM.sx*2,10,dt);
-  vmRoot.rotation.z=damp(vmRoot.rotation.z,hr[2]+(S.reloading>0&&!VM.anim?-.35:0)+spr*.25+(S.drunk>0?Math.sin(VM.t*1.7)*.03:0),10,dt);
+  /* the gun hangs in the hands on springs: it lags behind a turn and swings back past centre, settles after each shot
+     with a little bounce, and walks in a figure of eight (dip on each footfall, roll and yaw from side to side), leaning
+     into strafes - no stiff exponential easing */
+  const hr=ads?[0,0,0]:(w.hipR||[0,.03,0]);const sw=ads?.15:1;
+  const roll=Math.sin(player.ph)*.016*A*sw,yawB=Math.cos(player.ph*2)*.006*A*sw;
+  const rx_=Math.cos(player.yaw),rz_=-Math.sin(player.yaw);const lat=player.vel?clamp((player.vel.x*rx_+player.vel.z*rz_)/5,-1,1):0;
+  _vmT.set(tx+bx+VM.sx-spr*.05,ty+by+br+VM.sy-spr*.05-(S.reloading>0&&!VM.anim?.08:0),tz+k*.05);
+  _vmR.set(hr[0]+k*.28+(S.reloading>0&&!VM.anim?.35:0)-spr*.35+VM.sy*2,hr[1]+spr*.7+VM.sx*2+yawB,hr[2]+(S.reloading>0&&!VM.anim?-.35:0)+spr*.25+roll-lat*.035*sw+(S.drunk>0?Math.sin(VM.t*1.7)*.03:0));
+  if(!VMS.init){VMS.p.copy(_vmT);VMS.r.copy(_vmR);VMS.v.set(0,0,0);VMS.w.set(0,0,0);VMS.init=true;}
+  spring3(VMS.p,VMS.v,_vmT,ads?260:170,ads?.86:.66,dt);spring3(VMS.r,VMS.w,_vmR,ads?220:130,ads?.86:.6,dt);
+  vmRoot.position.copy(VMS.p);vmRoot.rotation.set(VMS.r.x,VMS.r.y,VMS.r.z);
   vmRoot.updateMatrixWorld(true);if(VM.arms)VM.arms.forEach(a=>fpShoulder(a,vmCam));
   const tf=(ads?w.fov:72)+player.fovK*7;camera.fov=damp(camera.fov,tf,10,dt);camera.updateProjectionMatrix();
   if(S.reloading>0){S.reloading-=dt;if(S.reloading<=.35&&S.reloadFill){S.reloadFill();S.reloadFill=null;}}}
