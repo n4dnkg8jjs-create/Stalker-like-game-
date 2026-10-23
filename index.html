@@ -919,6 +919,89 @@ function roadMat(){const m=std({map:PB.road.a,normalMap:PB.road.n,roughnessMap:P
       .replace('#include <normal_fragment_maps>','#include <normal_fragment_maps>\nnormal=normalize(mix(normal,(viewMatrix*vec4(0.,1.,0.,0.)).xyz,RP*.95));');};
   m.customProgramCacheKey=()=>'road2';return m;}
 
+/* ---------- foliage and wildflower textures ----------
+   Every foliage card shares one convention: the twig enters at the top centre of the image and the growth runs down
+   the image, so a card hung from a branch point grows "down" its V axis. Leaves are drawn back to front, the earlier
+   (inner) ones darker, so each card already carries its own self-shadowing. */
+const FL_={
+  leaf(g,x,y,ang,L,W,col,kind){/* one leaf: short petiole, then the blade. birch: deltoid with a drawn-out tip and a
+    serrated edge; hazel: broad, rounded, heart-shaped base, doubly serrated; willow: long and narrow */
+    g.save();g.translate(x,y);g.rotate(ang);g.strokeStyle='rgba(60,48,30,.9)';g.lineWidth=1.2;g.beginPath();g.moveTo(0,0);g.lineTo(0,L*.16);g.stroke();g.translate(0,L*.16);
+    const n=18,pts=[];const prof=s=>kind==='hazel'?Math.pow(Math.sin(Math.PI*Math.min(1,s*1.05)),.8)*(1-.15*s):kind==='willow'?Math.sin(Math.PI*s)*.85:
+      (s<.34?Math.sqrt(s/.34):Math.pow(1-(s-.34)/.66,1.05));
+    for(let i=0;i<=n;i++){const s=i/n;pts.push([W/2*prof(s)+((i%2&&i<n)?W*.035:0),s*L]);}
+    g.beginPath();g.moveTo(0,0);pts.forEach(p=>g.lineTo(p[0],p[1]));for(let i=n;i>=0;i--)g.lineTo(-pts[i][0],pts[i][1]);g.closePath();
+    const gr=g.createLinearGradient(-W/2,0,W/2,0);gr.addColorStop(0,col[0]);gr.addColorStop(.5,col[1]);gr.addColorStop(1,col[0]);g.fillStyle=gr;g.fill();
+    g.strokeStyle='rgba(235,240,190,.18)';g.lineWidth=1;g.beginPath();g.moveTo(0,0);g.lineTo(0,L*.92);g.stroke();
+    g.strokeStyle='rgba(20,26,8,.25)';g.lineWidth=.8;for(let k=1;k<5;k++){const yy=L*k/5.5;g.beginPath();g.moveTo(0,yy);g.lineTo(W*.32,yy+L*.1);g.moveTo(0,yy);g.lineTo(-W*.32,yy+L*.1);g.stroke();}
+    g.restore();},
+  hsl(h,s,l,a=1){return `hsla(${h},${s}%,${l}%,${a})`;},
+  /* a polyline twig sampled as points with directions */
+  twig(x0,y0,ang,len,curve,step=4){const P=[];let x=x0,y=y0,a=ang;for(let s=0;s<=len;s+=step){P.push([x,y,a,s/len]);x+=Math.sin(a)*step;y+=Math.cos(a)*step;a+=curve*step;}return P;},
+  stroke(g,P,w0,w1,col){g.strokeStyle=col;g.lineCap='round';for(let i=1;i<P.length;i++){g.lineWidth=lerp(w0,w1,P[i][3]);g.beginPath();g.moveTo(P[i-1][0],P[i-1][1]);g.lineTo(P[i][0],P[i][1]);g.stroke();}}
+};
+/* birch: a hanging branchlet - thin dark twigs drooping from the top, crowded with small toothed triangular leaves,
+   mostly fresh yellow-green with a few already turning gold */
+TX.twigBirch=tex(512,512,(g,w,h)=>{g.clearRect(0,0,w,h);const main=FL_.twig(256,0,rnd(-.08,.08),480,rnd(-.0006,.0006));const all=[main];
+  for(let i=0;i<10;i++){const p=main[Math.floor(rnd(.1,.85)*main.length)];const sd=i%2?1:-1;all.push(FL_.twig(p[0],p[1],p[2]+sd*rnd(.35,.8),rnd(110,220),-sd*rnd(.0015,.003)));}
+  all.forEach((P,k)=>FL_.stroke(g,P,k?2.2:3.2,.9,'#3b2d22'));
+  const L=[];all.forEach((P,k)=>{for(let i=3;i<P.length;i+=rnd(4,6)|0){const p=P[i];[-1,1].forEach(sd=>L.push([p[0],p[1],p[2]+sd*rnd(.5,1.1)+rnd(-.2,.2)]));}});
+  L.sort(()=>R()-.5);L.forEach((l,i)=>{const d=.7+.3*i/L.length;const t=R();let hh,ss,ll;if(t<.78){hh=rnd(64,86);ss=rnd(40,56);ll=rnd(34,46);}else if(t<.95){hh=rnd(47,56);ss=rnd(60,75);ll=rnd(44,54);}else{hh=rnd(34,42);ss=rnd(45,55);ll=rnd(34,42);}
+    const Ls=rnd(34,48);FL_.leaf(g,l[0],l[1],-l[2],Ls,Ls*rnd(.6,.72),[FL_.hsl(hh,ss,ll*d*.82),FL_.hsl(hh,ss,ll*d)],'birch');});},{clamp:true});
+/* spruce: a flat shoot - a stiff central twig with side twiglets angled forward, every twig densely clothed in short
+   stiff needles, dark blue-green, with paler new growth at the tips */
+TX.spray=tex(256,512,(g,w,h)=>{g.clearRect(0,0,w,h);const main=FL_.twig(128,0,rnd(-.04,.04),500,0,3);const all=[[main,0]];
+  for(let y=24;y<470;y+=rnd(18,26)){const p=main[Math.min(main.length-1,Math.round(y/3))];const sd=(Math.round(y/22))%2?1:-1;const L=(1-y/600)*112+18;all.push([FL_.twig(p[0],p[1],p[2]+sd*rnd(.75,.95),L,-sd*.002,3),1]);}
+  all.forEach(([P,k])=>FL_.stroke(g,P,k?2:3.6,1,'#3a2a1c'));
+  for(let pass=0;pass<2;pass++)all.forEach(([P,k])=>{P.forEach((p,i)=>{const tip=p[3]>.72;const n=pass?1:3;for(let j=0;j<n;j++){const a=p[2]+(R()<.5?-1:1)*rnd(.5,1.4),l=rnd(9,15)*(k?1:1.15);
+    const hh=tip?rnd(110,128):rnd(148,168),ss=tip?rnd(34,44):rnd(22,34),ll=tip?rnd(30,37):rnd(16,26)+pass*4;g.strokeStyle=FL_.hsl(hh,ss,ll);g.lineWidth=1.7;
+    g.beginPath();g.moveTo(p[0],p[1]);g.lineTo(p[0]+Math.sin(a)*l,p[1]+Math.cos(a)*l);g.stroke();}});});},{clamp:true});
+/* Scots pine: a twig forking into three or four brushes of long paired grey-green needles */
+TX.tuft=tex(512,512,(g,w,h)=>{g.clearRect(0,0,w,h);const stem=FL_.twig(256,0,0,150,rnd(-.001,.001),4);FL_.stroke(g,stem,7,4,'#5a3e28');const e=stem[stem.length-1];
+  const tips=[-.62,-.2,.2,.62].map(a=>{const P=FL_.twig(e[0],e[1],a+rnd(-.1,.1),rnd(110,170),rnd(-.001,.001),4);FL_.stroke(g,P,4,2,'#5a3e28');return P;});
+  tips.forEach(P=>{for(let i=Math.floor(P.length*.25);i<P.length;i++){const p=P[i];for(let j=0;j<7;j++){const a=p[2]+rnd(-1.05,1.05),l=rnd(55,105)*(.6+.4*p[3]);
+    g.strokeStyle=FL_.hsl(rnd(92,118),rnd(16,28),rnd(26,42));g.lineWidth=rnd(1.8,2.6);g.beginPath();g.moveTo(p[0],p[1]);g.quadraticCurveTo(p[0]+Math.sin(a)*l*.5+rnd(-4,4),p[1]+Math.cos(a)*l*.5,p[0]+Math.sin(a)*l,p[1]+Math.cos(a)*l);g.stroke();}}});},{clamp:true});
+/* hazel / alder undergrowth: broad rounded toothed leaves on arching shoots */
+TX.twigBush=tex(512,512,(g,w,h)=>{g.clearRect(0,0,w,h);const main=FL_.twig(256,0,rnd(-.1,.1),470,rnd(-.0008,.0008));const all=[main];
+  for(let i=0;i<7;i++){const p=main[Math.floor(rnd(.12,.8)*main.length)];const sd=i%2?1:-1;all.push(FL_.twig(p[0],p[1],p[2]+sd*rnd(.4,.85),rnd(120,210),-sd*.0015));}
+  all.forEach((P,k)=>FL_.stroke(g,P,k?2.6:3.6,1.2,'#4a3828'));
+  const L=[];all.forEach(P=>{for(let i=4;i<P.length;i+=rnd(7,10)|0){const p=P[i];[-1,1].forEach(sd=>L.push([p[0],p[1],p[2]+sd*rnd(.6,1.2)]));}});
+  L.sort(()=>R()-.5);L.forEach((l,i)=>{const d=.74+.26*i/L.length;const hh=rnd(68,92),ss=rnd(36,52),ll=rnd(34,46);const Ls=rnd(46,62);
+    FL_.leaf(g,l[0],l[1],-l[2],Ls,Ls*rnd(.72,.86),[FL_.hsl(hh,ss,ll*d*.8),FL_.hsl(hh,ss,ll*d)],'hazel');});},{clamp:true});
+/* wildflowers of the abandoned fields, one species per cell of a 6 x 1 atlas (256 x 512 each), stems rooted at the
+   bottom: chamomile, cornflower, yarrow, tansy, fireweed, red clover */
+TX.flowers=tex(1536,512,(g,w,h)=>{g.clearRect(0,0,w,h);
+  const stem=(x0,len,lean)=>{const P=FL_.twig(x0,512,Math.PI+lean,len,rnd(-.0012,.0012),5);FL_.stroke(g,P,2.4,1.4,FL_.hsl(rnd(85,100),rnd(30,42),rnd(24,32)));return P;};
+  const leafy=(P,n,len,wid,hh)=>{for(let i=0;i<n;i++){const p=P[Math.floor(rnd(.05,.7)*P.length)];const sd=R()<.5?-1:1;FL_.leaf(g,p[0],p[1],-(p[2]+sd*rnd(.5,.9)),len*rnd(.7,1.1),wid,[FL_.hsl(hh,38,22),FL_.hsl(hh,40,30)],'willow');}};
+  const feather=(P,n)=>{for(let i=0;i<n;i++){const p=P[Math.floor(rnd(.05,.75)*P.length)];const sd=R()<.5?-1:1;const a=p[2]+sd*rnd(.5,1);g.strokeStyle=FL_.hsl(95,32,28);g.lineWidth=1.2;
+    for(let k=0;k<6;k++){const l=rnd(10,22);const bx=p[0]+Math.sin(a)*k*5,by=p[1]+Math.cos(a)*k*5;g.beginPath();g.moveTo(bx,by);g.lineTo(bx+Math.sin(a+rnd(-.8,.8))*l,by+Math.cos(a+rnd(-.8,.8))*l);g.stroke();}}};
+  const cell=(c,fn)=>{g.save();g.beginPath();g.rect(c*256,0,256,512);g.clip();g.translate(c*256,0);fn();g.restore();};
+  /* chamomile: white rays round a domed yellow disc */
+  cell(0,()=>{for(let i=0;i<7;i++){const P=stem(128+rnd(-50,50),rnd(240,440),rnd(-.35,.35));feather(P,4);const e=P[P.length-1];
+    g.fillStyle='#f4f2ea';for(let k=0;k<16;k++){const a=k/16*6.283;g.save();g.translate(e[0],e[1]);g.rotate(a);g.beginPath();g.ellipse(0,11,3.4,8.5,0,0,7);g.fill();g.restore();}
+    g.fillStyle='#e9b81e';g.beginPath();g.arc(e[0],e[1],7,0,7);g.fill();g.fillStyle='rgba(170,110,10,.6)';g.beginPath();g.arc(e[0]+1.5,e[1]+1.5,4,0,7);g.fill();}});
+  /* cornflower: ragged blue florets round a violet centre */
+  cell(1,()=>{for(let i=0;i<5;i++){const P=stem(128+rnd(-46,46),rnd(260,440),rnd(-.3,.3));leafy(P,3,48,7,92);const e=P[P.length-1];
+    g.fillStyle=FL_.hsl(rnd(222,232),68,52);for(let k=0;k<11;k++){const a=k/11*6.283;g.save();g.translate(e[0],e[1]);g.rotate(a);g.beginPath();g.moveTo(-3,0);g.lineTo(-5,17);g.lineTo(0,13);g.lineTo(5,17);g.lineTo(3,0);g.fill();g.restore();}
+    g.fillStyle='#4a2a6a';g.beginPath();g.arc(e[0],e[1],5,0,7);g.fill();g.fillStyle='#5a7a3a';g.beginPath();g.ellipse(e[0],e[1]+9,5,7,0,0,7);g.fill();}});
+  /* yarrow: flat-topped clusters of tiny cream florets over feathery leaves */
+  cell(2,()=>{for(let i=0;i<4;i++){const P=stem(128+rnd(-40,40),rnd(300,450),rnd(-.25,.25));feather(P,7);const e=P[P.length-1];
+    for(let k=0;k<55;k++){const a=R()*6.283,r=Math.sqrt(R())*30;g.fillStyle=R()<.15?'#d9cfb8':'#f1ece0';g.beginPath();g.arc(e[0]+Math.cos(a)*r,e[1]+Math.sin(a)*r*.45,2.4,0,7);g.fill();}}});
+  /* tansy: clusters of hard yellow buttons */
+  cell(3,()=>{for(let i=0;i<3;i++){const P=stem(128+rnd(-36,36),rnd(360,480),rnd(-.2,.2));feather(P,8);const e=P[P.length-1];
+    for(let k=0;k<16;k++){const a=R()*6.283,r=Math.sqrt(R())*28;const x=e[0]+Math.cos(a)*r,y=e[1]+Math.sin(a)*r*.5;g.strokeStyle=FL_.hsl(92,32,30);g.lineWidth=1;g.beginPath();g.moveTo(e[0],e[1]+8);g.lineTo(x,y);g.stroke();
+      g.fillStyle=FL_.hsl(rnd(46,50),85,rnd(46,54));g.beginPath();g.arc(x,y,5.2,0,7);g.fill();g.fillStyle='rgba(150,100,0,.5)';g.beginPath();g.arc(x+1,y+1,2.5,0,7);g.fill();}}});
+  /* fireweed (Ivan-chai): tall spikes of four-petalled magenta flowers opening from the bottom, buds at the tip */
+  cell(4,()=>{for(let i=0;i<4;i++){const P=stem(128+rnd(-50,50),rnd(400,500),rnd(-.12,.12));leafy(P,9,52,8,100);
+    for(let k=Math.floor(P.length*.55);k<P.length;k+=2){const p=P[k],u=(k/P.length-.55)/.45;const x=p[0]+rnd(-9,9),y=p[1];
+      if(u>.8){g.fillStyle=FL_.hsl(330,45,38);g.beginPath();g.ellipse(x,y,3,5,0,0,7);g.fill();continue;}
+      for(let q=0;q<4;q++){const a=q/4*6.283+.4;g.fillStyle=FL_.hsl(rnd(318,330),62,rnd(52,62));g.beginPath();g.ellipse(x+Math.cos(a)*5,y+Math.sin(a)*5,4.5,6,a,0,7);g.fill();}}}});
+  /* red clover: low, round pink heads over trefoil leaves */
+  cell(5,()=>{for(let i=0;i<9;i++){const P=stem(128+rnd(-80,80),rnd(110,230),rnd(-.5,.5));const e=P[P.length-1];
+    for(let q=0;q<3;q++){const a=q/3*6.283;g.fillStyle=FL_.hsl(100,35,28);g.beginPath();g.ellipse(e[0]+Math.cos(a)*9,e[1]+40+Math.sin(a)*9,7,9,a,0,7);g.fill();}
+    for(let k=0;k<26;k++){const a=R()*6.283,r=Math.sqrt(R())*12;g.fillStyle=FL_.hsl(rnd(325,338),rnd(45,60),rnd(52,66));g.beginPath();g.ellipse(e[0]+Math.cos(a)*r,e[1]+Math.sin(a)*r,2.4,4,a,0,7);g.fill();}}});
+},{clamp:true});
+
 /* ---------- terrain ---------- */
 const HX=40,HZ=-380;           // farmhouse centre
 const DROPZ=-292;              // BTR drop point in Sector 1
@@ -977,14 +1060,15 @@ function tallGrass(x,z){const q=roadQuery(x,z);if(q.dH>90)return 0;const w=field
 function forestF(x,z){if(x>-6||z>330)return 0;const q=roadQuery(x,z);if(q.dT<7.2)return 0;if(q.dH<(q.sideH<0?74:28))return 0;
   let f=0;if(q.dT<150)f=1;if(z<-468)f=1;if(q.dH<220&&q.sideH>0)f=1;if(x<-330)f=1;
   return f*(.72+.28*fbm(x/26+3,z/26,2));}
-const hotspots=[{x:-34,z:-318,r:15,uSv:38},{x:66,z:-436,r:18,uSv:95},{x:14,z:-352,r:8,uSv:22},{x:HX,z:HZ,r:12,uSv:9}];
+/* radiation: a few small, hot spots where fragments of the original dirty bomb came down (and a weak one round the house) */
+const hotspots=[{x:-34,z:-318,r:7,uSv:45,frag:1},{x:66,z:-436,r:8,uSv:110,frag:1},{x:14,z:-352,r:5,uSv:28,frag:1},{x:HX,z:HZ,r:12,uSv:9}];
 function grassDens(x,z){
   let d=.5+.5*sstep(.32,.62,fbm(x/34+7,z/34+1,3));
   const ax=Math.abs(x);
   if(ax<4.2){d*=sstep(.32,.62,Math.abs(ax-1.85));if(ax>3.2)d*=.6;}
   if(Math.abs(x)<44&&Math.abs(z)<35){const e=Math.min(44-Math.abs(x),35-Math.abs(z));d*=e<1.2?.5:0;}
   if(x>HX-4.6&&x<HX+4.6&&z>HZ-3.6&&z<HZ+5.2)d=0;
-  for(const h of hotspots){if(h.uSv<20)continue;const k=Math.hypot(x-h.x,z-h.z)/(h.r*.55);if(k<1)d*=.15+.85*k*k;}
+  for(const h of hotspots){if(!h.frag)continue;const k=Math.hypot(x-h.x,z-h.z)/(h.r*.4);if(k<1)d*=.45+.55*k*k;}
   {const q=roadQuery(x,z);if(q.dT<5)d*=sstep(2.6,4.6,q.dT);if(q.dH<9)d*=sstep(4.6,7.2,q.dH);if(q.dH<90&&q.dH>7){const tg=tallGrass(x,z);d=Math.max(d,tg*.95);}}
   return d;}
 
@@ -996,7 +1080,8 @@ function groundMix(x,z){const n1=fbm(x/46,z/46,3),n2=fbm(x/11+50,z/11,2),n3=fbm(
   const ax=Math.abs(x);const road=1-sstep(3.4,6.5,ax);m+=road*1.2;v+=road*.6*sstep(.4,.6,n3);g*=1-road*.8;
   if(Math.abs(x)<46&&Math.abs(z)<37){const e=sstep(0,4,Math.min(46-Math.abs(x),37-Math.abs(z)));m+=e*1.4;v+=e*1.0;g*=1-e;d*=1-e;}
   const dh=Math.hypot(x-HX,z-HZ);const yard=1-sstep(6,13,dh);m+=yard*.9;d+=yard*.4;g*=1-yard*.7;
-  for(const h of hotspots){if(h.uSv<20)continue;const k=Math.hypot(x-h.x,z-h.z)/(h.r*.7);if(k<1){d+=(1-k)*1.5;m+=(1-k)*.6;g*=k;}}
+  /* round each fragment the grass has died back a little: dry and thin, the soil showing - no puddles, no glow */
+  for(const h of hotspots){if(!h.frag)continue;const k=Math.hypot(x-h.x,z-h.z)/(h.r*.45);if(k<1){d+=(1-k)*.9;m+=(1-k)*.25;g*=.35+.65*k;}}
   {const q=roadQuery(x,z);if(q.dT<6.5){const k=1-sstep(2.8,6.5,q.dT);m+=k*1.6;v+=k*.5*sstep(.4,.6,n3);g*=1-k*.85;d*=1-k;}if(q.dH<16){const k=1-sstep(12.5,16,q.dH);d+=k*.6;}}
   let wet=sstep(-1.2,-2.4,baseH(x,z)*flatW(x,z))*.8+m*sstep(.62,.7,n3)*.7;
   const s=g+d+m+v+1e-4;return[g/s,d/s,m/s,v/s,clamp(wet,0,.9)];}
@@ -1071,45 +1156,189 @@ function buildGrass(Rad){if(GRASS.mesh){scene.remove(GRASS.mesh);GRASS.mesh.chil
     g.setAttribute('aOff',new T.InstancedBufferAttribute(new Float32Array(off),2));g.instanceCount=off.length/2;
     let cx=0,cz=0;for(let k=0;k<off.length;k+=2){cx+=off[k];cz+=off[k+1];}cx=cx/(off.length/2)*cell;cz=cz/(off.length/2)*cell;let r=0;for(let k=0;k<off.length;k+=2)r=Math.max(r,Math.hypot(off[k]*cell-cx,off[k+1]*cell-cz));
     g.boundingSphere=new T.Sphere(new T.Vector3(),r+cell*2+3.5);const m=new T.Mesh(g,grassMat);m.frustumCulled=true;m.receiveShadow=true;grp.add(m);GRASS.secs.push({m,cx,cz});});
-  GRASS.mesh=grp;GRASS.uni.uR.value=Rad;scene.add(grp);}
+  GRASS.mesh=grp;GRASS.uni.uR.value=Rad;scene.add(grp);buildFlowers(Rad);}
 /* per frame: move each wedge's bounding sphere with the camera's grass cell */
-function grassBounds(){if(!GRASS.secs)return;const c=GRASS.uni.uCenter.value,cell=GRASS.uni.uCell.value;for(const s of GRASS.secs)s.m.geometry.boundingSphere.center.set(c.x*cell+s.cx,camera.position.y-1.2,c.y*cell+s.cz);}
+function grassBounds(){if(!GRASS.secs)return;const c=GRASS.uni.uCenter.value,cell=GRASS.uni.uCell.value;for(const s of GRASS.secs)s.m.geometry.boundingSphere.center.set(c.x*cell+s.cx,camera.position.y-1.2,c.y*cell+s.cz);
+  if(FLOWERS.secs){const fc=FLOWERS.uni.uFC.value,fs=FLOWERS.uni.uFCell.value;fc.set(Math.floor(camera.position.x/fs),Math.floor(camera.position.z/fs));for(const s of FLOWERS.secs)s.m.geometry.boundingSphere.center.set(fc.x*fs+s.cx,camera.position.y-1.2,fc.y*fs+s.cz);}}
+/* ---------- wildflowers: the same world-locked ring around the camera, sparser cells (0.9 m), drawn from a six-species
+   atlas. Meadow ground only (no forest floor, roads or the camp); they grow in drifts - one species dominant in each
+   patch with others mixed through - and sway and part round your legs like the grass ---------- */
+const FM=(function(){const n=256,data=new Uint8Array(n*n*4);
+  for(let j=0;j<n;j++)for(let i=0;i<n;i++){const x=TERR.x0+(i+.5)/n*TERR.w,z=TERR.z0+(j+.5)/n*TERR.d,k=(j*n+i)*4;const f=forestF(x,z);
+    data[k]=f>0?0:255;data[k+1]=clamp(fbm(x/23+31,z/23-12,2)*255,0,255);data[k+2]=0;data[k+3]=255;}
+  const t=new T.DataTexture(data,n,n,T.RGBAFormat,T.UnsignedByteType);t.magFilter=T.LinearFilter;t.minFilter=T.LinearFilter;t.needsUpdate=true;return t;})();
+const FLOWERS={secs:null,uni:{uFC:{value:new T.Vector2()},uFCell:{value:.9},uFM:{value:FM}}};
+const flowerMat=std({map:TX.flowers,alphaTest:.5,side:T.DoubleSide,roughness:.78,envMapIntensity:.25});
+flowerMat.onBeforeCompile=s=>{Object.assign(s.uniforms,GRASS.uni,FLOWERS.uni);
+  s.vertexShader=`attribute vec2 aOff;uniform vec2 uFC;uniform float uFCell,uTime,uR;uniform sampler2D uHM,uFM;uniform vec4 uTB;uniform vec3 uPlayer;
+  float gh(vec2 p){vec3 q=fract(vec3(p.xyx)*.1031);q+=dot(q,q.yzx+33.33);return fract((q.x+q.y)*q.z);}
+  `+s.vertexShader.replace('#include <uv_vertex>',`#include <uv_vertex>
+  vec2 cell=uFC+aOff;float r1=gh(cell+3.1),r2=gh(cell+11.7),r3=gh(cell+23.3),r4=gh(cell+47.9);
+  vec2 wp=(cell+vec2(r1,r2))*uFCell;vec4 hm=texture2D(uHM,(wp-uTB.xy)/uTB.zw),fm=texture2D(uFM,(wp-uTB.xy)/uTB.zw);
+  float dist=length(wp-cameraPosition.xz),Rf=min(uR*1.25,44.);float fade=1.-smoothstep(Rf*.6,Rf,dist);
+  float drift=smoothstep(.5,.68,hm.b),meadow=smoothstep(.45,.8,hm.g)*step(.5,fm.r)*(1.-hm.a*.6);
+  float dens=meadow*(.03+.62*drift);float show=step(r3,dens);
+  float sp=floor(fm.g*5.99);if(r4<.28)sp=floor(r1*5.99);
+  float hs=sp<.5?.5:sp<1.5?.62:sp<2.5?.7:sp<3.5?.86:sp<4.5?1.25:.3;
+  vUv.x=(sp+uv.x)/6.;
+  float fsc=show*fade*(.75+r4*.5);`).replace('#include <beginnormal_vertex>','vec3 objectNormal=vec3(0.0,1.0,0.0);')
+  .replace('#include <begin_vertex>',`
+  float ang=r2*6.2831;float ca=cos(ang),sa=sin(ang);vec3 transformed=position;transformed.xz=mat2(ca,-sa,sa,ca)*transformed.xz;
+  transformed*=vec3(fsc*.55,fsc*hs,fsc*.55);float t=uv.y;
+  float wv=sin(uTime*1.6+wp.x*.31+wp.y*.23)*.65+sin(uTime*3.7+wp.x*1.3+wp.y*.7)*.22;transformed.x+=wv*.1*t*t*fsc;transformed.z+=wv*.05*t*t*fsc;
+  vec2 pd=wp-uPlayer.xz;float pl=length(pd);float push=max(0.,1.-pl/.85);transformed.xz+=(pd/max(pl,.001))*push*.3*t*fsc;transformed.y-=push*.15*t*fsc;
+  transformed+=vec3(wp.x,hm.r*12.-5.-.03,wp.y);`);
+  s.fragmentShader=s.fragmentShader.replace('#include <normal_fragment_begin>',NOFLIP);};
+flowerMat.customProgramCacheKey=()=>'flowers';
+function buildFlowers(Rad){if(FLOWERS.mesh){scene.remove(FLOWERS.mesh);FLOWERS.mesh.children.forEach(c=>c.geometry.dispose());}
+  const cell=FLOWERS.uni.uFCell.value,Rf=Math.min(Rad*1.25,44),K=Math.ceil(Rf/cell),NS=8,buck=Array.from({length:NS},()=>[]);
+  for(let i=-K;i<=K;i++)for(let j=-K;j<=K;j++)if(i*i+j*j<=K*K){const a=Math.atan2(j,i);buck[Math.floor((a+Math.PI)/(Math.PI*2)*NS)%NS].push(i,j);}
+  const q1=new T.PlaneGeometry(1,1);q1.translate(0,.5,0);const q2=q1.clone();q2.rotateY(Math.PI/2);const base=merge([q1,q2]);const grp=new T.Group();FLOWERS.secs=[];
+  buck.forEach(off=>{if(!off.length)return;const g=new T.InstancedBufferGeometry();g.index=base.index;for(const a in base.attributes)g.attributes[a]=base.attributes[a];
+    g.setAttribute('aOff',new T.InstancedBufferAttribute(new Float32Array(off),2));g.instanceCount=off.length/2;
+    let cx=0,cz=0;for(let k=0;k<off.length;k+=2){cx+=off[k];cz+=off[k+1];}cx=cx/(off.length/2)*cell;cz=cz/(off.length/2)*cell;let r=0;for(let k=0;k<off.length;k+=2)r=Math.max(r,Math.hypot(off[k]*cell-cx,off[k+1]*cell-cz));
+    g.boundingSphere=new T.Sphere(new T.Vector3(),r+cell*2+3);const m=new T.Mesh(g,flowerMat);m.frustumCulled=true;m.receiveShadow=true;grp.add(m);FLOWERS.secs.push({m,cx,cz});});
+  FLOWERS.mesh=grp;scene.add(grp);}
 
-/* ---------- trees: trunks + alpha-tested leaf cards ---------- */
+/* ---------- trees: real branching structures ----------
+   Every tree is grown as a hierarchy: trunk -> limbs -> branches (-> twigs), each a tapered tube swept along a curved
+   path. A child starts on its parent's axis with a smaller radius than the parent has there, so every branch is joined
+   to the wood it grows from - nothing floats. Foliage cards hang from the actual twigs. Each species has a full-detail
+   model for the trees round the player and a light one grown from the same skeleton for the distance. */
 function card(w,h,cx,cy,cz,rx,ry,rz,center){const g=new T.PlaneGeometry(w,h);xf(g,cx,cy,cz,rx,ry,rz);
   const p=g.attributes.position,n=g.attributes.normal;for(let i=0;i<p.count;i++){const v=V3(p.getX(i)-center.x,(p.getY(i)-center.y)*1.3,p.getZ(i)-center.z).normalize();n.setXYZ(i,v.x,v.y*.8+.25,v.z);}return g;}
-function birchGeo(){const trunk=[],leaves=[];const H0=rnd(8.5,11.5),lean=rnd(-.1,.1);
-  const t=new T.CylinderGeometry(.07,.19,H0,9,8);const p=t.attributes.position;for(let i=0;i<p.count;i++){const y=p.getY(i)+H0/2;p.setX(i,p.getX(i)+Math.sin(y*.35)*.12+lean*y*.06);}
-  t.translate(0,H0/2,0);t.computeVertexNormals();trunk.push(t);
-  const ctr=V3(lean*H0*.05,H0*.7,0);const nb=rnd(6,9)|0;
-  for(let i=0;i<nb;i++){const y=lerp(H0*.42,H0*.9,i/(nb-1))+rnd(-.3,.3),a=i*2.4+rnd(.5),l=rnd(1.6,2.8)*(1-(y/H0-.42)*.6),el=rnd(.55,1.0);
-    const b=new T.CylinderGeometry(.016,.05,l,5);b.translate(0,l/2,0);xf(b,0,0,0,0,0,-el);xf(b,lean*y*.06,y,0,0,a,0);trunk.push(b);
-    const ex=lean*y*.06+Math.cos(a)*Math.sin(el)*l,ez=-Math.sin(a)*Math.sin(el)*l,ey=y+Math.cos(el)*l;
-    const nc=9+(R()*5|0);for(let k=0;k<nc;k++){const sz=rnd(.9,1.5);const ox=rnd(-.8,.8),oy=rnd(-.9,.5),oz=rnd(-.8,.8);
-      leaves.push(card(sz,sz*rnd(.9,1.2),ex+ox,ey+oy,ez+oz,rnd(-1.2,1.2),rnd(6.28),rnd(-.6,.6),ctr));}}
-  for(let k=0;k<10;k++){const sz=rnd(1,1.5);leaves.push(card(sz,sz,ctr.x+rnd(-.6,.6),H0*rnd(.82,1.0),rnd(-.6,.6),rnd(-1,1),rnd(6.28),0,ctr));}
-  return{trunk:merge(trunk),leaves:merge(leaves)};}
-function pineGeo(){const trunk=[],leaves=[];const H0=rnd(12,16);
-  const t=new T.CylinderGeometry(.06,.32,H0,9,6);t.translate(0,H0/2,0);trunk.push(t);const ctr=V3(0,H0*.55,0);
-  for(let y=H0*.28;y<H0-.3;y+=rnd(.55,.8)){const k=1-(y-H0*.28)/(H0*.72);const L=.5+k*3.0;const n=Math.round(5+k*3);
-    for(let i=0;i<n;i++){const a=i/n*6.28+rnd(.4);const g=new T.PlaneGeometry(L,L*.55);g.translate(L/2,0,0);g.rotateX(Math.PI/2);g.rotateZ(-rnd(.25,.45));g.rotateY(a);g.translate(0,y,0);
-      const pp=g.attributes.position,nn=g.attributes.normal;for(let j=0;j<pp.count;j++){const v=V3(pp.getX(j),.6,pp.getZ(j)).normalize();nn.setXYZ(j,v.x,v.y,v.z);}leaves.push(g);}
-    const v=new T.PlaneGeometry(L*1.3,.9);v.rotateY(rnd(6.28));v.translate(0,y,0);leaves.push(v);}
-  return{trunk:merge(trunk),leaves:merge(leaves)};}
-function deadGeo(){const parts=[];const H0=rnd(5,7);const t=new T.CylinderGeometry(.06,.22,H0,8,4);t.translate(0,H0/2,0);parts.push(t);
-  for(let i=0;i<12;i++){const y=rnd(H0*.35,H0*.95),l=rnd(.8,2.4);const b=new T.CylinderGeometry(.012,.05,l,5);b.translate(0,l/2,0);xf(b,0,y,0,rnd(-.3,.3),rnd(6.28),rnd(.5,1.2));parts.push(b);
-    for(let k=0;k<2;k++){const l2=l*.5;const c=new T.CylinderGeometry(.006,.02,l2,4);c.translate(0,l2/2,0);xf(c,0,0,0,0,rnd(6.28),rnd(.4,.9));xf(c,0,l*.6,0,0,0,0);xf(c,0,y,0,0,0,0);parts.push(c);}}
-  return merge(parts);}
-/* an InstancedMesh is frustum-culled with its geometry's bounding sphere; make that sphere enclose all instances */
-function fitInstBounds(im,pts,pad){let x0=1e9,x1=-1e9,z0=1e9,z1=-1e9;for(const p of pts){x0=Math.min(x0,p[0]);x1=Math.max(x1,p[0]);z0=Math.min(z0,p[1]);z1=Math.max(z1,p[1]);}
-  const c=V3((x0+x1)/2,6,(z0+z1)/2),r=Math.hypot(x1-x0,z1-z0)/2+pad;im.geometry.boundingSphere=new T.Sphere(c,r);}
+/* tapered tube along a polyline; parallel-transported frames so it never twists; vertex colour per point */
+function Wood(){this.p=[];this.n=[];this.uv=[];this.c=[];this.ix=[];this.vi=0;}
+Wood.prototype.tube=function(P,rad,sides,vScale,col){const n=P.length;let N=null;const t=V3(),B=V3(),d=V3();let vacc=0;const s0=this.vi;
+  for(let k=0;k<n;k++){if(k===0)t.subVectors(P[1],P[0]);else if(k===n-1)t.subVectors(P[n-1],P[n-2]);else t.subVectors(P[k+1],P[k-1]);t.normalize();
+    if(!N){N=Math.abs(t.y)<.9?V3(0,1,0).cross(t).normalize():V3(1,0,0).cross(t).normalize();}else{N.addScaledVector(t,-N.dot(t)).normalize();}
+    B.crossVectors(t,N);if(k>0)vacc+=P[k].distanceTo(P[k-1]);const r=rad[k],cc=col?col(k/(n-1),P[k],r):[1,1,1];
+    for(let s=0;s<=sides;s++){const a=s/sides*Math.PI*2;d.copy(N).multiplyScalar(Math.cos(a)).addScaledVector(B,Math.sin(a));
+      this.p.push(P[k].x+d.x*r,P[k].y+d.y*r,P[k].z+d.z*r);this.n.push(d.x,d.y,d.z);this.uv.push(s/sides,vacc/vScale);this.c.push(cc[0],cc[1],cc[2]);}}
+  for(let k=0;k<n-1;k++)for(let s=0;s<sides;s++){const a=s0+k*(sides+1)+s,b=a+sides+1;this.ix.push(a,a+1,b,a+1,b+1,b);}
+  this.vi+=n*(sides+1);};
+Wood.prototype.geo=function(){const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(this.p,3));g.setAttribute('normal',new T.Float32BufferAttribute(this.n,3));
+  g.setAttribute('uv',new T.Float32BufferAttribute(this.uv,2));g.setAttribute('color',new T.Float32BufferAttribute(this.c,3));g.setIndex(this.vi>65535?new T.Uint32BufferAttribute(this.ix,1):new T.Uint16BufferAttribute(this.ix,1));g.computeBoundingSphere();return g;};
+/* foliage cards: hung at a point, growing along V, U across; normals bent out from the crown centre so the canopy is
+   shaded as a volume rather than as flat sheets */
+function Leaves(ctr){this.p=[];this.n=[];this.uv=[];this.ix=[];this.vi=0;this.ctr=ctr;}
+Leaves.prototype.add=function(o,U,Vd,w,l){const c=this.ctr,fn=V3().crossVectors(U,Vd).normalize();
+  const cs=[[-w/2,0,0,1],[w/2,0,1,1],[w/2,l,1,0],[-w/2,l,0,0]];const q=V3(),nn=V3();
+  for(const [a,b,u,v] of cs){q.copy(o).addScaledVector(U,a).addScaledVector(Vd,b);this.p.push(q.x,q.y,q.z);
+    nn.subVectors(q,c);nn.y*=.75;nn.normalize();const f=fn.dot(nn)<0?-1:1;nn.multiplyScalar(.7).addScaledVector(fn,.3*f);nn.y+=.22;nn.normalize();this.n.push(nn.x,nn.y,nn.z);this.uv.push(u,v);}
+  const i=this.vi;this.ix.push(i,i+1,i+2,i,i+2,i+3);this.vi+=4;};
+Leaves.prototype.geo=function(){const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(this.p,3));g.setAttribute('normal',new T.Float32BufferAttribute(this.n,3));
+  g.setAttribute('uv',new T.Float32BufferAttribute(this.uv,2));g.setIndex(this.vi>65535?new T.Uint32BufferAttribute(this.ix,1):new T.Uint16BufferAttribute(this.ix,1));g.computeBoundingSphere();return g;};
+/* a branch path: from p0 along d0, bending under gravity (g<0 droops, g>0 lifts), wandering by `wob` */
+function grow(p0,d0,len,n,g,wob,up){const P=[p0.clone()],d=d0.clone().normalize(),p=p0.clone(),st=len/n;
+  for(let i=0;i<n;i++){p.addScaledVector(d,st);P.push(p.clone());const t=(i+1)/n;d.y+=g*st*(up?Math.max(0,t-.4)*2.2:1);d.x+=rnd(-wob,wob)*st;d.z+=rnd(-wob,wob)*st;d.normalize();}return P;}
+const at=(P,t)=>{const f=t*(P.length-1),i=Math.min(P.length-2,Math.floor(f)),u=f-i;return P[i].clone().lerp(P[i+1],u);};
+const dirAt=(P,t)=>{const f=t*(P.length-1),i=Math.min(P.length-2,Math.floor(f));return P[i+1].clone().sub(P[i]).normalize();};
+/* a direction leaving axis `a` at angle th, turned round it by phi */
+function spread(a,th,phi){const ref=Math.abs(a.y)<.95?V3(0,1,0):V3(1,0,0);const u=V3().crossVectors(a,ref).normalize(),v=V3().crossVectors(a,u);
+  return a.clone().multiplyScalar(Math.cos(th)).addScaledVector(u,Math.sin(th)*Math.cos(phi)).addScaledVector(v,Math.sin(th)*Math.sin(phi)).normalize();}
+const taper=(n,r0,r1,pw=1)=>Array.from({length:n},(_,i)=>lerp(r0,r1,Math.pow(i/(n-1),pw)));
+/* ---- silver birch: a slim white trunk, black and fissured at the foot; ascending limbs whose long branchlets hang ---- */
+function birchGeo(){const H0=rnd(10,14),lean=V3(rnd(-.05,.05),1,rnd(-.05,.05)).normalize();
+  const W=new Wood(),w=new Wood(),ctr=V3(lean.x*H0*.6,H0*.68,lean.z*H0*.6),Lv=new Leaves(ctr),lv=new Leaves(ctr);
+  const trunk=grow(V3(),lean,H0,12,0,.04);const tr=t=>lerp(rnd(.17,.2),.018,Math.pow(t,.8));const TR=trunk.map((_,i)=>lerp(.19,.016,Math.pow(i/11,.85)));
+  const bcol=(t,p,r)=>{const foot=1-sstep(.6,2.6,p.y);const thin=1-sstep(.025,.06,r);return[lerp(lerp(1,.34,foot),.38,thin),lerp(lerp(1,.31,foot),.31,thin),lerp(lerp(1,.28,foot),.27,thin)];};
+  W.tube(trunk,TR,9,10,bcol);w.tube(trunk.filter((_,i)=>i%3===0||i===11),TR.filter((_,i)=>i%3===0||i===11),4,10,bcol);
+  const nb=(rnd(15,20)|0);
+  for(let i=0;i<nb;i++){const t=lerp(.3,.96,i/(nb-1))+rnd(-.02,.02),p=at(trunk,t),rT=lerp(.19,.016,Math.pow(t,.85));
+    const d=spread(lean,rnd(.6,1.0)*(1-.35*t),i*2.4+rnd(-.3,.3));const L=H0*.34*(1-(t-.3)/.7*.62)*rnd(.8,1.15);
+    const P=grow(p,d,L,6,-.16,.15,true),r0=Math.min(rT*.55,.075);
+    W.tube(P,taper(7,r0,.006,.8),5,10,bcol);if(t<.62)w.tube([P[0],P[3],P[6]],[r0,r0*.45,.006],3,10,bcol);
+    /* hanging branchlets along the limb, each carrying a few leafy twig cards */
+    for(let s=.22;s<1;s+=rnd(.08,.12)){const q=at(P,s),dq=dirAt(P,s);const sd=spread(dq,rnd(.7,1.2),rnd(6.28));sd.y-=.6;sd.normalize();
+      const l2=rnd(.6,1.4)*(1.1-s*.4),C=grow(q,sd,l2,2,-.9,.3);W.tube(C,taper(3,r0*(1-s)*.55+.004,.003),3,10,bcol);
+      for(let k=1;k<=4;k++){const o=at(C,k/4*.95),hang=V3(rnd(-.3,.3),-1,rnd(-.3,.3)).addScaledVector(dirAt(C,k/4*.9),.35).normalize();
+        const U=V3().crossVectors(hang,V3(rnd(-1,1),0,rnd(-1,1))).normalize();const sz=rnd(.6,.9);Lv.add(o,U,hang,sz*.9,sz*1.15);}}
+    /* the distance model: a handful of bigger cards per limb */
+    for(let k=0;k<5;k++){const o=at(P,.3+k*.17),hang=V3(rnd(-.4,.4),-1,rnd(-.4,.4)).normalize();const U=V3().crossVectors(hang,V3(rnd(-1,1),0,rnd(-1,1))).normalize();lv.add(o,U,hang,1.45,1.8);}
+    const tip=P[6],hang=V3(rnd(-.3,.3),-1,rnd(-.3,.3)).normalize();Lv.add(tip,V3().crossVectors(hang,V3(1,0,0)).normalize(),hang,.7,1);}
+  for(let k=0;k<6;k++){const o=at(trunk,rnd(.86,1)),hang=V3(rnd(-.5,.5),-1,rnd(-.5,.5)).normalize();const U=V3().crossVectors(hang,V3(rnd(-1,1),0,rnd(-1,1))).normalize();Lv.add(o,U,hang,.7,1);lv.add(o,U,hang,1.2,1.5);}
+  return{trunk:W.geo(),leaves:Lv.geo(),lo:{trunk:w.geo(),leaves:lv.geo()}};}
+/* ---- Norway spruce: a straight tapering trunk, whorls of drooping branches whose tips turn up, clothed in flat sprays;
+   in the forest the lowest branches are dead, bare and grey ---- */
+function pineGeo(){const H0=rnd(14,20),W=new Wood(),w=new Wood(),ctr=V3(0,H0*.45,0),Lv=new Leaves(ctr),lv=new Leaves(ctr);
+  const trunk=grow(V3(),V3(rnd(-.02,.02),1,rnd(-.02,.02)),H0,10,0,.01);const TRd=trunk.map((_,i)=>lerp(.3,.012,Math.pow(i/10,.9)));
+  const bcol=(t,p,r)=>{const dead=r<.03?.92:1;return[.9*dead,.84*dead,.8*dead];};
+  W.tube(trunk,TRd,9,10,bcol);w.tube(trunk.filter((_,i)=>i%2===0),TRd.filter((_,i)=>i%2===0),4,10,bcol);
+  const live0=H0*rnd(.18,.26);let ph=rnd(6.28),wh=0;
+  for(let y=H0*.05;y<H0-.3;y+=lerp(.62,.32,y/H0)*rnd(.85,1.15)){const t=y/H0,p=at(trunk,t),rT=lerp(.3,.012,Math.pow(t,.9));ph+=rnd(.5,1.3);
+    if(y<live0){/* dead stubs */const n=(rnd(2,4)|0);for(let i=0;i<n;i++){const d=spread(V3(0,1,0),rnd(1.7,2.0),ph+i*6.28/n);const P=grow(p,d,rnd(.3,1.1),2,-.1,.4);
+      W.tube(P,[Math.min(rT*.25,.025),.012,.004],3,10,()=>[.62,.6,.58]);}continue;}
+    const k=(H0-y)/(H0-live0),L=.3+3.1*Math.pow(k,.85),n=(rnd(5,7)|0);wh++;
+    for(let i=0;i<n;i++){const d=spread(V3(0,1,0),Math.PI/2+.12+.28*k+rnd(-.08,.08),ph+i*6.28/n+rnd(-.2,.2));const P=grow(p,d,L,3,.16,.08,true),r0=Math.min(rT*.32,.055);
+      if(L>1.1)W.tube(P,[r0,r0*.6,r0*.3,.004],3,10,bcol);else W.tube([P[0],P[3]],[r0,.004],3,10,bcol);
+      /* sprays along the branch: one lying flat along it, one hanging off it to the side, overlapping like shingles */
+      const m=Math.max(1,Math.round(L/.62));for(let j=0;j<m;j++){const s=j/m*.92,o=at(P,s),dv=dirAt(P,s);const flat=V3().crossVectors(dv,V3(0,1,0)).normalize();
+        const len=Math.min(.95,L*(1-s)+.25),wid=lerp(.62,.4,s)*Math.min(1,L/.9+.3);Lv.add(o,flat,dv,wid,len);
+        const side=V3().crossVectors(dv,flat).normalize().applyAxisAngle(dv,rnd(-.9,.9));Lv.add(o,V3().crossVectors(dv,side).normalize(),dv.clone().addScaledVector(side,.5).normalize(),wid*.85,len*.9);}
+      if(wh%2===0){const flat=V3().crossVectors(d,V3(0,1,0)).normalize();const dn=dirAt(P,.3);lv.add(p,flat,dn,L*.7+.4,L+.25);if(i%3===0)lv.add(p,V3().crossVectors(dn,flat).normalize(),dn,L*.45+.3,L+.15);}}
+}
+  /* the leader */
+  {const p=at(trunk,.97);for(let i=0;i<3;i++){const U=V3(Math.cos(i*2.1),0,Math.sin(i*2.1));Lv.add(V3(0,H0+.25,0),U,V3(0,-1,0),.45,.8);lv.add(V3(0,H0+.2,0),U,V3(0,-1,0),.6,1.2);}}
+  return{trunk:W.geo(),leaves:Lv.geo(),lo:{trunk:w.geo(),leaves:lv.geo()}};}
+/* ---- Scots pine: tall clean stem, grey and plated below, flaking orange towards the crown; a flat-topped crown of
+   crooked limbs ending in brushes of long needles ---- */
+function scotsGeo(){const H0=rnd(16,22),lean=V3(rnd(-.04,.04),1,rnd(-.04,.04)).normalize(),W=new Wood(),w=new Wood(),ctr=V3(lean.x*H0,H0*.86,lean.z*H0),Lv=new Leaves(ctr),lv=new Leaves(ctr);
+  const trunk=grow(V3(),lean,H0,11,0,.035);const TRd=trunk.map((_,i)=>lerp(.28,.03,Math.pow(i/11,1.1)));
+  const bcol=(t,p,r)=>{const o=sstep(H0*.42,H0*.62,p.y);return[lerp(.82,1.45,o),lerp(.76,.82,o),lerp(.72,.55,o)];};
+  W.tube(trunk,TRd,9,10,bcol);w.tube(trunk.filter((_,i)=>i%2===0||i===11),TRd.filter((_,i)=>i%2===0||i===11),4,10,bcol);
+  for(let i=0;i<5;i++){const t=rnd(.35,.6),p=at(trunk,t);const P=grow(p,spread(lean,rnd(1.3,1.8),rnd(6.28)),rnd(.25,.6),2,-.2,.3);W.tube(P,[.025,.014,.005],3,10,()=>[.7,.66,.6]);}
+  const nb=(rnd(12,16)|0);
+  for(let i=0;i<nb;i++){const t=lerp(.6,.97,i/(nb-1))+rnd(-.02,.02),p=at(trunk,t),rT=lerp(.28,.03,Math.pow(t,1.1));const L=lerp(3.4,1.2,(t-.64)/.33)*rnd(.8,1.15);
+    const d=spread(lean,lerp(1.25,.7,(t-.64)/.33)+rnd(-.15,.15),i*2.4+rnd(-.4,.4));const P=grow(p,d,L,4,.12,.55,true),r0=Math.min(rT*.5,.09);
+    W.tube(P,taper(5,r0,.012,.9),4,10,bcol);w.tube([P[0],P[4]],[r0,.012],3,10,bcol);
+    const tips=[[P[4],dirAt(P,.99)]];for(let s=.3;s<.95;s+=rnd(.13,.2)){const q=at(P,s),sd=spread(dirAt(P,s),rnd(.5,.9),rnd(6.28));sd.y=Math.abs(sd.y)+.2;sd.normalize();
+      const C=grow(q,sd,rnd(.5,1.2),2,.2,.5);W.tube(C,[r0*(1-s)*.5+.008,.01,.006],3,10,bcol);tips.push([C[2],dirAt(C,.99)]);}
+    tips.forEach(([q,dq])=>{const up=dq.clone();up.y+=.6;up.normalize();for(let k=0;k<4;k++){const U=V3().crossVectors(up,V3(Math.cos(k*1.6+.3),rnd(-.3,.3),Math.sin(k*1.6+.3))).normalize();
+      Lv.add(q.clone().addScaledVector(up,-.18),U,up.clone().applyAxisAngle(U,rnd(-.5,.5)),1.0,1.1);}
+      const U=V3().crossVectors(up,V3(rnd(-1,1),0,rnd(-1,1))).normalize();lv.add(q.clone().addScaledVector(up,-.35),U,up,2.1,2.1);if(q===P[4])lv.add(q.clone().addScaledVector(up,-.35),V3().crossVectors(up,U).normalize(),up,2.1,2.1);});}
+  return{trunk:W.geo(),leaves:Lv.geo(),lo:{trunk:w.geo(),leaves:lv.geo()}};}
+/* ---- dead tree: weathered grey, bark gone in strips, often snapped off; every limb grows from the wood below it ---- */
+function deadGeo(){const H0=rnd(5,8.5),W=new Wood(),w=new Wood(),lean=V3(rnd(-.08,.08),1,rnd(-.08,.08)).normalize();
+  const snapped=R()<.55,top=snapped?rnd(.55,.8):1;const trunk=grow(V3(),lean,H0*top,9,0,.08);const r0=rnd(.17,.24);
+  const TRd=trunk.map((_,i)=>lerp(r0,snapped?r0*.45:.02,Math.pow(i/9,.8)));
+  const col=(t,p,r)=>{const n=fbm(p.y*2.3+r*40,p.x*3+p.z*3,2);const peel=sstep(.52,.6,n);return[lerp(.82,1.08,peel),lerp(.79,1.0,peel),lerp(.75,.9,peel)];};
+  W.tube(trunk,TRd,9,10,col);w.tube(trunk.filter((_,i)=>i%2===0||i===9),TRd.filter((_,i)=>i%2===0||i===9),6,10,col);
+  if(snapped){/* jagged break: a few splinters standing up from the stump top */const p=trunk[9],rr=TRd[9];for(let k=0;k<5;k++){const a=k/5*6.28+rnd(.4),q=p.clone().add(V3(Math.cos(a)*rr*.6,-.05,Math.sin(a)*rr*.6));
+    W.tube([q,q.clone().add(V3(Math.cos(a)*.03,rnd(.15,.45),Math.sin(a)*.03))],[rr*.35,.004],3,10,col);}}
+  const nb=(rnd(10,15)|0);
+  for(let i=0;i<nb;i++){const t=rnd(.3,.95)*top/Math.max(top,.001),tt=Math.min(.97,t),p=at(trunk,tt),rT=lerp(r0,.02,Math.pow(tt,.8));const L=rnd(1,2.8)*(1.1-tt*.5);
+    const P=grow(p,spread(lean,rnd(.6,1.25),i*2.4+rnd(-.4,.4)),L,5,rnd(-.12,.18),.5),rb=Math.min(rT*.5,.07);W.tube(P,taper(6,rb,.008,.8),4,10,col);w.tube([P[0],P[2],P[5]],[rb,rb*.5,.008],3,10,col);
+    for(let s=.3;s<.95;s+=rnd(.2,.32)){const q=at(P,s),C=grow(q,spread(dirAt(P,s),rnd(.5,1),rnd(6.28)),rnd(.35,1.1)*(1.1-s),3,.05,.7);W.tube(C,[rb*(1-s)*.6+.005,.008,.005,.003],3,10,col);
+      if(R()<.5){const q2=at(C,.6),C2=grow(q2,spread(dirAt(C,.6),rnd(.5,.9),rnd(6.28)),rnd(.2,.45),2,0,.8);W.tube(C2,[.006,.004,.002],3,10,col);}}}
+  return{trunk:W.geo(),lo:{trunk:w.geo()}};}
+/* ---- undergrowth: hazel / alder clumps - stems fanning out of one root, arching, leafy shoots along them ---- */
+function bushGeo(){const W=new Wood(),w=new Wood(),ctr=V3(0,.9,0),Lv=new Leaves(ctr),lv=new Leaves(ctr);const n=(rnd(5,9)|0),Hb=rnd(1.3,2.4);
+  for(let i=0;i<n;i++){const d=spread(V3(0,1,0),rnd(.15,.7),i*2.4+rnd(-.3,.3)),P=grow(V3(rnd(-.08,.08),0,rnd(-.08,.08)),d,Hb*rnd(.75,1.1),4,-.18,.3,true);
+    W.tube(P,[.026,.02,.012,.007,.004],4,6,()=>[.7,.65,.6]);w.tube([P[0],P[2],P[4]],[.026,.012,.004],3,6,()=>[.7,.65,.6]);
+    for(let s=.2;s<1.01;s+=rnd(.07,.12)){const o=at(P,Math.min(s,.99)),dv=dirAt(P,Math.min(s,.98));const sd=spread(dv,rnd(.5,1.1),rnd(6.28));sd.y-=.25;sd.normalize();
+      const U=V3().crossVectors(sd,V3(rnd(-1,1),rnd(-.2,.2),rnd(-1,1))).normalize();const sz=rnd(.38,.58);Lv.add(o,U,sd,sz,sz*1.15);}
+    for(let k=0;k<2;k++){const o=at(P,.45+k*.4),sd=spread(dirAt(P,.6),.9,rnd(6.28));const U=V3().crossVectors(sd,V3(0,1,0)).normalize();lv.add(o,U,sd,1,1.2);}}
+  return{trunk:W.geo(),leaves:Lv.geo(),lo:{trunk:w.geo(),leaves:lv.geo()}};}
+/* ---- foliage material: alpha-tested, lit on both faces from the bent normals, swaying with the wind; the alpha is
+   boosted with distance so mipmapping cannot thin the canopy into see-through lace (the usual reason distant trees
+   look sparse and their shadows let the sun straight through) ---- */
+const FOLIAGE_A=`{vec2 tsz=vec2(512.);vec2 dx=dFdx(vUv*tsz),dy=dFdy(vUv*tsz);float lod=max(0.,.5*log2(max(dot(dx,dx),dot(dy,dy))));diffuseColor.a*=1.+lod*.33;}`;
+function fixFoliageAlpha(s){s.fragmentShader=s.fragmentShader.replace('#include <alphatest_fragment>',FOLIAGE_A+'\n#include <alphatest_fragment>');}
 const leafMats={};
-function leafMat(t,key){const m=std({map:t,alphaTest:.42,side:T.DoubleSide,roughness:.85,envMapIntensity:.35});
-  m.onBeforeCompile=s=>{s.uniforms.uTime=GRASS.uni.uTime;s.fragmentShader=s.fragmentShader.replace('#include <normal_fragment_begin>',NOFLIP);s.vertexShader='uniform float uTime;\n'+s.vertexShader.replace('#include <begin_vertex>',
+/* a crown shades itself, but light also scatters through the leaves and the sky lights it from all round: in a leaf
+   the sun's shadow only takes away part of the light, the sky term is stronger, and the sun shining through from
+   behind adds a warm glow */
+const LEAF_LIGHT=T.ShaderChunk.lights_fragment_begin.replace('directLight.color *= all( bvec2( directLight.visible, receiveShadow ) ) ? getShadow(','directLight.color *= all( bvec2( directLight.visible, receiveShadow ) ) ? .38+.62*getShadow(')
+  .replace(/RE_Direct\( directLight, geometry, material, reflectedLight \);/g,'RE_Direct( directLight, geometry, material, reflectedLight );reflectedLight.directDiffuse+=material.diffuseColor*directLight.color*max(0.,-dot(geometry.normal,directLight.direction))*.3;');
+function leafMat(t,key){const m=std({map:t,alphaTest:.5,side:T.DoubleSide,roughness:.82,envMapIntensity:.35});m.extensions={derivatives:true};
+  m.onBeforeCompile=s=>{s.uniforms.uTime=GRASS.uni.uTime;fixFoliageAlpha(s);s.fragmentShader=s.fragmentShader.replace('#include <lights_fragment_begin>',LEAF_LIGHT).replace('#include <lights_fragment_end>','#include <lights_fragment_end>\nreflectedLight.indirectDiffuse*=1.7;');s.fragmentShader=s.fragmentShader.replace('#include <normal_fragment_begin>',NOFLIP);s.vertexShader='uniform float uTime;\n'+s.vertexShader.replace('#include <begin_vertex>',
   '#include <begin_vertex>\n#ifdef USE_INSTANCING\nfloat ph=instanceMatrix[3].x*0.13+instanceMatrix[3].z*0.11;\ntransformed.x+=sin(uTime*1.2+ph+position.y*0.3)*0.05*position.y*0.15;\ntransformed.z+=cos(uTime*0.9+ph)*0.04*position.y*0.15;\n#endif');};
-  leafMats[key]=m;return m;}
-const MB=leafMat(TX.leafBirch,'b'),MG=leafMat(TX.leafGreen,'g'),MP=leafMat(TX.needles,'p');
-const depthMat=t=>new T.MeshDepthMaterial({depthPacking:T.RGBADepthPacking,map:t,alphaTest:.42});
+  m.customProgramCacheKey=()=>'leaf2';leafMats[key]=m;return m;}
+const MB=leafMat(TX.twigBirch,'b'),MG=leafMat(TX.twigBush,'g'),MP=leafMat(TX.spray,'p'),MS=leafMat(TX.tuft,'s');
+const depthMat=t=>{const m=new T.MeshDepthMaterial({depthPacking:T.RGBADepthPacking,map:t,alphaTest:.5});m.extensions={derivatives:true};m.onBeforeCompile=fixFoliageAlpha;m.customProgramCacheKey=()=>'leafdepth';return m;};
+/* (bush stems take the dead-wood material) */
+const woodMat={birch:std({map:TX.birch,roughness:.9,vertexColors:true}),bark:std({map:TX.bark,roughness:1,vertexColors:true}),dead:std({map:TX.bark,color:C(0x9a948a),roughness:1,vertexColors:true})};
 const treeSpots={birch:[],pine:[],dead:[],bush:[]};
 (function plan(){
   const ok=(x,z,clear)=>{if(Math.abs(x)<clear+4)return false;if(Math.abs(x)<52&&Math.abs(z)<44)return false;if(Math.hypot(x-HX,z-HZ)<20)return false;
@@ -1123,25 +1352,67 @@ const treeSpots={birch:[],pine:[],dead:[],bush:[]};
     else p=.6+.4*n+edge*.0;
     if(R()>p)continue;if(!ok(x,z,6))continue;
     (R()<(z<-200?.7:.45)?treeSpots.birch:treeSpots.pine).push([x,z]);}
-  for(let i=0;i<500;i++){const x=rnd(-200,200),z=rnd(-500,150);if(!ok(x,z,3))continue;if(fbm(x/30,z/30,2)<.5)continue;treeSpots.bush.push([x,z]);}
+  for(let i=0;i<700;i++){const x=rnd(-200,200),z=rnd(-500,150);if(!ok(x,z,3))continue;if(fbm(x/30,z/30,2)<.48)continue;treeSpots.bush.push([x,z]);}
   [[HX-12,HZ+9],[HX+9,HZ-8],[HX-10,HZ-7],[-58,-300],[22,-410]].forEach(p=>treeSpots.dead.push(p));
 })();
-function plant(geoFn,variants,list,trunkMat,leafM,leafTex,tint,col){if(!list.length)return;const per=Math.ceil(list.length/variants);const o=new T.Object3D(),c=new T.Color();
-  for(let v=0;v<variants;v++){const sub=list.slice(v*per,(v+1)*per);if(!sub.length)continue;const g=geoFn();
-    const tm=new T.InstancedMesh(g.trunk||g,trunkMat,sub.length);tm.castShadow=tm.receiveShadow=true;
-    const lm=g.leaves?new T.InstancedMesh(g.leaves,leafM,sub.length):null;if(lm){lm.castShadow=true;lm.receiveShadow=true;lm.customDepthMaterial=depthMat(leafTex);}
-    sub.forEach((t,i)=>{const s=rnd(.8,1.2);o.position.set(t[0],H(t[0],t[1])-.15,t[1]);o.rotation.set(0,rnd(6.28),0);o.scale.set(s,s*rnd(.9,1.1),s);o.updateMatrix();tm.setMatrixAt(i,o.matrix);
-      if(lm){lm.setMatrixAt(i,o.matrix);c.copy(tint).offsetHSL(rnd(-.04,.04),rnd(-.1,.1),rnd(-.08,.06));lm.setColorAt(i,c);}
-      if(col)solids.push({cx:t[0],cz:t[1],r:col*s});});
-    fitInstBounds(tm,sub,18);if(lm)fitInstBounds(lm,sub,18);tm.userData.chunkSize=64;if(lm)lm.userData.chunkSize=64;scene.add(tm);if(lm)scene.add(lm);}}
-plant(birchGeo,4,treeSpots.birch,std({map:TX.birch,roughness:.9}),MB,TX.leafBirch,new T.Color(1,1,1),.25);
-plant(pineGeo,3,treeSpots.pine,std({map:TX.bark,roughness:1}),MP,TX.needles,new T.Color(1,1,1),.33);
-plant(()=>({trunk:deadGeo()}),2,treeSpots.dead,std({map:TX.bark,color:C(0x8a8478),roughness:1}),null,null,null,.25);
-/* bushes: low leaf-card clumps */
-(function(){const list=treeSpots.bush;const parts=[];const ctr=V3(0,.7,0);for(let i=0;i<14;i++){const a=rnd(6.28),r=rnd(.2,.9);parts.push(card(rnd(.9,1.4),rnd(.9,1.4),Math.cos(a)*r,rnd(.4,1.1),Math.sin(a)*r,rnd(-1,1),rnd(6.28),rnd(-.5,.5),ctr));}
-  const g=merge(parts);const m=new T.InstancedMesh(g,MG,list.length);m.castShadow=true;m.receiveShadow=true;m.customDepthMaterial=depthMat(TX.leafGreen);const o=new T.Object3D(),c=new T.Color();
-  list.forEach((t,i)=>{const s=rnd(.7,1.5);o.position.set(t[0],H(t[0],t[1])-.1,t[1]);o.rotation.set(0,rnd(6.28),0);o.scale.set(s,s*rnd(.7,1.1),s);o.updateMatrix();m.setMatrixAt(i,o.matrix);
-    c.setRGB(1,1,1).offsetHSL(rnd(-.05,.06),rnd(-.1,0),rnd(-.1,.05));m.setColorAt(i,c);});fitInstBounds(m,list,4);scene.add(m);})();
+/* ---- planting: every tree goes into a registry by model; at boot the registry is turned into (a) the distance models,
+   instanced in 96 m chunks that the frustum can cull, and (b) one full-detail instanced mesh per model and quarter round
+   the camera holding just the trees within VEG.R. When you move, the trees that crossed VEG.R are swapped between the
+   two (the far copy is hidden by a zero matrix). ---- */
+/* an InstancedMesh is frustum-culled with its geometry's bounding sphere; make that sphere enclose all instances */
+function fitInstBounds(im,pts,pad){let x0=1e9,x1=-1e9,z0=1e9,z1=-1e9;for(const p of pts){x0=Math.min(x0,p[0]);x1=Math.max(x1,p[0]);z0=Math.min(z0,p[1]);z1=Math.max(z1,p[1]);}
+  const c=V3((x0+x1)/2,6,(z0+z1)/2),r=Math.hypot(x1-x0,z1-z0)/2+pad;im.geometry.boundingSphere=new T.Sphere(c,r);}
+const VEG={types:[],R:46,last:null};
+function vegType(g,trunkMat,leafM,leafTex){const t={g,tm:trunkMat,lm:leafM,lt:leafTex,M:[],C:[],P:[]};VEG.types.push(t);return t;}
+const _vo=new T.Object3D(),_vc=new T.Color();
+function vegPut(t,x,y,z,ry,s,sy,col,tilt){_vo.position.set(x,y,z);_vo.rotation.set(tilt?tilt[0]:0,ry,tilt?tilt[1]:0);_vo.scale.set(s,sy,s);_vo.updateMatrix();
+  t.M.push(..._vo.matrix.elements);t.P.push(x,z);t.C.push(col?col.r:1,col?col.g:1,col?col.b:1);}
+/* a fixed set of models per species, shared by every planting (fields, forest, verges): fewer distinct meshes means
+   far fewer draw calls for the same forest */
+const SPECIES=new Map(),NVAR=new Map([[birchGeo,3],[pineGeo,3],[scotsGeo,2],[deadGeo,2],[bushGeo,2]]);
+function speciesTypes(geoFn,trunkMat,leafM,leafTex){let L=SPECIES.get(geoFn);if(!L){L=Array.from({length:NVAR.get(geoFn)||2},()=>vegType(geoFn(),trunkMat,leafM,leafTex));SPECIES.set(geoFn,L);}return L;}
+function plant(geoFn,variants,list,trunkMat,leafM,leafTex,tint,col,tilt){if(!list.length)return;const L=speciesTypes(geoFn,trunkMat,leafM,leafTex);
+  list.forEach(p=>{const s=rnd(.8,1.2),t=L[R()*L.length|0];_vc.copy(tint||_white).offsetHSL(rnd(-.04,.04),rnd(-.1,.1),rnd(-.08,.06));
+    vegPut(t,p[0],H(p[0],p[1])-.15,p[1],rnd(6.28),s,s*rnd(.9,1.1),_vc,tilt?[rnd(-.03,.03),rnd(-.03,.03)]:null);if(col)solids.push({cx:p[0],cz:p[1],r:col*s});});}
+const _white=new T.Color(1,1,1);
+function vegBuild(){const m4=new T.Matrix4();
+  for(const t of VEG.types){const n=t.P.length/2;if(!n)continue;const g=t.g,lo=g.lo||{};t.M=Float32Array.from(t.M);t.C=Float32Array.from(t.C);
+    const ext=(g.trunk&&g.trunk.boundingSphere?g.trunk.boundingSphere.center.length()+g.trunk.boundingSphere.radius:4)*1.25;
+    const share=src=>{const q=new T.BufferGeometry();q.index=src.index;for(const a in src.attributes)q.setAttribute(a,src.attributes[a]);return q;};
+    const mk=(geo,mat,cnt,leaf)=>{const im=new T.InstancedMesh(share(geo),mat,cnt);im.castShadow=true;im.receiveShadow=true;im.userData.chunked=true;if(leaf)im.customDepthMaterial=depthMat(t.lt);return im;};
+    /* far: chunks */
+    t.where=new Int32Array(n*2);t.near=new Uint8Array(n);t.chunks=[];const groups=new Map();
+    for(let i=0;i<n;i++){const k=Math.floor(t.P[i*2]/128)+','+Math.floor(t.P[i*2+1]/128);let G=groups.get(k);if(!G)groups.set(k,G=[]);G.push(i);}
+    for(const idx of groups.values()){const ch={idx,meshes:[]};const ci=t.chunks.length;t.chunks.push(ch);let cx=0,cz=0;idx.forEach(i=>{cx+=t.P[i*2];cz+=t.P[i*2+1];});cx/=idx.length;cz/=idx.length;let r=0;
+      idx.forEach((i,j)=>{r=Math.max(r,Math.hypot(t.P[i*2]-cx,t.P[i*2+1]-cz));t.where[i*2]=ci;t.where[i*2+1]=j;});
+      /* (the far copies cast no shadow: everything inside the shadow map's reach is drawn by the near models) */
+      [[lo.trunk||g.trunk,t.tm,false],[lo.leaves||g.leaves,t.lm,true]].forEach(([geo,mat,leaf])=>{if(!geo||!mat||!geo.attributes||!geo.attributes.position)return;const im=mk(geo,mat,idx.length,leaf);im.castShadow=false;
+        idx.forEach((i,j)=>{m4.fromArray(t.M,i*16);im.setMatrixAt(j,m4);if(leaf){_vc.setRGB(t.C[i*3],t.C[i*3+1],t.C[i*3+2]);im.setColorAt(j,_vc);}});
+        im.geometry.boundingSphere=new T.Sphere(V3(cx,8,cz),r+ext+8);scene.add(im);ch.meshes.push(im);});}
+    /* near: one full-detail mesh per quarter round the camera */
+    t.hi=[];const cap=Math.min(n,520);
+    for(let q=0;q<4;q++){const set=[];[[g.trunk,t.tm,false],[g.leaves,t.lm,true]].forEach(([geo,mat,leaf])=>{if(!geo||!mat||!geo.attributes||!geo.attributes.position)return;const im=mk(geo,mat,cap,leaf);
+      /* (the colour buffer is sized from .count, so create it while the mesh still has its full capacity) */
+      if(leaf){_vc.setRGB(1,1,1);im.setColorAt(0,_vc);}im.count=0;im.geometry.boundingSphere=new T.Sphere(V3(),1);scene.add(im);set.push(im);});t.hi.push(set);}}}
+const _zero=new T.Matrix4().makeScale(0,0,0),_hm=new T.Matrix4();
+function vegLOD(force){const cx=camera.position.x,cz=camera.position.z;if(!force&&VEG.last&&Math.hypot(cx-VEG.last[0],cz-VEG.last[1])<2.5)return;VEG.last=[cx,cz];const R2=VEG.R*VEG.R;
+  for(const t of VEG.types){if(!t.hi)continue;const n=t.P.length/2,Q=[[],[],[],[]],dirty=new Set();
+    for(let i=0;i<n;i++){const dx=t.P[i*2]-cx,dz=t.P[i*2+1]-cz,nr=dx*dx+dz*dz<R2?1:0;if(nr)Q[(dx>=0?1:0)+(dz>=0?2:0)].push(i);
+      if(nr!==t.near[i]){t.near[i]=nr;const ch=t.chunks[t.where[i*2]],j=t.where[i*2+1];if(nr)_hm.copy(_zero);else _hm.fromArray(t.M,i*16);ch.meshes.forEach(im=>im.setMatrixAt(j,_hm));dirty.add(ch);}}
+    dirty.forEach(ch=>ch.meshes.forEach(im=>im.instanceMatrix.needsUpdate=true));
+    /* far chunks close enough to throw shadow into the shadow map's reach still cast (beyond the near ring) */
+    for(const ch of t.chunks){const b=ch.meshes[0]&&ch.meshes[0].geometry.boundingSphere;if(!b)continue;const near=Math.hypot(b.center.x-cx,b.center.z-cz)-b.radius<70;ch.meshes.forEach(im=>im.castShadow=near);}
+    for(let q=0;q<4;q++){const L=Q[q],set=t.hi[q];if(!set.length)continue;const cap=set[0].instanceMatrix.count;const k=Math.min(L.length,cap);
+      let x0=1e9,x1=-1e9,z0=1e9,z1=-1e9;for(let j=0;j<k;j++){const i=L[j],x=t.P[i*2],z=t.P[i*2+1];x0=Math.min(x0,x);x1=Math.max(x1,x);z0=Math.min(z0,z);z1=Math.max(z1,z);}
+      for(const im of set){im.count=k;for(let j=0;j<k;j++){const i=L[j];im.instanceMatrix.array.set(t.M.subarray(i*16,i*16+16),j*16);if(im.instanceColor){im.instanceColor.array[j*3]=t.C[i*3];im.instanceColor.array[j*3+1]=t.C[i*3+1];im.instanceColor.array[j*3+2]=t.C[i*3+2];}}
+        im.instanceMatrix.needsUpdate=true;if(im.instanceColor)im.instanceColor.needsUpdate=true;
+        if(k)im.geometry.boundingSphere.set(V3((x0+x1)/2,9,(z0+z1)/2),Math.hypot(x1-x0,z1-z0)/2+14);else im.geometry.boundingSphere.set(V3(0,-999,0),.1);}}}}
+{const pin=treeSpots.pine,sp=pin.filter((_,i)=>i%5<3),sc=pin.filter((_,i)=>i%5>=3);
+ plant(birchGeo,4,treeSpots.birch,woodMat.birch,MB,TX.twigBirch,new T.Color(1,1,1),.25);
+ plant(pineGeo,3,sp,woodMat.bark,MP,TX.spray,new T.Color(1,1,1),.33);
+ plant(scotsGeo,3,sc,woodMat.bark,MS,TX.tuft,new T.Color(1,1,1),.3);
+ plant(deadGeo,3,treeSpots.dead,woodMat.dead,null,null,null,.25);
+ plant(bushGeo,3,treeSpots.bush,woodMat.dead,MG,TX.twigBush,new T.Color(1,1,1),0);}
 /* rocks */
 (function(){const g=new T.DodecahedronGeometry(1,1);const p=g.attributes.position;for(let i=0;i<p.count;i++){const v=V3(p.getX(i),p.getY(i),p.getZ(i));const k=.75+fbm(v.x*2+3,v.z*2+v.y,2)*.5;p.setXYZ(i,v.x*k,v.y*k*.6,v.z*k);}g.computeVertexNormals();
   const n=70,m=new T.InstancedMesh(g,std({map:TX.concrete,color:C(0x9a9a8c),roughness:1}),n);const o=new T.Object3D();m.castShadow=m.receiveShadow=true;
@@ -1277,20 +1548,13 @@ const terrCol=(x,z)=>{const k=.86+fbm(x/30+3,z/30,3)*.28;return[k,k*(.98+fbm(x/6
     (R()<.68?pine:birch).push([jx,jz]);if(R()<.14)bush.push([jx+rnd(-2.5,2.5),jz+rnd(-2.5,2.5)]);}
   /* undergrowth along the edges of the forest track */
   ROADS.tr.P.forEach((p,i)=>{if(i%3)return;const f=roadFrame(ROADS.tr.P,i);[1,-1].forEach(sg=>{if(R()<.55){const d=rnd(6.8,9.5);bush.push([p.x+f.nx*d*sg,p.z+f.nz*d*sg]);}});});
-  const chunk=(list,geoFn,variants,trunkMat,leafM,leafTex,col)=>{const geos=Array.from({length:variants},()=>geoFn());const groups={};
-    list.forEach(t=>{const k=Math.floor(t[0]/128)+','+Math.floor(t[1]/128)+','+(R()*variants|0);(groups[k]||(groups[k]=[])).push(t);});
-    const o=new T.Object3D(),c=new T.Color();
-    for(const k in groups){const sub=groups[k],v=+k.split(',')[2],g=geos[v];
-      const share=src=>{const n=new T.BufferGeometry();n.index=src.index;for(const a in src.attributes)n.setAttribute(a,src.attributes[a]);return n;};
-      const tg=g.trunk||g,hasT=!!(tg.attributes&&tg.attributes.position);const tm=hasT?new T.InstancedMesh(share(tg),trunkMat,sub.length):null;if(tm)tm.castShadow=tm.receiveShadow=true;
-      const lm=g.leaves?new T.InstancedMesh(share(g.leaves),leafM,sub.length):null;if(lm){lm.castShadow=lm.receiveShadow=true;lm.customDepthMaterial=depthMat(leafTex);}
-      sub.forEach((t,i)=>{const s=rnd(.82,1.22);o.position.set(t[0],H(t[0],t[1])-.15,t[1]);o.rotation.set(rnd(-.03,.03),rnd(6.28),rnd(-.03,.03));o.scale.set(s,s*rnd(.9,1.12),s);o.updateMatrix();if(tm)tm.setMatrixAt(i,o.matrix);
-        if(lm){lm.setMatrixAt(i,o.matrix);c.setRGB(1,1,1).offsetHSL(rnd(-.04,.04),rnd(-.12,.06),rnd(-.1,.04));lm.setColorAt(i,c);}if(col)solids.push({cx:t[0],cz:t[1],r:col*s});});
-      if(tm){tm.userData.chunkSize=64;scene.add(tm);}if(lm){lm.userData.chunkSize=64;scene.add(lm);}}};
-  chunk(pine,pineGeo,4,std({map:TX.bark,roughness:1}),MP,TX.needles,.33);
-  chunk(birch,birchGeo,3,std({map:TX.birch,roughness:.9}),MB,TX.leafBirch,.25);
-  {const parts=[];const ctr=V3(0,.7,0);for(let i=0;i<14;i++){const a=rnd(6.28),r=rnd(.2,.9);parts.push(card(rnd(.9,1.4),rnd(.9,1.4),Math.cos(a)*r,rnd(.4,1.1),Math.sin(a)*r,rnd(-1,1),rnd(6.28),rnd(-.5,.5),ctr));}
-   const bg=merge(parts);chunk(bush,()=>({trunk:null,leaves:bg}),1,null,MG,TX.leafGreen,0);}
+  const chunk=(list,geoFn,variants,trunkMat,leafM,leafTex,col)=>plant(geoFn,variants,list,trunkMat,leafM,leafTex,null,col,true);
+  /* the conifers are mostly spruce with Scots pine mixed through on the drier ground */
+  const spr=[],sco=[];pine.forEach(t=>(fbm(t[0]/60+4,t[1]/60,2)>.55&&R()<.75?sco:spr).push(t));
+  chunk(spr,pineGeo,3,woodMat.bark,MP,TX.spray,.33);
+  chunk(sco,scotsGeo,2,woodMat.bark,MS,TX.tuft,.3);
+  chunk(birch,birchGeo,3,woodMat.birch,MB,TX.twigBirch,.25);
+  chunk(bush,bushGeo,2,woodMat.dead,MG,TX.twigBush,0);
 })();
 
 /* skin shading: per-channel wrapped diffuse so light bleeds red past the terminator (cheap subsurface look) */
@@ -1577,8 +1841,8 @@ function bloodPatch(m,spots,id){const prev=m.onBeforeCompile;
       void main() {`);
     f=f.replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>
       {float bm=0.,bc=0.;${code}
-       vec3 dry=vec3(.11,.018,.014),wet=vec3(.2,.02,.016);diffuseColor.rgb=mix(diffuseColor.rgb,mix(dry,wet,bc)*(.85+.3*bN(vBP*140.)),bm*.94);
-       roughnessFactor=mix(roughnessFactor,mix(.62,.28,bc),bm);}`);
+       vec3 dry=vec3(.062,.011,.009),wet=vec3(.105,.009,.007);diffuseColor.rgb=mix(diffuseColor.rgb,mix(dry,wet,bc)*(.85+.3*bN(vBP*140.)),bm*.95);
+       roughnessFactor=mix(roughnessFactor,mix(.74,.46,bc),bm);}`);
     s.fragmentShader=f;};
   const ck=m.customProgramCacheKey?m.customProgramCacheKey():'';m.customProgramCacheKey=()=>ck+'|blood'+id;m.needsUpdate=true;return m;}
 /* field dressings: gauze wound round and round (each turn a little off the last, frayed, slack where it crosses), the
@@ -2203,6 +2467,10 @@ const AP={
   woundPress:{hips:[-.05],spine:[.5,-.12,.05],neck:[.25],head:[.42,.18,0],hpR:[-1.62,-.1,.04],knR:[.08],anR:[.5],hpL:[-2.1,.32,-.12],knL:[1.85],anL:[-.25],
     shR:[-1.05,-.15,.3],elR:[-1.0],wrR:[.5,0,0],shL:[-1.0,.6,-.15],elL:[-1.35],wrL:[.4,.3,0],footFree:{L:true,R:true},seat:0,
     osc:{shR:[.14,0,0,5.5],elR:[-.2,0,0,5.5],shL:[.1,0,0,5.5],elL:[-.12,0,0,5.5],spine:[.05,0,0,5.5],head:[.06,.04,0,.45]}},
+  /* BTR commander up in his hatch: standing on the seat inside, chest out of the hatch, forearms resting on the coaming,
+     looking ahead down the road */
+  hatch:{spine:[.1],neck:[-.04],head:[.02],shL:[-.62,.42,-.38],elL:[-1.55],wrL:[.15,.4,.2],shR:[-.62,-.42,.38],elR:[-1.55],wrR:[.15,-.4,-.2],
+    hpL:[-0.27,0,0.19],knL:[0.3,0,-0.19],anL:[0,-.12,0],hpR:[-0.27,0,-0.19],knR:[0.3,0,0.19],anR:[0,.12,0]},
   sitDeck:{spine:[.15],neck:[-.04],head:[.05],shL:[-.5,0,-.15],elL:[-.9],shR:[-.5,0,.15],elR:[-.9],hpL:[-1.45,0,-.12],knL:[1.5],anL:[-.2],hpR:[-1.4,0,.1],knR:[1.35],anR:[-.2],seat:-1,
     hold:{p:[.0,-.1,.32],f:[.15,-.3,.94],u:[0,.95,.3]}},
 };
@@ -2326,10 +2594,14 @@ class Animator{
     if(this.gun){const ha=a.hold||AP.ready.hold,hb=b.hold||AP.ready.hold;const H={};for(const k of ['p','f','u'])H[k]=V3(...ha[k].map((x,i)=>lerp(x,hb[k][i],w)));
       H.p.y+=br*.004;this.gun.position.copy(H.p);basisQ(V3(0,0,-1),V3(0,1,0),H.f,H.u,this.gun.quaternion);
       root.updateMatrixWorld(true);this.reach('L',GRIP.trig);this.reach('R',GRIP.supp);}
+    /* hands placed by the caller (pressing on a wound, holding onto something) */
+    if(this.o.hands){root.updateMatrixWorld(true);this.o.hands(this,t);}
   }
   /* two-bone IK: shoulder -> elbow -> wrist onto a grip on the gun */
-  reach(s,g){const A=this.arm[s],gun=this.gun;
-    const T0=gun.localToWorld(g.p.clone());const F=g.f.clone().transformDirection(gun.matrixWorld),N=g.n.clone().transformDirection(gun.matrixWorld);
+  reach(s,g){const gun=this.gun;
+    const T0=gun.localToWorld(g.p.clone());const F=g.f.clone().transformDirection(gun.matrixWorld),N=g.n.clone().transformDirection(gun.matrixWorld);this.reachW(s,T0,F,N);}
+  /* the same reach onto any palm placement in world space: palm centre T0, fingers along F, palm facing N */
+  reachW(s,T0,F,N){const A=this.arm[s];
     /* the wrist joint sits behind the palm centre */
     const tw=T0.clone().addScaledVector(F,-.075).addScaledVector(N,-.022);
     const ps=A.sh.getWorldPosition(new T.Vector3());let d=tw.clone().sub(ps);const dist=clamp(d.length(),.05,A.L1+A.L2-.002);d.normalize();
@@ -2576,10 +2848,18 @@ function buildBTR(opts={}){const g=new T.Group();const paint=M.paint,pp=M.paintP
     /* tow hooks */
     mesh(xf(new T.TorusGeometry(.055,.018,6,12),0,0,0,0,Math.PI/2,0),dk,X(.12),1.2,sd*.42,g);mesh(rbox(.1,.08,.12,.01),dk,X(.17),1.2,sd*.42,g);});
   /* ---- roof: driver / commander hatches with periscopes, troop hatches, engine deck louvres, rear grilles ---- */
-  [-1,1].forEach(sd=>{const h=mesh(new T.CylinderGeometry(.27,.27,.04,18),pp,X(1.62),roofY(1.62)+.02,sd*.45,g);
+  [-1,1].forEach(sd=>{
+    /* each lid hangs on the hinge pin at its rear edge (sd>0 is the commander's, on the right): a pivot group so it can
+       be swung open; under it a dark coaming ring and the black of the hull interior */
+    const hy=roofY(1.62),hv=new T.Group();hv.position.set(X(1.62)-.27,hy+.02,sd*.45);g.add(hv);
+    mesh(new T.CylinderGeometry(.27,.27,.04,18),pp,.27,0,0,hv);
+    mesh(xf(new T.TorusGeometry(.05,.008,4,10,Math.PI),0,0,0,0,Math.PI/2,0),dk,.27,.025,0,hv);
+    mesh(new T.CylinderGeometry(.24,.24,.012,18),pp,.27,-.026,0,hv,false);
+    mesh(xf(new T.TorusGeometry(.262,.022,6,24),0,0,0,Math.PI/2,0,0),pp,X(1.62),hy+.012,sd*.45,g);
+    mesh(new T.CylinderGeometry(.245,.245,.01,18),std({color:C(0x0b0b0a),roughness:1}),X(1.62),hy+.006,sd*.45,g,false);
+    if(sd>0)g.userData.cmdHatch=hv;else g.userData.drvHatch=hv;
     mesh(xf(new T.CylinderGeometry(.03,.03,.36,8),0,0,0,Math.PI/2,0,0),pp,X(1.88),roofY(1.88)+.035,sd*.45,g);
     for(let i=0;i<3;i++)mesh(rbox(.07,.07,.1,.01),dk,X(1.4),roofY(1.4)+.06,sd*.45+(i-1)*.12,g);
-    mesh(xf(new T.TorusGeometry(.05,.008,4,10,Math.PI),0,0,0,0,Math.PI/2,0),dk,X(1.62),roofY(1.62)+.045,sd*.45,g);
     const th=mesh(rbox(.6,.04,.55,.04),pp,X(4.3),1.99,sd*.55,g);mesh(xf(new T.CylinderGeometry(.025,.025,.5,8),0,0,0,Math.PI/2,0,0),pp,X(4.0),2.0,sd*.55,g);
     mesh(new T.CylinderGeometry(.13,.13,.05,14),pp,X(4.3),2.02,sd*.55,g);
     mesh(new T.CylinderGeometry(.11,.12,.06,14),pp,X(5.07),2.0,sd*.82,g);mesh(new T.CylinderGeometry(.04,.05,.08,8),dk,X(5.0),2.02,sd*.4,g);});
@@ -3214,8 +3494,67 @@ function bloodTex(kind,seed){const key=kind+seed;if(BLOODCACHE[key])return BLOOD
 /* wet blood: a clear-coated film that mirrors the sky and the torch beam; soaked fabric stays matte */
 function bloodDecal(par,kind,seed,x,y,z,sx,sz,rot,vertical){const t=bloodTex(kind,seed);
   const m=new T.MeshPhysicalMaterial({map:t.map,roughnessMap:t.rough,roughness:1,metalness:0,normalMap:t.nrm,normalScale:new T.Vector2(1.6,1.6),
-    clearcoat:t.soak?0:1,clearcoatRoughness:.04,reflectivity:.6,transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-4,polygonOffsetUnits:-4,envMapIntensity:1.6});
+    clearcoat:t.soak?0:.5,clearcoatRoughness:.2,reflectivity:.45,transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-4,polygonOffsetUnits:-4,envMapIntensity:1.0});
   const d=mesh(new T.PlaneGeometry(sx,sz),m,x,y,z,par,false);d.receiveShadow=true;if(vertical){d.rotation.set(0,rot,0);}else d.rotation.set(-Math.PI/2,0,rot);d.renderOrder=2;return d;}
+
+/* ---- blood outdoors: on soil and grass it does not sit as a glossy film - it soaks in, darkens almost to black at the
+   centre where it is deepest, stays a duller red-brown where it is thin, and leaves a darker damp halo in the ground
+   round the edge. Kinds: 'pool' (lobes plus a tongue running downhill along +v), 'drag' (a body dragged along +v: a
+   broken band of parallel streaks with heavier blots where it stopped), 'drops' (a dotted line of drips).
+   Besides colour / roughness / normal it returns a depth texture so a pool can spread over time (uSpread). ---- */
+function groundBloodTex(kind,seed){const key='g'+kind+seed;if(BLOODCACHE[key])return BLOODCACHE[key];
+  const N=256,F=new Float32Array(N*N),r=rng(seed);
+  const splat=(cx,cy,rad,amt,sy=1)=>{const r2=rad*rad,x0=Math.max(0,Math.floor(cx-rad*2)),x1=Math.min(N-1,Math.ceil(cx+rad*2)),y0=Math.max(0,Math.floor(cy-rad*2*sy)),y1=Math.min(N-1,Math.ceil(cy+rad*2*sy));
+    for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){const d=((x-cx)**2+((y-cy)/sy)**2)/r2;if(d<4)F[y*N+x]+=amt*Math.exp(-d*1.6);}};
+  const inb=(x,y,m)=>x>m&&x<N-m&&y>m&&y<N-m;
+  if(kind==='pool'){for(let i=0;i<10;i++){const a=r()*6.28,d=Math.pow(r(),.7)*40,rad=17+r()*15;const x=128+Math.cos(a)*d,y=116+Math.sin(a)*d*.85;if(inb(x,y,rad*.9))splat(x,y,rad,1.15);}
+    /* the tongue: down the slope, narrowing, meandering a little round tussocks */
+    let x=128,y=128,w=22;for(let k=0;k<70;k++){y+=1.6;x+=Math.sin(k*.21+seed)*1.1+(r()-.5)*1.2;w*=.985;if(!inb(x,y,w))break;splat(x,y,w,.75);}
+    for(let i=0;i<16;i++){const a=r()*6.28,d=78+r()*30,rad=1.5+r()*3;const x2=128+Math.cos(a)*d,y2=120+Math.sin(a)*d;if(inb(x2,y2,rad))splat(x2,y2,rad,1.3);}}
+  else if(kind==='drag'){const lanes=[-26,-14,-3,9,21].map(o=>o+(r()-.5)*6);
+    for(let y=4;y<N-4;y++){const cx=128+Math.sin(y*.025+seed)*9;const body=.45+.35*Math.sin(y*.05+seed*2)*Math.sin(y*.013+1);
+      lanes.forEach((o,li)=>{const amt=(li===2?.55:.32)*body*(.6+.8*r());if(r()<.92)splat(cx+o+(r()-.5)*3,y,3.2+r()*3.5,amt*.5,1.6);});}
+    for(let k=0;k<3;k++){const y=30+r()*190;splat(128+(r()-.5)*20,y,20+r()*8,1.1,1.2);}
+    for(let i=0;i<26;i++){const x=128+(r()-.5)*110,y=r()*N;splat(x,y,1.2+r()*2.4,1.2);}}
+  else{let x=128,y=6;for(let k=0;k<26;k++){y+=8+r()*7;x+=(r()-.5)*8;if(!inb(x,y,6))break;splat(x,y,1.8+r()*3.2,1.3);if(r()<.4)splat(x+(r()-.5)*6,y+(r()-.5)*6,1+r()*1.5,1.2);}}
+  const cv=document.createElement('canvas');cv.width=cv.height=N;const g=cv.getContext('2d'),im=g.createImageData(N,N),d=im.data;
+  const rc=document.createElement('canvas');rc.width=rc.height=N;const rg=rc.getContext('2d'),ri=rg.createImageData(N,N),rd=ri.data;
+  const dc=document.createElement('canvas');dc.width=dc.height=N;const dg=dc.getContext('2d'),di=dg.createImageData(N,N),dd=di.data;
+  const Hh=new Float32Array(N*N);
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++){const i=y*N+x,u=x/N,v=y/N;const n=fbmT(u+seed*.1,v,6,4),n2=fbmT(u,v+seed*.1,24,2),n3=fbmT(u+.3,v+.7,48,2);
+    /* soil and grass break the film up: tiny dry gaps where blades and crumbs stick through */
+    const f=F[i]+(n-.5)*.34+(n2-.5)*.12-(n3>.68?.25:0);
+    const a=sstep(.44,.52,f),halo=sstep(.22,.44,f)*(1-a),deep=sstep(.7,1.5,f),thin=1-sstep(.52,.8,f);
+    let R0=lerp(36,80,thin)-deep*8+(n2-.5)*5,G0=lerp(5,11,thin),B0=lerp(4,8,thin);
+    /* the damp halo: soil darkened and browned, no red film */
+    const A=Math.max(a,halo*.42);if(a<.5){R0=lerp(30,R0,a*2);G0=lerp(20,G0,a*2);B0=lerp(14,B0,a*2);}
+    d[i*4]=R0;d[i*4+1]=G0;d[i*4+2]=B0;d[i*4+3]=A*245*(.92+n2*.08);
+    Hh[i]=a*(.4+.6*sstep(.52,1.2,f))+(n2-.5)*.05*a;
+    const ro=(halo>0&&a<.5?.9:lerp(.55,.24,deep))*255;rd[i*4]=rd[i*4+1]=rd[i*4+2]=ro;rd[i*4+3]=255;
+    const dep=clamp(F[i]/1.6+(n-.5)*.12,0,1)*255;dd[i*4]=dd[i*4+1]=dd[i*4+2]=dep;dd[i*4+3]=255;}
+  g.putImageData(im,0,0);rg.putImageData(ri,0,0);dg.putImageData(di,0,0);
+  const nc=document.createElement('canvas');nc.width=nc.height=N;const ng=nc.getContext('2d'),ni=ng.createImageData(N,N),nd=ni.data;const at=(x,y)=>Hh[Math.min(N-1,Math.max(0,y))*N+Math.min(N-1,Math.max(0,x))];
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++){const k=(y*N+x)*4,du=(at(x+1,y)-at(x-1,y))*1.4,dv=(at(x,y-1)-at(x,y+1))*1.4;const l=Math.hypot(du,dv,1);nd[k]=(-du/l*.5+.5)*255;nd[k+1]=(-dv/l*.5+.5)*255;nd[k+2]=(1/l*.5+.5)*255;nd[k+3]=255;}
+  ng.putImageData(ni,0,0);
+  const mk=(c,s)=>{const t=new T.CanvasTexture(c);t.wrapS=t.wrapT=T.ClampToEdgeWrapping;t.anisotropy=8;if(s)t.encoding=T.sRGBEncoding;return t;};
+  return BLOODCACHE[key]={map:mk(cv,true),rough:mk(rc,false),nrm:mk(nc,false),depth:mk(dc,false)};}
+/* a decal that lies on the terrain (or any height function): a subdivided sheet whose vertices follow the ground, so it
+   runs down a ditch bank instead of cutting into it. dir = the direction texture +v points along. */
+function groundBlood(kind,seed,x,z,w,l,dir,hf,o={}){const t=groundBloodTex(kind,seed);
+  const m=new T.MeshStandardMaterial({map:t.map,roughnessMap:t.rough,roughness:1,metalness:0,normalMap:t.nrm,normalScale:new T.Vector2(1.2,1.2),envMapIntensity:.7,
+    transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-4,polygonOffsetUnits:-4});
+  m.userData.live=true;
+  if(o.spread!==undefined){m.userData.spread={value:o.spread};m.onBeforeCompile=s=>{s.uniforms.uSpread=m.userData.spread;s.uniforms.tDepth={value:t.depth};
+    s.fragmentShader='uniform float uSpread;uniform sampler2D tDepth;\n'+s.fragmentShader.replace('#include <alphamap_fragment>',
+      '#include <alphamap_fragment>\n{float dp=texture2D(tDepth,vUv).r;float e=smoothstep(uSpread,uSpread+.06,dp);diffuseColor.a*=e;diffuseColor.rgb*=mix(1.25,1.,smoothstep(uSpread+.02,uSpread+.12,dp));}');};
+    m.customProgramCacheKey=()=>'gblood';}
+  const nx=Math.max(2,Math.round(w/.12)),nz=Math.max(2,Math.round(l/.12));const g=new T.PlaneGeometry(w,l,nx,nz);
+  const c=Math.cos(Math.atan2(dir.x,dir.z)),sn=Math.sin(Math.atan2(dir.x,dir.z));const p=g.attributes.position;
+  /* plane x -> right of dir, plane -y (texture +v downward) -> along dir */
+  for(let i=0;i<p.count;i++){const px=p.getX(i),py=p.getY(i);const lx=px,lz=-py;const wx=x+lx*c+lz*sn,wz=z-lx*sn+lz*c;p.setXYZ(i,wx,hf(wx,wz)+(o.lift||.022),wz);}
+  g.computeVertexNormals();g.computeBoundingSphere();
+  /* (image rows run from the back edge to the front edge, so the pool's tongue and a drag mark follow dir) */
+  const d=new T.Mesh(g,m);d.receiveShadow=true;d.renderOrder=2;d.frustumCulled=true;(o.parent||scene).add(d);return d;}
 
 /* ---- papers: real (blurred) Cyrillic print so they read as text, not stripes ---- */
 const WORDS='советский народ трудовой план пятилетка колхоз урожай станция энергия завод рабочие решение партия съезд товарищ выполнить район области город строительство передовой опыт бригада норма продукция рост сельского хозяйства председатель собрание инженер мирный атом безопасность населения эвакуация временно запрещается въезд радиационной обстановки'.split(' ');
@@ -3447,8 +3786,39 @@ function uazWreck(x,z,rot=[.035,.9,-.07],dy=.02){/* abandoned UAZ-469, stripped 
    for(let i=0;i<14;i++){const a=hash(i,1)*6.28,r=.3+hash(i,2)*1.1;const sx=x+Math.cos(a)*r+1.2,sz=z+Math.sin(a)*r+1.0;const t=new T.Mesh(new T.CircleGeometry(.02+hash(i,3)*.03,3),glassM);t.position.set(sx,H(sx,sz)+.03,sz);t.rotation.set(-Math.PI/2,0,hash(i,4)*6);scene.add(t);}}
   g.updateWorldMatrix(true,true);solidFrom(g);g.traverse(m=>{if(m.isMesh)shootables.push(m);});return g;}
 uazWreck(-26,-323);
-(function hotspotProps(){hotspots.forEach((h,i)=>{if(h.uSv<20)return;for(let k=0;k<4;k++){const a=k*1.7+i,r=rnd(1,3.5);const x=h.x+Math.cos(a)*r,z=h.z+Math.sin(a)*r;drum(x,z,k%2?M.rust:M.olive,k%3===0,H(x,z));}
-  const cr=new T.Mesh(new T.CircleGeometry(h.r*.42,24),std({color:C(0x3a3428),roughness:1,transparent:true,opacity:.75,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-3}));cr.rotation.x=-Math.PI/2;cr.position.set(h.x,H(h.x,h.z)+.03,h.z);scene.add(cr);});})();
+/* what is actually hot out here: a handful of small fragments of the bomb's core - dull black metal crusted with yellow-
+   green oxide, the largest no bigger than a matchbox, half pressed into the soil - and the rusting junk that lay where they
+   fell and took the contamination: a torn piece of the bomb casing, a shielded source container lying open, a bucket and
+   a shovel left by whoever tried to clear it. A liquidator's stake with a radiation tag marks each spot. */
+(function hotspotProps(){const r=rng(9071),rr=(a,b)=>a+(b-a)*r();
+  const oxide=std({color:C(0xffffff),roughness:.62,metalness:.55,vertexColors:true});
+  const fragGeo=k=>{const g=new T.DodecahedronGeometry(1,0).toNonIndexed();const p=g.attributes.position,col=[];const sx=rr(.6,1.4),sy=rr(.35,.7),sz=rr(.6,1.3);
+    for(let i=0;i<p.count;i++){const v=V3(p.getX(i),p.getY(i),p.getZ(i));const j=.75+hash(i+k*31,k)*.5;p.setXYZ(i,v.x*sx*j,v.y*sy*j,v.z*sz*j);}
+    g.computeVertexNormals();for(let i=0;i<p.count;i+=3){const ox=hash(i+k*7,3)<.45;const c=ox?[.62+hash(i,k)*.12,.6+hash(i,k+1)*.1,.2]:[.16,.16,.15];for(let q=0;q<3;q++)col.push(c[0],c[1],c[2]);}
+    g.setAttribute('color',new T.Float32BufferAttribute(col,3));return g;};
+  const rustD=M.rust.clone();rustD.side=T.DoubleSide;
+  const sunk=(o,x,z,dy)=>{o.position.set(x,H(x,z)+dy,z);scene.add(o);return o;};
+  hotspots.forEach((h,hi)=>{if(!h.frag)return;
+    /* the fragments: four to seven, within a metre or so of where the biggest one hit */
+    const n=4+(r()*4|0);for(let k=0;k<n;k++){const a=r()*6.28,d=Math.pow(r(),1.4)*1.3,x=h.x+Math.cos(a)*d,z=h.z+Math.sin(a)*d,s=k===0?rr(.03,.045):rr(.008,.025);
+      const m=new T.Mesh(fragGeo(hi*10+k),oxide);m.scale.setScalar(s);m.rotation.set(rr(-.5,.5),r()*6.28,rr(-.5,.5));m.castShadow=true;m.receiveShadow=true;sunk(m,x,z,s*.15);}
+    /* a liquidator's marker: a split stake with a tin tag */
+    {const x=h.x+rr(-2.2,2.2),z=h.z+rr(-2.2,2.2);const g=new T.Group();sunk(g,x,z,0);g.rotation.set(rr(-.12,.12),r()*6.28,rr(-.12,.12));
+      mesh(new T.BoxGeometry(.04,1.05,.035),M.boards||M.planks,0,.45,0,g);const tg=mesh(new T.PlaneGeometry(.2,.15),std({map:TX.radSign,roughness:.7,metalness:.3,side:T.DoubleSide}),0,.82,.021,g);tg.rotation.z=rr(-.15,.15);solids.push({cx:x,cz:z,r:.08});}
+    const kind=[[0,1,3],[0,2,4],[1,3]][hi%3];
+    kind.forEach((kd,ii)=>{const a=ii*2.1+r(),d=rr(1.2,3.2),x=h.x+Math.cos(a)*d,z=h.z+Math.sin(a)*d;const g=new T.Group();sunk(g,x,z,0);g.rotation.y=r()*6.28;
+      if(kd===0){/* a torn, buckled piece of the casing wall */const cg=new T.CylinderGeometry(.21,.21,.38,14,4,true,0,rr(1.3,1.9));const p=cg.attributes.position;
+        for(let i=0;i<p.count;i++){const y=p.getY(i);p.setX(i,p.getX(i)*(1+Math.sin(y*14+i)*.04));p.setZ(i,p.getZ(i)*(1+Math.cos(y*9)*.05));p.setY(i,y+(Math.abs(y)>.17?(hash(i,7)-.5)*.06:0));}cg.computeVertexNormals();
+        const m=mesh(cg,rustD,0,.06,0,g);m.rotation.set(Math.PI/2-.15,0,rr(-.3,.3));}
+      else if(kd===1){/* the source container: a squat steel pot, tipped over, its lid lying a pace away */
+        const c=mesh(lathe([[0,0],[.13,0],[.135,.01],[.135,.22],[.12,.23],[.09,.23],[.09,.2],[0,.2]],20),M.rust,0,.135,0,g);c.rotation.set(0,0,Math.PI/2-.08);
+        [[-1],[1]].forEach(([sd])=>mesh(new T.TorusGeometry(.03,.007,5,10,Math.PI),M.rust,.11,.135+sd*.13,0,g).rotation.set(0,Math.PI/2,0));
+        const ld=mesh(new T.CylinderGeometry(.12,.12,.025,20),M.rust,.42,.0125,.18,g);ld.rotation.set(rr(-.1,.1),0,rr(-.1,.1));}
+      else if(kd===2){/* a bucket, rusted through at the bottom */const b=mesh(lathe([[.1,0],[.105,.004],[.14,.26],[.146,.268],[.14,.27]],18),rustD,0,.14,0,g);b.rotation.set(0,0,Math.PI/2+.2);}
+      else if(kd===3){/* a liquidator's shovel: rotten handle, rusted blade */const sh=mesh(new T.CylinderGeometry(.018,.02,1.1,7),std({map:TX.bark,color:C(0x8a7a62),roughness:1}),0,.03,0,g);sh.rotation.set(0,0,Math.PI/2);
+        const bl=mesh(new T.BoxGeometry(.24,.004,.2),rustD,-.66,.012,0,g);bl.rotation.y=.05;}
+      else{/* a length of pipe */const pp=mesh(new T.CylinderGeometry(.04,.04,.9,12,1,true),rustD,0,.04,0,g);pp.rotation.set(0,0,Math.PI/2);}
+      g.traverse(m=>{if(m.isMesh){m.castShadow=true;m.receiveShadow=true;}});});});})();
 
 /* ---------- the izba ---------- */
 (function house(){const h=new T.Group();h.position.set(HX,0,HZ);scene.add(h);const W=7,D=6,LR=.125,LS=.215,NL=12;const top=FL+.11+NL*LS;
@@ -4291,9 +4661,13 @@ const btr=buildBTR();btr.rotation.y=Math.PI/2;scene.add(btr);
 const btrSolid=solidAABB(0,0,0,0);
 function parkBTR(z){btr.position.set(0,0,z);btrSolid.x1=-1.55;btrSolid.x2=1.55;btrSolid.z1=z-3.95;btrSolid.z2=z+3.95;}
 parkBTR(btrPark.z);
-const riders=[[1.85,.62,.2,'guard5'],[1.75,-.66,-.25,'guard2'],[-2.05,-.64,.35,'guard1']].map((p,ri)=>{const h=buildHuman({char:p[3],outfit:'ratnik',vest:true,helmet:true});
+const riders=[[1.2,.68,.2,'guard5'],[1.75,-.66,-.25,'guard2']].map((p,ri)=>{const h=buildHuman({char:p[3],outfit:'ratnik',vest:true,helmet:true});
   animate(h,{pose:'sitDeck',gun:buildAK(false),bump:t=>{const v=Math.abs(RIDE.v||0);return[Math.sin(t*9+ri)*.012*v/8+Math.sin(t*2.1)*.01,Math.sin(t*6.3+ri*2)*.015*v/8];}});h.root.position.set(p[0],1.9-.84,p[1]);h.root.rotation.y=Math.PI/2+p[2];btr.add(h.root);
   return h;});
+/* Captain Morozov rides in the vehicle: up in the commander's hatch (front right), lid swung back on its hinge */
+const cmdr=(()=>{const h=buildHuman({char:'guard1',outfit:'ratnik',vest:true,helmet:true});
+  animate(h,{pose:'hatch',bump:t=>{const v=Math.abs(RIDE.v||0);return[Math.sin(t*8+1)*.01*v/8+Math.sin(t*1.7)*.008,Math.sin(t*5.7+2)*.012*v/8];}});
+  h.root.position.set(2.21,.78,.45);h.root.rotation.y=Math.PI/2;btr.add(h.root);if(btr.userData.cmdHatch)btr.userData.cmdHatch.rotation.z=1.92;return h;})();
 const dust=(()=>{const n=160,g=new T.BufferGeometry(),a=new Float32Array(n*3);g.setAttribute('position',new T.BufferAttribute(a,3));const m=new T.Points(g,new T.PointsMaterial({color:C(0xa89a78),size:.9,transparent:true,opacity:.18,depthWrite:false}));m.frustumCulled=false;scene.add(m);
   return{m,a,life:new Float32Array(n),i:0,n};})();
 const SEAT=V3(-1.25,2.86,.55);
@@ -4488,7 +4862,7 @@ function frame(now){requestAnimationFrame(frame);
     shadowUpdate(dt);}
   else if(S.state==='view'){mdx=mdy=0;}
   if(S.state==='play'||S.state==='view'||S.state==='inv'||S.state==='paused')tickVM(dt);
-  GRASS.uni.uCenter.value.set(Math.floor(camera.position.x/GRASS.uni.uCell.value),Math.floor(camera.position.z/GRASS.uni.uCell.value));grassBounds();
+  GRASS.uni.uCenter.value.set(Math.floor(camera.position.x/GRASS.uni.uCell.value),Math.floor(camera.position.z/GRASS.uni.uCell.value));grassBounds();if(typeof vegLOD==='function')vegLOD();
   if(S.door){S.door.g.rotation.y=damp(S.door.g.rotation.y,S.door.open?1.75:0,6,dt);}
   flashlight.intensity=damp(flashlight.intensity,S.flash&&(S.state==='play'||S.state==='view')?6:0,14,dt);flashlight.shadow.autoUpdate=flashlight.intensity>.02;playerBody.root.visible=S.state!=='ride';
   if(flagMesh){const p=flagMesh.geometry.attributes.position,b=flagMesh.userData.base;for(let i=0;i<p.count;i++){const x=b[i*3]+1.05,y=b[i*3+1];p.setZ(i,Math.sin(S.t*3.2-x*2.6+y*.8)*.11*x/2.1);p.setY(i,y-x*x*.03);}p.needsUpdate=true;flagMesh.geometry.computeVertexNormals();}
@@ -4602,8 +4976,8 @@ const CH2={path:null,wreck:null,rec:-1,deb:[],flames:[],checked:{},post:{blur:0,
 /* one point light, created up front (adding a light later would recompile every material mid-cinematic): the rocket's
    motor glow, then the blast, then the burning wreck */
 CH2.L=new T.PointLight(C(0xffa050),0,40,2);scene.add(CH2.L);
-/* ---------- dressing for the forest track: ferns, fallen trees and logs, stumps, mossy boulders, saplings, a dumped
-   UAZ and a hunter's high seat - so the long drive reads as deep, old, untended forest ---------- */
+/* ---------- dressing for the forest track: ferns, fallen trees and logs, stumps, mossy boulders, saplings and a
+   hunter's high seat - so the long drive reads as deep, old, untended forest ---------- */
 TX.fern=tex(128,512,(g,w,h)=>{g.clearRect(0,0,w,h);const N=26;g.strokeStyle='#3e5a22';g.lineWidth=3;g.beginPath();g.moveTo(w/2,h);g.quadraticCurveTo(w/2+4,h*.5,w/2,4);g.stroke();
   for(let i=0;i<N;i++){const t=i/N,y=h-8-t*(h-24),L=(1-t*.85)*(w*.46)*(t<.08?t/.08:1);
     [-1,1].forEach(sd=>{for(let k=0;k<9;k++){const u=k/9,lx=w/2+sd*u*L,ly=y-u*L*.35;g.fillStyle=`hsl(${86+R()*16},${40+R()*18}%,${22+R()*14+t*6}%)`;g.beginPath();g.ellipse(lx,ly,L*.07+2,L*.035+2.2,sd*-.35,0,7);g.fill();}});}},{clamp:true});
@@ -4633,8 +5007,7 @@ TX.fern=tex(128,512,(g,w,h)=>{g.clearRect(0,0,w,h);const N=26;g.strokeStyle='#3e
   for(let k=0;k<11;k++){const i=Math.floor(rr(.08,.92)*P.length),sd=rs()<.5?-1:1,q=spot(i,sd,rr(9,20));if(!okF(q.x,q.z))continue;
     const len=rr(10,16),r=rr(.17,.27),yaw=Math.atan2(q.f.tx,q.f.tz)+rr(-.5,.5)+(rs()<.5?.4:-.4);const lg=logAt(q.x,q.z,len,r,yaw,bark);lg.rotation.z=rr(-.12,.12);
     for(let b=0;b<6;b++){const sb=mesh(new T.CylinderGeometry(.02,.045,rr(.4,1.1),6),bark,rr(-len/2.4,len/2.4),r*.6,0,lg);sb.rotation.set(rr(-1.2,1.2),0,rr(-.6,.6));}}
-  /* a dumped UAZ nosed into the trees, and a hunter's high seat */
-  {const i=Math.floor(P.length*.62),q=spot(i,-1,8.6);uazWreck(q.x,q.z,[-.05,Math.atan2(q.f.tx,q.f.tz)+2.1,.09],-.05);}
+  /* a hunter's high seat */
   {const i=Math.floor(P.length*.44),q=spot(i,1,11.5);const g=new T.Group();g.position.set(q.x,q.y,q.z);g.rotation.y=Math.atan2(q.f.tx,q.f.tz)+.4;scene.add(g);const w=std({map:TX.bark,color:C(0x7a6a58),roughness:1});
     [[-.7,-.7],[.7,-.7],[-.7,.7],[.7,.7]].forEach(([x,z])=>{const pl=mesh(new T.CylinderGeometry(.06,.08,3.6,7),w,x*.82,1.8,z*.82,g);pl.rotation.set(-z*.06,0,x*.06);});
     mesh(rbox(1.5,.06,1.5,.01),M.planks,0,3.0,0,g);[[0,.7],[0,-.7]].forEach(([x,z])=>mesh(rbox(1.5,.05,.05,.01),M.planks,x,3.45,z,g));mesh(rbox(.05,.05,1.5,.01),M.planks,-.72,3.45,0,g);mesh(rbox(.05,.05,1.5,.01),M.planks,.72,3.45,0,g);
@@ -4642,8 +5015,8 @@ TX.fern=tex(128,512,(g,w,h)=>{g.clearRect(0,0,w,h);const N=26;g.strokeStyle='#3e
     g.updateWorldMatrix(true,true);solids.push({cx:q.x,cz:q.z,r:1.0});}
   /* young birches and spruce saplings crowding the verges */
   {const sp=[];P.forEach((p,i)=>{if(i<14||i%2||P[i].s>L-24)return;if(rs()<.55){const sd=rs()<.5?-1:1,q=spot(i,sd,rr(4.6,8.5));if(okF(q.x,q.z))sp.push([q.x,q.z]);}});
-    plant(birchGeo,2,sp.filter((_,k)=>k%3===0),std({map:TX.birch,roughness:.9}),MB,TX.leafBirch,new T.Color(.95,1,.9),.12);
-    plant(pineGeo,2,sp.filter((_,k)=>k%3===1),std({map:TX.bark,roughness:1}),MP,TX.needles,new T.Color(.9,1,.92),.15);}
+    plant(birchGeo,2,sp.filter((_,k)=>k%3===0),woodMat.birch,MB,TX.twigBirch,new T.Color(.95,1,.9),.12);
+    plant(pineGeo,2,sp.filter((_,k)=>k%3===1),woodMat.bark,MP,TX.spray,new T.Color(.9,1,.92),.15);}
 })();
 /* the route, sampled every metre: north road -> forest track -> south down the highway. The speed plan respects each
    road's limit and the curvature, then is smoothed by an acceleration pass forwards and a braking pass backwards. */
@@ -4839,7 +5212,7 @@ function ch2Ambush(){return{type:'fn',tick(dt,rdt,t,A){const P=CH2.path;
   return A.hit&&A.rt-A.hitT>3.3;}};}
 function ch2Hit(A,tg){$('sub').innerHTML='';sayT=0;const n=V3(0,0,1).transformDirection(btr.matrixWorld);ch2Explode(tg.clone().addScaledVector(n,.3),n);sfx.boom();sfx.tin(1,.05);sfx.muffle(320,.08);
   CH2.post.flash=1;S.sinceDmg=0;S.hp=Math.max(30,S.hp-45);
-  riders.forEach(r=>r.root.visible=false);
+  riders.forEach(r=>r.root.visible=false);cmdr.root.visible=false;
   /* the struck front wheel tears off and flies */
   btr.updateMatrixWorld(true);let best=null,bx=-1e9;btr.userData.wheels.forEach(w=>{const p=btr.worldToLocal(w.getWorldPosition(V3()));if(p.z>.3&&p.x>bx){bx=p.x;best=w;}});
   if(best){best.userData.torn=true;scene.attach(best);CH2.deb.push({m:best,v:n.clone().multiplyScalar(7.5).add(V3(A.hx*A.v*.5,6.5,A.hz*A.v*.5)),w:V3(rnd(-4,4),rnd(-4,4),rnd(-6,6)),rest:false,r:.55,big:true,flat:true});}
@@ -4884,7 +5257,8 @@ function ch2Wake(){return{type:'fn',lines:[[9.6,'MOROZOV','…Sergeant!… Over 
     return k>13.2;}};}
 /* bodies, the spent launcher, interactions */
 function ch2Body(char,x,z,ry,poseK,rx,name,text){const c=buildHuman({char,outfit:'ratnik',vest:true,helmet:true});pose(c,POSE[poseK]);const w=new T.Group();w.position.set(x,0,z);w.rotation.y=ry;scene.add(w);c.root.rotation.x=rx;w.add(c.root);
-  restOn(c,H(x,z)+.005,w);if(BAKED[poseK+'_'+char]){pose(c,BAKED[poseK+'_'+char]);}else settleBody(c,(a,b)=>H(a,b)+.005);restOn(c,H(x,z)+.005,w);(CH2.bodies||(CH2.bodies=[])).push({c,key:poseK+'_'+char});w.updateMatrixWorld(true);{const sp=c.P.spine.getWorldPosition(new T.Vector3()),hd=c.P.head.getWorldPosition(new T.Vector3());const bx=(sp.x+hd.x)/2,bz=(sp.z+hd.z)/2;bloodDecal(scene,'pool',char.length*7+3,bx,H(bx,bz)+.03,bz,1.15,.95,ry);}
+  restOn(c,H(x,z)+.005,w);if(BAKED[poseK+'_'+char]){pose(c,BAKED[poseK+'_'+char]);}else settleBody(c,(a,b)=>H(a,b)+.005);restOn(c,H(x,z)+.005,w);(CH2.bodies||(CH2.bodies=[])).push({c,key:poseK+'_'+char});w.updateMatrixWorld(true);{const sp=c.P.spine.getWorldPosition(new T.Vector3()),hd=c.P.head.getWorldPosition(new T.Vector3());const bx=(sp.x+hd.x)/2,bz=(sp.z+hd.z)/2;const e2=.5,gx=H(bx+e2,bz)-H(bx-e2,bz),gz=H(bx,bz+e2)-H(bx,bz-e2),gl=Math.hypot(gx,gz);
+    groundBlood('pool',char.length*7+3,bx,bz,1.25,1.45,gl>1e-3?V3(-gx/gl,0,-gz/gl):V3(Math.sin(ry),0,Math.cos(ry)),H);}
   interact.push({obj:w,off:V3(0,.4,0),r:2.2,label:'Check '+name,once:true,fn(){say(name.toUpperCase(),text,6.5);CH2.checked[name]=1;ch2CheckDone();}});return w;}
 function ch2Aftermath(){/* finish the crash if it is still sliding */
   const A=CH2.amb;if(A&&A.cr&&!A.cr.done)for(let i=0;i<600&&!A.cr.done;i++)ch2Crash(.02);
@@ -4895,11 +5269,16 @@ function ch2Aftermath(){/* finish the crash if it is still sliding */
   const r1=V3(ld.x+b.tx*5.2-lx*1.6,0,ld.z+b.tz*5.2-lz*1.6),r2=V3(ld.x-b.tx*4.2+lx*3.8,0,ld.z-b.tz*4.2+lz*3.8);
   ch2Body('guard5',r1.x,r1.z,Math.atan2(b.tx,b.tz)+.8,'faceDown',Math.PI/2,'Ryabov','Face down on the asphalt. The blast caught him across the back. No pulse.');
   ch2Body('guard2',r2.x,r2.z,Math.atan2(b.tx,b.tz)-1.1,'onBack',-Math.PI/2,'Belov','On his back in the grass, still warm. He crawled this far on his own. You were minutes too late.');
-  /* Captain Morozov, thrown off the deck with you, has dragged himself into the ditch: bleeding hard from the thigh,
-     stuffing gauze into the wound, his rifle dropped beside him */
-  /* Morozov was thrown off the deck too and dragged himself into the roadside ditch: find its bottom beside the wreck */
-  {const bp=btr.position;let best=null,bh=1e9;for(let o=3;o<=15;o+=.5)for(const sd of [1,-1]){const x=bp.x+lx*o*sd-b.tx*3.5,z=bp.z+lz*o*sd-b.tz*3.5,h=H(x,z);if(h<bh&&Math.hypot(x-ld.x,z-ld.z)>2.5){bh=h;best=V3(x,0,z);}}
-   ch2Captain(best.x,best.z,Math.atan2(bp.x-best.x,bp.z-best.z)+.5);}
+  /* Captain Morozov was inside, up in the commander's hatch. He got out through it after the hit, slid down the left side
+     of the hull and dragged himself across the road into the ditch where you landed - a smeared trail from the wreck to
+     where he lies now, a few metres from you, pressing gauze into his thigh */
+  {const hz=s_=>{const q=roadQuery(s_.x,s_.z);return q.dH;};const bp=btr.position;let best=null,bs=1e9;
+   for(let rr_=2.6;rr_<=4.6;rr_+=.4)for(let a=0;a<6.28;a+=.26){const x=ld.x+Math.cos(a)*rr_,z=ld.z+Math.sin(a)*rr_;const q=roadQuery(x,z);if(q.dH<4.6)continue;
+     const sc=H(x,z)+.05*Math.hypot(x-ld.x,z-ld.z)+.02*Math.hypot(x-bp.x,z-bp.z);if(sc<bs){bs=sc;best=V3(x,0,z);}}
+   if(!best)best=V3(ld.x+lx*2.8,0,ld.z+lz*2.8);
+   /* feet toward the road, head up the outer bank */
+   const e=.6,g0=hz(best),gx=(hz(V3(best.x+e,0,best.z))-g0)/e,gz=(hz(V3(best.x,0,best.z+e))-g0)/e,gl=Math.hypot(gx,gz)||1;const f=V3(-gx/gl,0,-gz/gl);
+   ch2Captain(best,f);ch2Trail(best,f);}
   placeItem({id:'ak',x:r1.x+lx*.9,y:H(r1.x+lx*.9,r1.z+lz*.9),z:r1.z+lz*.9,data:{id:'ak',inMag:23},rot:[0,rnd(6.28),Math.PI/2]});
   placeItem({id:'ammo545',x:r2.x+.6,y:H(r2.x+.6,r2.z-.4),z:r2.z-.4});placeItem({id:'bandage',x:r2.x-.5,y:H(r2.x-.5,r2.z+.5),z:r2.z+.5});
   /* the spent tube where the shot came from */
@@ -4907,34 +5286,76 @@ function ch2Aftermath(){/* finish the crash if it is still sliding */
     const tb=new T.CylinderGeometry(.036,.036,.78,14,1,true);mesh(tb,std({color:C(0x4b5236),roughness:.7,side:T.DoubleSide}),0,0,0,g);mesh(new T.CylinderGeometry(.044,.044,.05,14),M.black,0,.36,0,g);mesh(new T.CylinderGeometry(.044,.044,.05,14),M.black,0,-.36,0,g);
     interact.push({obj:g,off:V3(),r:2,label:'Inspect the spent launcher',once:true,fn(){say('','RPG-26, single shot — fired from here, then dropped. The markings are ground off. The grass is pressed flat in a line toward the trees.',7);}});}
   interact.push({obj:btr,off:V3(0,1.4,0),r:5.5,label:'BTR-80 «121» · burning',fn(){say('','The driver\'s hatch is jammed and the hull is burning from the inside. Lukin does not answer.',5.5);CH2.checked.btr=1;ch2CheckDone();}});}
-/* the survivor */
-function ch2Captain(x,z,ry){const c=CD.chars.guard1;const f=c.fit,e=f.eye;
-  const h=buildHuman({char:'guard1',outfit:'ratnik',vest:true,helmet:false,uniqMat:true,tint:[.93,.9,.89]});
-  /* blood, placed from his own body in the bind pose: the cut on the left of the brow running down the temple, cheek and jaw;
-     the left thigh soaked round the wound and down over the knee; a smear on the right side where he dragged himself out */
+/* the survivor: on his back in the ditch, shoulders up on the bank, the torn left thigh out straight, the other knee
+   drawn up, both hands shoving a wad of gauze into the wound. He breathes fast and shallow and the pool under the
+   thigh keeps spreading - slowly, dark, soaking into the soil rather than shining on it */
+function ch2Captain(P0,f){const c=CD.chars.guard1,e=c.fit.eye;
+  const h=buildHuman({char:'guard1',outfit:'ratnik',vest:true,helmet:false,uniqMat:true,tint:[.9,.86,.85]});
   h.root.updateMatrixWorld(true);const BN=h.P.bones,loc=b=>h.root.worldToLocal(BN[b].getWorldPosition(new T.Vector3()));
   const pos=deq(c.pos);const surf=(x_,y_)=>{let zz=-9;for(let i=0;i<pos.length;i+=3)if(Math.abs(pos[i]-x_)<.008&&Math.abs(pos[i+1]-y_)<.008&&pos[i+2]>zz)zz=pos[i+2];return zz;};
   const fs=(dx,dy,r,dr)=>[e[0]+dx,e[1]+dy,surf(e[0]+dx,e[1]+dy),r,dr];
-  const hp=loc('hpR'),kn=loc('knR'),sp=loc('spine'),th=t=>hp.clone().lerp(kn,t).add(V3(0,0,.045));
+  const hp=loc('hpR'),kn=loc('knR'),sp=loc('spine'),wl=loc('wrL'),wr=loc('wrR'),th=t=>hp.clone().lerp(kn,t).add(V3(0,0,.045));
   const T1=th(.5),T2=th(.72),T3=th(.95),T0=th(.3);
   const blood=[fs(.04,.045,.03,.28),fs(.058,.012,.024,.3),fs(.056,-.03,.022,.32),fs(.048,-.07,.017,.5),fs(.02,-.055,.012,.4),
-    [T0.x,T0.y,T0.z,.11,.5],[T1.x,T1.y,T1.z,.13,.5],[T2.x,T2.y,T2.z,.11,.45],[T3.x,T3.y,T3.z,.07,.6],[T1.x,T1.y,T1.z-.09,.1,.4],[sp.x-.13,sp.y+.06,sp.z+.06,.08,.6]];
+    [T0.x,T0.y,T0.z,.12,.5],[T1.x,T1.y,T1.z,.14,.5],[T2.x,T2.y,T2.z,.12,.45],[T3.x,T3.y,T3.z,.08,.6],[T1.x,T1.y,T1.z-.1,.12,.4],[T1.x,T1.y-.02,T1.z-.16,.1,.6],
+    [sp.x-.13,sp.y+.06,sp.z+.06,.09,.6],[sp.x+.02,sp.y-.12,sp.z-.12,.13,.8],[wl.x,wl.y-.05,wl.z,.07,1],[wr.x,wr.y-.05,wr.z,.07,1]];
   h.P.uniqMats.forEach((m,i)=>bloodPatch(m,blood,'cap'+i));
-  const w=new T.Group();w.position.set(x,H(x,z),z);w.rotation.y=ry;scene.add(w);w.add(h.root);
-  animate(h,{pose:'woundPress'});
-  /* a wad of gauze in his hands, already soaked, pressed into the wound */
-  {const gz=std({map:gauzeTex(),roughness:.85});const wad=new T.Mesh(rbox(.07,.05,.035,.012),gz);wad.position.set(0,-.07,.035);wad.rotation.set(.3,.2,0);BN.wrR.add(wad);
-   const roll=new T.Mesh(new T.CylinderGeometry(.022,.022,.06,12),gz);roll.position.set(0,-.08,.03);roll.rotation.z=1.2;BN.wrL.add(roll);}
-  /* his rifle across his lap */
-  const ak=buildAK(false);ak.position.set(-.38,.035,.32);ak.rotation.set(0,.35,Math.PI/2);h.root.add(ak);
-  CH2.capPool=bloodDecal(scene,'pool',77,x+Math.sin(ry)*.4,H(x,z)+.03,z+Math.cos(ry)*.4,1.5,1.2,ry);CH2.capPool.scale.setScalar(.45);CH2.capT=0;
+  /* lie him down: the outer group faces his feet toward the road; the tilt group leans him back so the torso rests at
+     the bank's slope plus a little (he is holding his head and shoulders up to see the wound) */
+  const H0=H(P0.x,P0.z),Hb=H(P0.x-f.x*.55,P0.z-f.z*.55),Hf=H(P0.x+f.x*.9,P0.z+f.z*.9);
+  const bank=Math.atan2(Hb-H0,.55),leg=Math.atan2(Hf-H0,.9),el=clamp(bank+.3,.32,.8);
+  const w=new T.Group();w.position.set(P0.x,H0,P0.z);w.rotation.y=Math.atan2(f.x,f.z);scene.add(w);
+  const tilt=new T.Group();tilt.position.y=.1;tilt.rotation.x=-(Math.PI/2-el);w.add(tilt);
+  const hy=h.P.bones.hips.getWorldPosition(new T.Vector3()).y-h.root.getWorldPosition(new T.Vector3()).y;h.root.position.y=-hy;tilt.add(h.root);
+  const fl=-(el+leg);
+  AP.lieCap={hips:[0],spine:[.3,-.06,0],neck:[.22],head:[.28,.12,0],
+    hpR:[fl+.02,-.06,.02],knR:[.1],anR:[.35],hpL:[fl-1.0,.28,-.12],knL:[1.75],anL:[-.15],
+    shR:[-.34,-.12,.22],elR:[-.42],wrR:[.3,0,0],shL:[-.5,.42,-.08],elL:[-.55],wrL:[.3,.2,0],footFree:{L:true,R:true},seat:-1,
+    osc:{shR:[.1,0,0,4.6],elR:[-.14,0,0,4.6],shL:[.08,0,0,4.6],elL:[-.1,0,0,4.6],spine:[.04,0,0,1.9],head:[.05,.03,0,.4]}};
+  /* both palms on the front of the torn thigh, one above the other, shoving down in short hard pushes */
+  const _a=V3(),_b=V3(),_u=V3(),_x=V3();
+  animate(h,{pose:'lieCap',hands(an,t){BN.hpR.getWorldPosition(_a);BN.knR.getWorldPosition(_b);const ax=_b.clone().sub(_a);const len=ax.length();ax.normalize();
+    _u.set(0,1,0).addScaledVector(ax,-ax.y).normalize();_x.crossVectors(ax,_u).normalize();const push=Math.max(0,Math.sin(t*4.6))*.018;
+    const top=(k,side)=>_a.clone().addScaledVector(ax,len*k).addScaledVector(_u,.085-push).addScaledVector(_x,side);
+    an.reachW('R',top(.3,.012),ax.clone(),_u.clone().negate());
+    an.reachW('L',top(.47,-.01),ax.clone().addScaledVector(_x,.5).normalize(),_u.clone().negate());}});
+  /* the gauze, soaked through, in his hands; a torn dressing packet beside him */
+  {const gz=std({map:gauzeTex(),roughness:.85}),soak=std({color:C(0x3a0806),roughness:.6});const wad=new T.Mesh(rbox(.07,.05,.035,.012),soak);wad.position.set(0,-.08,.035);wad.rotation.set(.3,.2,0);BN.wrR.add(wad);
+   const roll=new T.Mesh(new T.CylinderGeometry(.022,.022,.06,12),gz);roll.position.set(0,-.08,.03);roll.rotation.z=1.2;BN.wrL.add(roll);
+   const pk=mesh(rbox(.11,.012,.07,.004),std({color:C(0x5f6648),roughness:.9}),P0.x+f.z*.45,H0+.01,P0.z-f.x*.45,scene);pk.rotation.y=rnd(6.28);}
+  /* his rifle, dropped beside him */
+  {const ak=buildAK(false);const ax=P0.x-f.z*.6+f.x*.3,az=P0.z+f.x*.6+f.z*.3;ak.position.set(ax,H(ax,az)+.035,az);ak.rotation.set(0,Math.atan2(f.x,f.z)+.4,Math.PI/2);scene.add(ak);}
+  /* the pool: under the thigh, running down toward the ditch bottom, and still spreading */
+  /* (beside the torn thigh - on his left, which is the rig's R side, +x in his own frame - where it runs off the leg) */
+  {const tx=P0.x+f.x*.38+f.z*.42,tz=P0.z+f.z*.38-f.x*.42;const e2=.5,gx=H(tx+e2,tz)-H(tx-e2,tz),gz=H(tx,tz+e2)-H(tx,tz-e2),gl=Math.hypot(gx,gz);
+   const down=gl>1e-3?V3(-gx/gl,0,-gz/gl):f.clone();CH2.capPool=groundBlood('pool',77,tx+down.x*.25,tz+down.z*.25,2.0,2.5,down,H,{spread:.5});CH2.capT=0;
+   groundBlood('drops',78,P0.x+f.x*.2+f.z*.3,P0.z+f.z*.2-f.x*.3,.45,.9,f,H,{lift:.026});}
+  flattenGrass(P0.x,P0.z,1.5);
   CH2.captain=h;
-  interact.push({obj:w,off:V3(0,.6,0),r:2.4,label:'Check Captain Morozov',once:true,fn(){CH2.checked.Morozov=1;
+  interact.push({obj:w,off:V3(0,.5,0),r:2.4,label:'Check Captain Morozov',once:true,fn(){CH2.checked.Morozov=1;
     const L=[['CAPTAIN MOROZOV','Easy… it\'s me. Shrapnel in the leg — it won\'t stop. Keep pressing, keep pressing…',5.6],
-      ['CAPTAIN MOROZOV','Lukin is still in there. The hatch wouldn\'t open, and then the fire… Ryabov? Belov?',5.2],
+      ['CAPTAIN MOROZOV','I got out through the hatch. Lukin\'s hatch wouldn\'t open, and then the fire… Ryabov? Belov?',5.4],
       ['CAPTAIN MOROZOV','…Then it is you. The set is slag. Lesnoye crossroads, four kilometres south — the platoon is there. Bring them, and a medic.',7],
       ['CAPTAIN MOROZOV','I\'ll hold it. Go — off the road, through the grass. Whoever fired that is still out there. Run.',5.4]];
     let t=0;L.forEach(l=>{setTimeout(()=>say(l[0],l[1],l[2]),t*1000);t+=l[2]+.3;});setTimeout(()=>ch2CheckDone(),t*1000-2000);}});}
+/* the way he came: blood round the open commander's hatch, smeared across the roof and down the left side of the hull,
+   then a dragged trail from the foot of the hull over the road to where he lies */
+function ch2Trail(P0,f){btr.updateMatrixWorld(true);
+  const hullDecal=(kind,seed,x,y,z,w,l,ry,rx)=>{const t=groundBloodTex(kind,seed);const m=new T.MeshStandardMaterial({map:t.map,roughnessMap:t.rough,roughness:1,normalMap:t.nrm,envMapIntensity:.6,transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-4,polygonOffsetUnits:-4});
+    const g=new T.Group();g.position.set(x,y,z);g.rotation.y=ry;btr.add(g);const d=new T.Mesh(new T.PlaneGeometry(w,l),m);d.rotation.x=rx;d.renderOrder=2;g.add(d);return d;};
+  /* round the hatch and across the roof toward the left edge (local -z) */
+  hullDecal('drops',301,2.18,1.902,.1,.5,.7,0,-Math.PI/2);hullDecal('drag',302,2.05,1.905,-.48,.5,.95,Math.PI,-Math.PI/2);
+  /* down the sloping upper side plate (half-width 1.235 m at 1.6 m, leaning in at 0.62 rad) */
+  hullDecal('drag',303,2.0,1.6,-1.247,.5,.75,Math.PI,-.62);
+  /* the drag over the ground: from the foot of the hull's left side to his hips, in overlapping lengths */
+  const A=V3(2.0,0,-1.75).applyMatrix4(btr.matrixWorld);A.y=0;const B=P0.clone().addScaledVector(f,-.1);B.y=0;
+  const D=B.clone().sub(A),len=D.length();D.normalize();const side=V3(-D.z,0,D.x);
+  for(let s=0,k=0;s<len-.2;s+=.95,k++){const l=Math.min(1.3,len-s),c=A.clone().addScaledVector(D,s+l/2).addScaledVector(side,Math.sin(s*.8+1)*.1);
+    groundBlood('drag',310+k,c.x,c.z,.75,l+.3,D,H,{lift:.024+k*.0004});if(k%3===1)groundBlood('drops',340+k,c.x+side.x*.45,c.z+side.z*.45,.4,l,D,H,{lift:.026});flattenGrass(c.x,c.z,.7);}}
+/* crushed grass: where a body lies or was dragged the tufts are pressed flat - cut the GPU grass density there */
+function flattenGrass(x,z,r){const n=512,d=HM.image.data;const i0=Math.floor((x-r-TERR.x0)/TERR.w*n),i1=Math.ceil((x+r-TERR.x0)/TERR.w*n),j0=Math.floor((z-r-TERR.z0)/TERR.d*n),j1=Math.ceil((z+r-TERR.z0)/TERR.d*n);
+  for(let j=Math.max(0,j0);j<=Math.min(n-1,j1);j++)for(let i=Math.max(0,i0);i<=Math.min(n-1,i1);i++){const wx=TERR.x0+(i+.5)/n*TERR.w,wz=TERR.z0+(j+.5)/n*TERR.d,k=Math.hypot(wx-x,wz-z)/r;if(k<1){const q=(j*n+i)*4;d[q+1]=Math.min(d[q+1],Math.round(d[q+1]*(.08+.92*k*k)));d[q+3]=Math.round(d[q+3]*k);}}
+  HM.needsUpdate=true;}
 function ch2CheckDone(){if(CH2.checked.Morozov&&!CH2.done2){CH2.done2=1;setTimeout(()=>{say('RADIO · R-187','…static. Nobody answers on the battalion net.',4.5);
   setObj('Get off the road before whoever fired comes back. Head south on foot to the Lesnoye crossroads, 4 km — bring help for Morozov.');setTimeout(()=>{if(typeof saveGame==='function')saveGame(false);},800);},2500);}}
 /* ---------- chapter entry ---------- */
@@ -4948,13 +5369,13 @@ function rideReinforce(o={}){S.chapter=2;S.btrHere=false;setBoard(null);if(SHADO
   RIDE.done=()=>{RIDE.lockLook=false;S.ts=1;ch2Lids(1);player.pos.set(camera.position.x,0,camera.position.z);player.y=H(player.pos.x,player.pos.z);player.yaw=camera.rotation.y;player.pitch=camera.rotation.x;player.vel.set(0,0,0);
     S.hp=38;S.sanity=Math.max(12,S.sanity-30);S.stam=35;CH2.rec=0;setObj('Check on the crew.');};}
 /* per-frame: wreck fire, debris, the slow recovery from the concussion, fire damage, the idling BTR in chapter 1 */
-function ch2Tick(dt,rdt){ch2DebrisTick(dt);ch2WreckTick(dt);if(CH2.capPool){CH2.capT+=dt;CH2.capPool.scale.setScalar(Math.min(1,.45+CH2.capT*.006));}
+function ch2Tick(dt,rdt){ch2DebrisTick(dt);ch2WreckTick(dt);if(CH2.capPool){CH2.capT+=dt;const sp=CH2.capPool.material.userData.spread;if(sp)sp.value=Math.max(.28,.5-.22*(1-Math.exp(-CH2.capT/240)));}
   if(CH2.rec>=0&&S.state==='play'){CH2.rec+=rdt;const k=clamp(CH2.rec/28,0,1);CH2.post.blur=lerp(.45,0,k);CH2.post.dbl=lerp(.3,0,clamp(CH2.rec/18,0,1));CH2.post.desat=lerp(.4,0,k);
     sfx.tin(lerp(.2,0,clamp(CH2.rec/24,0,1)),.5);sfx.muffle(lerp(1100,20000,Math.pow(clamp(CH2.rec/20,0,1),2)),.6);if(k>=1)CH2.rec=-1;}
   if(S.btrWrecked&&S.state==='play'&&Math.hypot(player.pos.x-btr.position.x,player.pos.z-btr.position.z)<3.4){S.hp-=dt*9;S.sinceDmg=0;}
   if(S.btrHere&&S.state==='play'&&sfx.engine){const d=btr.position.distanceTo(camera.position);sfx.engine.gain.value=.11*clamp(1-d/55,0,1);if(sfx.engineO)sfx.engineO.frequency.value=29+Math.sin(S.t*.7)*.6;}
   const U=postMat.uniforms,p=CH2.post;U.uBlur.value=p.blur;U.uDbl.value=p.dbl;U.uDesat.value=p.desat;U.uFlash.value=p.flash;}
-window.__ch2={CH2,rideReinforce,ch2Path,ch2Offload,ch2Aftermath,ch2Captain,ROADS,dbg:{grassDens,H,Hterr,tallGrass,roadQuery,forestF,groundMix}};
+window.__ch2={CH2,ch2Trail,rideReinforce,ch2Path,ch2Offload,ch2Aftermath,ch2Captain,ROADS,dbg:{grassDens,H,Hterr,tallGrass,roadQuery,forestF,groundMix}};
 
 /* ---------- render batching (no visual change): every large instanced mesh is split into spatial chunks so the frustum
    test (camera and shadow camera) can skip what is off screen, then static meshes that share a material inside a 40 m
@@ -4972,7 +5393,8 @@ function chunkInstanced(){const list=[];scene.traverse(o=>{if(o.isInstancedMesh&
       c.renderOrder=im.renderOrder;c.frustumCulled=true;c.position.copy(im.position);c.quaternion.copy(im.quaternion);c.scale.copy(im.scale);c.userData.chunked=true;
       const ctr=V3();idx.forEach(ii=>{im.getMatrixAt(ii,m4);p.setFromMatrixPosition(m4);ctr.add(p);});ctr.divideScalar(idx.length);let r=0;
       idx.forEach((ii,j)=>{im.getMatrixAt(ii,m4);c.setMatrixAt(j,m4);m4.decompose(p,q,sc);r=Math.max(r,p.distanceTo(ctr)+gr*Math.max(sc.x,sc.y,sc.z));if(im.instanceColor){im.getColorAt(ii,col);c.setColorAt(j,col);}});
-      n.boundingSphere=new T.Sphere(ctr,r);parent.add(c);if(sh>=0)shootables.push(c);made++;}
+      n.boundingSphere=new T.Sphere(ctr,r);parent.add(c);if(sh>=0)shootables.push(c);made++;
+}
     parent.remove(im);if(sh>=0)shootables.splice(shootables.indexOf(im),1);}
   return made;}
 /* materials that look identical (same shader, same textures and values) are treated as one for batching; materials the
@@ -5017,7 +5439,7 @@ function mergeStatic(){const excl=new Set(),mark=o=>{if(o)o.traverse(c=>excl.add
 /* distance cull: with FogExp2 at 0.0125 anything further than ~230 m is >99.9% fog, so it is not drawn at all.
    Objects are moved to an unused render layer (their own .visible is left to the game) */
 const DCULL={list:[],d:232};
-function buildDistanceCull(){const ex=new Set();[btr,playerBody.root].forEach(r=>r&&r.traverse(c=>ex.add(c)));worldItems.forEach(w=>w.mesh.traverse(c=>ex.add(c)));
+function buildDistanceCull(){const ex=new Set();[btr,playerBody.root].forEach(r=>r&&r.traverse(c=>ex.add(c)));VEG.types.forEach(t=>(t.hi||[]).forEach(set=>set.forEach(m=>ex.add(m))));if(FLOWERS.mesh)FLOWERS.mesh.traverse(c=>ex.add(c));worldItems.forEach(w=>w.mesh.traverse(c=>ex.add(c)));
   scene.updateMatrixWorld(true);const v=V3(),sc=V3();
   scene.traverse(o=>{if(!(o.isMesh||o.isPoints||o.isLine)||ex.has(o)||o===sky||!o.frustumCulled)return;const g=o.geometry;if(!g||!g.attributes||!g.attributes.position)return;
     if(o.parent&&o.parent.isGroup&&GRASS.mesh===o.parent)return;if(!g.boundingSphere)g.computeBoundingSphere();const b=g.boundingSphere;if(!b)return;
@@ -5039,10 +5461,10 @@ function mergeLocal(){const ex=new Set();btr.userData.wheels.forEach(w=>w.traver
     mm.castShadow=o0.castShadow;mm.receiveShadow=o0.receiveShadow;mm.renderOrder=o0.renderOrder;mm.visible=o0.visible;mm.userData.merged=L.length;par.add(mm);merged++;
     let sh=false;for(const o of L){const k=shootables.indexOf(o);if(k>=0){shootables.splice(k,1);sh=true;}par.remove(o);removed++;}if(sh)shootables.push(mm);}
   return [merged,removed];}
-{const t0=performance.now();const c=chunkInstanced();const [mg,rm]=mergeStatic();const [ml,rl]=mergeLocal();buildDistanceCull();window.__batchL=[ml,rl];window.__batch={chunks:c,merged:mg,removed:rm,dcull:DCULL.list.length,ms:Math.round(performance.now()-t0)};}
+{const t0=performance.now();vegBuild();vegLOD(true);const c=chunkInstanced();const [mg,rm]=mergeStatic();const [ml,rl]=mergeLocal();buildDistanceCull();window.__batchL=[ml,rl];window.__batch={chunks:c,merged:mg,removed:rm,dcull:DCULL.list.length,ms:Math.round(performance.now()-t0)};}
 /* ---------- start (after every module, including chapter 2, has initialised) ---------- */
 boot();
-window.__z={get VM(){return VM;},playerBody,gait,GAIT,ANIMS,SHADOW,spawnShadow,FX,begin,rideToSector,rideToFOB,interact,doInteract,findInteract,toggleInv,RIDE,btr,scene,renderer,camera,sun,hemi,S,M,postMat,vmScene,GRASS,Q,QUAL,applyQuality,player,debugView,tentSmoke,gloveMat,VMG,WEAP,HANDS,mountWeapon,vmCam,vmRoot,tickVM,buildPM,buildAK,fireFlash,RL,vmAction,placeArm2,HANDS,WALKERS,buildHuman,animate,woundDress,saveGame,loadGame,saveData,ch2Lids,fpShoulder};
+window.__z={AP,cmdr,riders,VEG,FLOWERS,GRASS_:GRASS,get VM(){return VM;},playerBody,gait,GAIT,ANIMS,SHADOW,spawnShadow,FX,begin,rideToSector,rideToFOB,interact,doInteract,findInteract,toggleInv,RIDE,btr,scene,renderer,camera,sun,hemi,S,M,postMat,vmScene,GRASS,Q,QUAL,applyQuality,player,debugView,tentSmoke,gloveMat,VMG,WEAP,HANDS,mountWeapon,vmCam,vmRoot,tickVM,buildPM,buildAK,fireFlash,RL,vmAction,placeArm2,HANDS,WALKERS,buildHuman,animate,woundDress,saveGame,loadGame,saveData,ch2Lids,fpShoulder};
 
 }catch(e){const p=document.createElement('pre');p.style.cssText='position:fixed;left:8px;bottom:8px;right:8px;z-index:99;color:#f88;background:#000c;font:12px monospace;white-space:pre-wrap;padding:8px';p.textContent='Zone 12 failed to start: '+(e&&e.stack||e);document.body.appendChild(p);}},30));
 window.addEventListener('error',e=>{const p=document.createElement('pre');p.style.cssText='position:fixed;left:8px;top:8px;right:8px;z-index:99;color:#f88;background:#000c;font:12px monospace;white-space:pre-wrap;padding:8px';p.textContent='Error: '+e.message+' @'+e.lineno;document.body.appendChild(p);});
