@@ -7,3 +7,5 @@ Play: open `index.html` in a modern desktop browser (Chrome, Edge or Firefox). I
 Controls: WASD move, Shift sprint, C crouch, mouse look/fire, right mouse aim, R reload, E interact, Tab inventory, F flashlight, F5 save, F9 load.
 
 Character bodies are built from the CC0 MakeHuman base mesh, targets, skeleton and eye assets (makehumancommunity.org).
+
+Recorded sounds, all CC0 (public domain): gunshots from The Free Firearm Sound Library by Still North Media; footsteps from Kenney's Impact Sounds (kenney.nl); rain and thunder from OpenGameArt ("Rain (loopable)", "Rain + Long Thunder"); and CC0 recordings from Freesound users serøutōnin--deprivəd, j1987, Fission9, monte32, qubodup, swordofkings128, rosenberg3, egomassive, Q.K., ivolipa, shaunhillyard, florianreichelt and tommccann.
