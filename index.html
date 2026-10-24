@@ -241,7 +241,8 @@ const T=THREE;
 /* round things get enough sides to look round: once HIPOLY is on (from the west country's build on), a cylinder thicker
    than a pencil gets at least 10 sides, a post 12, a log or a drum 16 - asked-for counts above that stand */
 let HIPOLY=false;{const C0=T.CylinderGeometry;T.CylinderGeometry=class extends C0{constructor(rt=1,rb=1,h=1,rs=8,hs=1,oe=false,ts=0,tl=Math.PI*2){
-  if(HIPOLY){const r=Math.max(rt,rb);if(r>=.025&&rs<10)rs=r>=.12?16:r>=.06?12:10;}super(rt,rb,h,rs,hs,oe,ts,tl);}};}
+  if(HIPOLY){const r=Math.max(rt,rb);if(r>=.025)rs=Math.max(rs,r>=.19?24:r>=.11?18:r>=.06?14:10);}super(rt,rb,h,rs,hs,oe,ts,tl);}};
+ const D0=T.CircleGeometry;T.CircleGeometry=class extends D0{constructor(r=1,sg=8,ts=0,tl=Math.PI*2){if(HIPOLY&&r>=.025)sg=Math.max(sg,r>=.19?24:r>=.11?18:r>=.06?14:10);super(r,sg,ts,tl);}};}
 let _s=20261019;
 const R=()=>{_s=(_s*16807)%2147483647;return (_s-1)/2147483646;};
 const rnd=(a=1,b)=>b===undefined?R()*a:a+R()*(b-a);
@@ -468,9 +469,13 @@ function rbox(w,h,d,r=0.02){r=Math.max(1e-4,Math.min(r,w/2.2,h/2.2,d/2.2));
   const g=new T.ExtrudeGeometry(rboxShape(w-2*r,h-2*r,r*.6),{depth:Math.max(d-2*r,1e-4),bevelEnabled:true,bevelThickness:r,bevelSize:r,bevelSegments:2,curveSegments:3});
   g.translate(0,0,-(d-2*r)/2);boxUV(g);return g;}
 function boxUV(g){g.computeBoundingBox();const b=g.boundingBox,s=V3();b.getSize(s);const p=g.attributes.position,n=g.attributes.normal,uv=g.attributes.uv;
+  /* each face projected along its own axis, the right way round from outside (no mirrored lettering on any side); a
+     triangle takes one projection for all three corners, so the bevels never smear the whole texture into a sliver */
+  const tri=!g.index&&p.count%3===0;
   for(let i=0;i<p.count;i++){const x=(p.getX(i)-b.min.x)/(s.x||1),y=(p.getY(i)-b.min.y)/(s.y||1),z=(p.getZ(i)-b.min.z)/(s.z||1);
-    const ax=Math.abs(n.getX(i)),ay=Math.abs(n.getY(i)),az=Math.abs(n.getZ(i));
-    if(az>=ax&&az>=ay)uv.setXY(i,x,y);else if(ax>=ay)uv.setXY(i,z,y);else uv.setXY(i,x,z);}uv.needsUpdate=true;}
+    let nx=n.getX(i),ny=n.getY(i),nz=n.getZ(i);if(tri){const f=i-i%3;nx=n.getX(f)+n.getX(f+1)+n.getX(f+2);ny=n.getY(f)+n.getY(f+1)+n.getY(f+2);nz=n.getZ(f)+n.getZ(f+1)+n.getZ(f+2);}
+    const ax=Math.abs(nx),ay=Math.abs(ny),az=Math.abs(nz);
+    if(az>=ax&&az>=ay)uv.setXY(i,nz>0?x:1-x,y);else if(ax>=ay)uv.setXY(i,nx>0?1-z:z,y);else uv.setXY(i,x,ny>0?1-z:z);}uv.needsUpdate=true;}
 /* planar UV in metres (for tiling textures) */
 function worldUV(g,scale=1){const p=g.attributes.position,n=g.attributes.normal;const uv=new Float32Array(p.count*2);
   for(let i=0;i<p.count;i++){const ax=Math.abs(n.getX(i)),ay=Math.abs(n.getY(i)),az=Math.abs(n.getZ(i));let u,v;
@@ -1237,6 +1242,11 @@ function westForest(x,z,q){if(q.dW<12)return 0;if(Math.hypot(x-W3.clear.x,z-W3.c
   if(Math.hypot((x-W3.yard.x)/22,(z-W3.yard.z)/19)<1)return 0;
   if(r<1.3)return 0;return Math.max(edgeNS,x<-880?1:sstep(1.3,1.6,r));}
 /* radiation: a few small, hot spots where fragments of the original dirty bomb came down (and a weak one round the house) */
+/* the stand of red pines on the walk west (09g): the grass under them thin, the ground dry and needle-strewn */
+const REDPINE={x:-357,z:-411,r:17};
+/* the forest floor along the walk west: under the trees needles, old leaves and moss, the grass thin and patchy */
+function floorK(x,z){if(x>-312||x<-482||Math.abs(z+392)>72)return 0;const f=forestF(x,z);if(f<=0)return 0;
+  return f*sstep(-312,-332,x)*sstep(72,56,Math.abs(z+392))*sstep(-482,-466,x)*(.5+.5*sstep(.32,.62,fbm(x/16+3,z/16,2)));}
 const hotspots=[{x:-34,z:-318,r:7,uSv:45,frag:1},{x:66,z:-436,r:8,uSv:110,frag:1},{x:14,z:-352,r:5,uSv:28,frag:1},{x:HX,z:HZ,r:12,uSv:9}];
 function grassDens(x,z){
   let d=.5+.5*sstep(.32,.62,fbm(x/34+7,z/34+1,3));
@@ -1245,6 +1255,8 @@ function grassDens(x,z){
   if(Math.abs(x)<44&&Math.abs(z)<35){const e=Math.min(44-Math.abs(x),35-Math.abs(z));d*=e<1.2?.5:0;}
   if(x>HX-4.6&&x<HX+4.6&&z>HZ-3.6&&z<HZ+5.2)d=0;
   for(const h of hotspots){if(!h.frag)continue;const k=Math.hypot(x-h.x,z-h.z)/(h.r*.4);if(k<1)d*=.45+.55*k*k;}
+  {const k=Math.hypot(x-REDPINE.x,z-REDPINE.z)/REDPINE.r;if(k<1.15)d*=.3+.7*sstep(.55,1.15,k);}
+  {const fk=floorK(x,z);if(fk>0)d*=1-.62*fk;}
   {const q=roadQuery(x,z);if(q.dT<5)d*=sstep(2.6,4.6,q.dT);if(q.dH<9)d*=sstep(4.6,7.2,q.dH);if(q.dH<90&&q.dH>7){const tg=tallGrass(x,z);d=Math.max(d,tg*.95);}
    if(q.dW<6)d*=sstep(3.6,5.6,q.dW);}
   if(x<-460){const fk=fieldK(x,z);if(fk>0)d=Math.max(d,fk*.95);if(H0(x,z)<W3.wl+.05)d=0;}
@@ -1263,6 +1275,8 @@ function groundMix(x,z){const n1=fbm(x/46,z/46,3),n2=fbm(x/11+50,z/11,2),n3=fbm(
   const dh=Math.hypot(x-HX,z-HZ);const yard=1-sstep(6,13,dh);m+=yard*.9;d+=yard*.4;g*=1-yard*.7;
   /* round each fragment the grass has died back a little: dry and thin, the soil showing - no puddles, no glow */
   for(const h of hotspots){if(!h.frag)continue;const k=Math.hypot(x-h.x,z-h.z)/(h.r*.45);if(k<1){d+=(1-k)*.9;m+=(1-k)*.25;g*=.35+.65*k;}}
+  {const k=Math.hypot(x-REDPINE.x,z-REDPINE.z)/REDPINE.r;if(k<1.2){const e=1-sstep(.5,1.2,k);d+=e*1.1;m+=e*.35;g*=1-e*.75;}}
+  {const fk=floorK(x,z);if(fk>0){d+=fk*.75;m+=fk*.32;g*=1-.5*fk;}}
   {const q=roadQuery(x,z);if(q.dT<6.5){const k=1-sstep(2.8,6.5,q.dT);m+=k*1.6;v+=k*.5*sstep(.4,.6,n3);g*=1-k*.85;d*=1-k;}if(q.dH<16){const k=1-sstep(12.5,16,q.dH);d+=k*.6;}}
   /* trodden earth at the bus stop and along its path; torn, bare earth in and round a shell crater */
   {const bt=busTrample(x,z);if(bt>0){m+=bt*1.5;v+=bt*.3;g*=1-bt*.85;d*=1-bt*.7;}}
@@ -1399,7 +1413,7 @@ const FM=(function(){const n=256,nx=432,data=new Uint8Array(nx*n*4);
 const FLOWERS={secs:null,uni:{uFC:{value:new T.Vector2()},uFCell:{value:.9},uFM:{value:FM}}};
 const flowerMat=std({map:TX.flowers,alphaTest:.5,side:T.DoubleSide,roughness:.78,envMapIntensity:.25});flowerMat.defines.NO_PUDDLE='';
 flowerMat.onBeforeCompile=s=>{Object.assign(s.uniforms,GRASS.uni,FLOWERS.uni);
-  s.vertexShader=`attribute vec2 aOff;uniform vec2 uFC;uniform float uFCell,uTime,uR;uniform sampler2D uHM,uFM;uniform vec4 uTB;uniform vec3 uPlayer;
+  s.vertexShader=`attribute vec2 aOff;uniform vec2 uFC;uniform float uFCell,uTime,uR;uniform sampler2D uHM,uFM;uniform vec4 uTB;uniform vec3 uPlayer;varying float vFD;
   float gh(vec2 p){vec3 q=fract(vec3(p.xyx)*.1031);q+=dot(q,q.yzx+33.33);return fract((q.x+q.y)*q.z);}
   uniform sampler2D uHM2;uniform vec4 uTB2;uniform vec3 uHR2;
   /* height in metres + density channels; over the basin the fine heights, and nothing below the waterline */
@@ -1408,7 +1422,7 @@ flowerMat.onBeforeCompile=s=>{Object.assign(s.uniforms,GRASS.uni,FLOWERS.uni);
   `+s.vertexShader.replace('#include <uv_vertex>',`#include <uv_vertex>
   vec2 cell=uFC+aOff;float r1=gh(cell+3.1),r2=gh(cell+11.7),r3=gh(cell+23.3),r4=gh(cell+47.9);
   vec2 wp=(cell+vec2(r1,r2))*uFCell;vec4 hm=hmD(uHM,wp,uTB),fm=texture2D(uFM,(wp-uTB.xy)/uTB.zw);
-  float dist=length(wp-cameraPosition.xz),Rf=min(uR*1.25,44.);float fade=1.-smoothstep(14.,24.,dist);
+  float dist=length(wp-cameraPosition.xz),Rf=min(uR*1.25,44.);vFD=dist;float fade=1.-smoothstep(14.,24.,dist);
   float drift=smoothstep(.5,.68,clamp(hm.b*2.-1.,0.,1.)),meadow=smoothstep(.45,.8,hm.g)*step(.5,fm.r)*(1.-hm.a*.6);
   float dens=meadow*(.012+.3*drift);{vec2 u2=(wp-uTB2.xy)/uTB2.zw;if(u2.x>0.&&u2.y>0.&&u2.x<1.&&u2.y<1.&&hm.r<uHR2.z+1.6)dens=0.;}float show=step(r3,dens);
   float sp=floor(fm.g*5.99);if(r4<.28)sp=floor(r1*5.99);
@@ -1421,8 +1435,11 @@ flowerMat.onBeforeCompile=s=>{Object.assign(s.uniforms,GRASS.uni,FLOWERS.uni);
   float wv=sin(uTime*1.6+wp.x*.31+wp.y*.23)*.65+sin(uTime*3.7+wp.x*1.3+wp.y*.7)*.22;transformed.x+=wv*.1*t*t*fsc;transformed.z+=wv*.05*t*t*fsc;
   vec2 pd=wp-uPlayer.xz;float pl=length(pd);float push=max(0.,1.-pl/.85);transformed.xz+=(pd/max(pl,.001))*push*.3*t*fsc;transformed.y-=push*.15*t*fsc;
   transformed+=vec3(wp.x,hm.r-.03,wp.y);`);
-  s.fragmentShader=s.fragmentShader.replace('#include <normal_fragment_begin>',NOFLIP);};
-flowerMat.customProgramCacheKey=()=>'flowers';
+  /* a white head a few metres off is only a pixel or two: dimmed with distance so the far ones cannot sparkle as white
+     specks in the grass (the coloured ones hardly change) */
+  s.fragmentShader='varying float vFD;\n'+s.fragmentShader.replace('#include <normal_fragment_begin>',NOFLIP).replace('#include <map_fragment>',`#include <map_fragment>
+  {float fk=smoothstep(7.,15.,vFD);float fl=dot(diffuseColor.rgb,vec3(.3,.59,.11));diffuseColor.rgb*=mix(1.,min(1.,.34/max(fl,.01)),fk);}`);};
+flowerMat.customProgramCacheKey=()=>'flowers2';
 function buildFlowers(Rad){if(FLOWERS.mesh){scene.remove(FLOWERS.mesh);FLOWERS.mesh.children.forEach(c=>c.geometry.dispose());}
   const cell=FLOWERS.uni.uFCell.value,Rf=Math.min(Rad*1.25,26),K=Math.ceil(Rf/cell),NS=8,buck=Array.from({length:NS},()=>[]);
   for(let i=-K;i<=K;i++)for(let j=-K;j<=K;j++)if(i*i+j*j<=K*K){const a=Math.atan2(j,i);buck[Math.floor((a+Math.PI)/(Math.PI*2)*NS)%NS].push(i,j);}
@@ -1431,7 +1448,7 @@ function buildFlowers(Rad){if(FLOWERS.mesh){scene.remove(FLOWERS.mesh);FLOWERS.m
     g.setAttribute('aOff',new T.InstancedBufferAttribute(new Float32Array(off),2));g.instanceCount=off.length/2;
     let cx=0,cz=0;for(let k=0;k<off.length;k+=2){cx+=off[k];cz+=off[k+1];}cx=cx/(off.length/2)*cell;cz=cz/(off.length/2)*cell;let r=0;for(let k=0;k<off.length;k+=2)r=Math.max(r,Math.hypot(off[k]*cell-cx,off[k+1]*cell-cz));
     g.boundingSphere=new T.Sphere(new T.Vector3(),r+cell*2+3);const m=new T.Mesh(g,flowerMat);m.frustumCulled=true;m.receiveShadow=true;grp.add(m);FLOWERS.secs.push({m,cx,cz});});
-  FLOWERS.mesh=grp;scene.add(grp);}
+  grp.userData.keep=true;FLOWERS.mesh=grp;scene.add(grp);}
 
 /* ---------- trees: real branching structures ----------
    Every tree is grown as a hierarchy: trunk -> limbs -> branches (-> twigs), each a tapered tube swept along a curved
@@ -1873,8 +1890,8 @@ function faceDetail(m,fit,o,key){const e=fit.eye,f=v=>(+v).toFixed(4),prev=m.onB
         float earm=smoothstep(.058,.07,ax)*smoothstep(-.045,-.056,P.z)*(1.-smoothstep(-.098,-.11,P.z));hl=mix(hl,.012,earm);
         hl=mix(hl,-.09,smoothstep(-.1,-.125,P.z));
         float hm=smoothstep(hl-.004,hl+.008+fN(vFP*300.)*.006,P.y+(fN(vFP*80.)-.5)*.006)*step(-.14,P.y);
-        float strand=smoothstep(.45,.75,fN(vFP*vec3(2200.,2200.,2200.)));
-        vec3 hcol=vec3(${hc.map(f).join(',')});col=mix(col,mix(col*.62,hcol*1.1,.75),hm*(.55+strand*.45));roughnessFactor=mix(roughnessFactor,.78,hm);`:''}
+        float strand=smoothstep(.3,.8,fN(vFP*700.));
+        vec3 hcol=vec3(${hc.map(f).join(',')});col=mix(col,mix(col*.45,hcol*(.74+strand*.12),.9),hm*.92);roughnessFactor=mix(roughnessFactor,.78,hm);`:''}
         ${o.beard?`/* a couple of days of beard: below a line from under the nose along the cheek to the jaw angle, down to under the
            chin; the moustache line over the upper lip; never on the lips */
         float yb=-.052-ax*.42;float bm=smoothstep(yb+.006,yb-.012,P.y)*smoothstep(-.162,-.138,P.y)*smoothstep(-.115,-.085,P.z)*(1.-smoothstep(.074,.088,ax));
@@ -2020,9 +2037,9 @@ function cmat(kind,skinning=true,tag=''){const key=kind+(skinning?'':'_r')+tag;i
     case 'rubber':m=std({color:C(0x111111),roughness:.92,vertexColors:true,...sk});break;
     case 'lace':m=std({color:C(0x2a2722),roughness:.85,vertexColors:true,...sk});break;
     case 'felt':m=triMat(TX.cloth,4,{roughness:1,color:C(0x7a746a),...sk});break;
-    case 'lens':m=std({color:C(0x1e1d18),roughness:.34,metalness:.1,envMapIntensity:.7,transparent:true,opacity:.72,depthWrite:false,side:T.FrontSide,...sk});break;
+    case 'lens':m=std({color:C(0x15140f),roughness:.22,metalness:.1,envMapIntensity:.9,transparent:true,opacity:.88,depthWrite:false,side:T.FrontSide,...sk});break;
     case 'harn':m=std({color:C(0x6e6c4c),roughness:.86,vertexColors:true,side:T.DoubleSide,...sk});break;
-    case 'visor':m=std({color:C(0x56605a),roughness:.18,metalness:0,envMapIntensity:.7,transparent:true,opacity:.46,depthWrite:false,side:T.FrontSide,...sk});break;
+    case 'visor':m=std({color:C(0x343b36),roughness:.14,metalness:0,envMapIntensity:.95,transparent:true,opacity:.66,depthWrite:false,side:T.FrontSide,...sk});break;
     case 'maskRub':m=std({color:C(0x5c614e),roughness:.72,envMapIntensity:.5,vertexColors:true,...sk});break;
     case 'maskStrap':m=std({color:C(0x2e3228),roughness:.8,vertexColors:true,side:T.DoubleSide,...sk});break;
     case 'maskPl':m=std({color:C(0x2a2d26),roughness:.45,envMapIntensity:.7,vertexColors:true,...sk});break;
@@ -3699,6 +3716,301 @@ function fireUpdate(dt,t){if(!FIRE.list.length)return;FIRE.uT.value=t%1200;
       rnd(5,7),rnd(.18,.26),rnd(1.4,2.1),[.17,.16,.15,.16],[.42,.42,.41,0],{drag:.25,spin:rnd(-.25,.25)});}
     f.emAcc+=dt*9;while(f.emAcc>1){f.emAcc--;FX.ember.spawn(_w.set(f.p.x+rnd(-.1,.1),f.p.y+.1,f.p.z+rnd(-.1,.1)),_v.set(rnd(-.3,.3),rnd(1.4,3.0),rnd(-.3,.3)),rnd(1.2,2.8),.012,.004,[1,.65,.25,1],[1,.25,.05,0],{drag:.5,up:.25});}}}
 
+/* ---------- Mi-24V "Hind-E": a lofted fuselage (superellipse sections, smooth), the stepped tandem cockpits with their
+   faceted armoured glazing and frames, the two TV3-117 nacelles with the PZU dust-separator domes in front of the
+   intakes and the exhausts bent out to the sides, the gearbox and oil-cooler fairings, the five-blade main rotor (head,
+   swashplate, dampers, twisted blades) and the three-blade tail rotor on the port side of the swept fin, the stub wings
+   with their anhedral, B-8V20 rocket pods on the pylons and Shturm launch tubes on the wingtip rails, the YakB-12.7 chin
+   turret, the Raduga antenna and sight pods, the air-data boom, the main wheels half out of their bays, antennas, flare
+   dispensers. Painted in the shader: khaki with olive patches, a pale blue belly, panel lines, the clamshell doors,
+   grime, exhaust soot down the boom; red stars and a white bort number as decals.
+   Frame: +z forward (nose), +y up, +x port; the origin under the main rotor at the belly line. ---------- */
+const HIND=(function(){
+  const H={};
+  /* --- smooth interpolation of keyed section parameters (Catmull-Rom on each) --- */
+  const keyAt=(K,z,f)=>{let i=0;while(i<K.length-2&&z>K[i+1].z)i++;const a=K[Math.max(0,i-1)],b=K[i],c=K[i+1],d=K[Math.min(K.length-1,i+2)];
+    const t=clamp((z-b.z)/(c.z-b.z),0,1),t2=t*t,t3=t2*t;const p0=a[f],p1=b[f],p2=c[f],p3=d[f];
+    return .5*((2*p1)+(-p0+p2)*t+(2*p0-5*p1+4*p2-p3)*t2+(-p0+3*p1-3*p2+p3)*t3);};
+  /* superellipse ring: half-width w, above ht, below hb, exponents nt (top) nb (bottom); theta 0 = port (+x) */
+  const ring=(s,th)=>{const c=Math.cos(th),sn=Math.sin(th),n=sn>=0?s.nt:s.nb;const x=s.w*Math.sign(c)*Math.pow(Math.abs(c),2/n);
+    const y=s.yc+(sn>=0?s.ht:s.hb)*Math.sign(sn)*Math.pow(Math.abs(sn),2/n);return[x+(s.cx||0),y];};
+  /* a lofted body: sections keyed along z, sampled every dz, M points round; capped at both ends; smooth normals */
+  function loftZ(K,o={}){K=K.slice().sort((a,b)=>a.z-b.z);const M=o.M||40,dz=o.dz||.12,z0=K[0].z,z1=K[K.length-1].z,th0=o.th0||0,th1=o.th1===undefined?Math.PI*2:o.th1,open=o.th1!==undefined;
+    const pos=[],idx=[],uv=[];let rows=0;const S=s=>({w:keyAt(K,s,'w'),ht:keyAt(K,s,'ht'),hb:keyAt(K,s,'hb'),yc:keyAt(K,s,'yc'),nt:keyAt(K,s,'nt'),nb:keyAt(K,s,'nb'),cx:K[0].cx!==undefined?keyAt(K,s,'cx'):0});
+    const zs=[];for(let z=z0;z<z1-1e-6;z+=dz)zs.push(z);zs.push(z1);
+    const cols=open?M+1:M+1;
+    for(const z of zs){const s=S(z);for(let i=0;i<cols;i++){const th=th0+(th1-th0)*i/M;const [x,y]=ring(s,th);pos.push(x,y,z);uv.push(i/M,z*.25);}rows++;}
+    for(let r=0;r<rows-1;r++)for(let i=0;i<M;i++){const a=r*cols+i,b=a+1,c=a+cols,d=c+1;idx.push(a,b,d,a,d,c);}
+    if(!open&&o.cap!==false){[0,rows-1].forEach((r,k)=>{const s=S(zs[r]);const ci=pos.length/3;pos.push(s.cx||0,s.yc,zs[r]);uv.push(.5,.5);for(let i=0;i<M;i++){const a=r*cols+i,b=a+1;if(k===0)idx.push(ci,b,a);else idx.push(ci,a,b);}});}
+    const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(pos,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();
+    if(o.flip){const ix=g.index.array;for(let i=0;i<ix.length;i+=3){const t=ix[i];ix[i]=ix[i+2];ix[i+2]=t;}g.computeVertexNormals();}
+    g.userData.S=S;return g;}
+  /* collect geometry per material */
+  const parts=new Map();const add=(g,m,M4)=>{let q=g.index?g.toNonIndexed():g.clone();if(M4)q.applyMatrix4(M4);if(!q.attributes.normal)q.computeVertexNormals();
+    if(!q.attributes.uv)q.setAttribute('uv',new T.BufferAttribute(new Float32Array(q.attributes.position.count*2),2));
+    for(const k of Object.keys(q.attributes))if(!['position','normal','uv'].includes(k))q.deleteAttribute(k);
+    if(!parts.has(m))parts.set(m,[]);parts.get(m).push(q);return q;};
+  const TR=(x,y,z,rx=0,ry=0,rz=0,sx=1,sy=sx,sz=sx)=>new T.Matrix4().compose(V3(x,y,z),new T.Quaternion().setFromEuler(new T.Euler(rx,ry,rz,'YXZ')),V3(sx,sy,sz));
+  const mirror=new T.Matrix4().makeScale(-1,1,1);
+  /* a part and its mirror image (geometry winding flipped back) */
+  const addM=(g,m,M4)=>{add(g,m,M4);const q=g.index?g.toNonIndexed():g.clone();if(M4)q.applyMatrix4(M4);q.applyMatrix4(mirror);const p=q.attributes.position.array;
+    for(let i=0;i<p.length;i+=9)for(let k=0;k<3;k++){const t=p[i+3+k];p[i+3+k]=p[i+6+k];p[i+6+k]=t;}q.computeVertexNormals();add(q,m);};
+  const tube=(pts,r,seg=6,closed=false)=>new T.TubeGeometry(new T.CatmullRomCurve3(pts.map(p=>V3(...p)),closed,'catmullrom',.3),Math.max(4,pts.length*6),r,seg,closed);
+  /* an airfoil section (about a symmetric 12-15% section), chord along -z from the leading edge, thickness in y */
+  const foil=(c,t)=>{const P=[];const N=14;for(let i=0;i<=N;i++){const x=1-Math.cos(i/N*Math.PI/2*2)*.5-.5;const yt=5*t*(.2969*Math.sqrt(x)-.126*x-.3516*x*x+.2843*x*x*x-.1036*x*x*x*x);P.push([x*c,yt*c]);}
+    const up=P.map(p=>[p[0],p[1]]),lo=P.slice(1,-1).reverse().map(p=>[p[0],-p[1]]);return up.concat(lo);};
+  /* a wing-like surface lofted spanwise from stations {x,y,zLE,c,t,tw(twist)} along their own span axis */
+  function wing(st,o={}){const pos=[],idx=[];const F=st.map(s=>foil(s.c,s.t));const n=F[0].length;
+    st.forEach((s,k)=>{F[k].forEach(([a,b])=>{const ca=Math.cos(s.tw||0),sa=Math.sin(s.tw||0);const zz=-a,yy=b;const z=zz*ca-yy*sa+(s.c*.25)*0,y=zz*sa+yy*ca;pos.push(s.x,s.y+y,s.zLE+z);});});
+    for(let k=0;k<st.length-1;k++)for(let i=0;i<n;i++){const j=(i+1)%n;const a=k*n+i,b=k*n+j,c=(k+1)*n+i,d=(k+1)*n+j;idx.push(a,c,d,a,d,b);}
+    [0,st.length-1].forEach((k,e)=>{const c0=pos.length/3;let cx=0,cy=0,cz=0;for(let i=0;i<n;i++){cx+=pos[(k*n+i)*3];cy+=pos[(k*n+i)*3+1];cz+=pos[(k*n+i)*3+2];}pos.push(cx/n,cy/n,cz/n);
+      for(let i=0;i<n;i++){const j=(i+1)%n;if(e===0)idx.push(c0,k*n+i,k*n+j);else idx.push(c0,k*n+j,k*n+i);}});
+    const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(pos,3));g.setIndex(idx);g.computeVertexNormals();
+    if(o.flip){const ix=g.index.array;for(let i=0;i<ix.length;i+=3){const t=ix[i];ix[i]=ix[i+2];ix[i+2]=t;}g.computeVertexNormals();}return g;}
+
+  /* ===================== materials ===================== */
+  /* the paint is worked out in the shader from the airframe-space position and normal: khaki with olive-green patches,
+     a pale blue belly and wing undersides, panel lines and doors, grime and exhaust soot */
+  const paint=std({color:C(0xffffff),roughness:.6,metalness:.12,envMapIntensity:.45});
+  paint.onBeforeCompile=s=>{
+    s.vertexShader='varying vec3 vHp;varying vec3 vHn;\n'+s.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\nvHp=position;vHn=normal;');
+    s.fragmentShader='varying vec3 vHp;varying vec3 vHn;\n'+s.fragmentShader.replace('void main() {',`
+      float hH(vec3 p){p=fract(p*.3183099+.1);p*=17.;return fract(p.x*p.y*p.z*(p.x+p.y+p.z));}
+      float hN(vec3 x){vec3 i=floor(x),f=fract(x);f=f*f*(3.-2.*f);return mix(mix(mix(hH(i),hH(i+vec3(1,0,0)),f.x),mix(hH(i+vec3(0,1,0)),hH(i+vec3(1,1,0)),f.x),f.y),
+        mix(mix(hH(i+vec3(0,0,1)),hH(i+vec3(1,0,1)),f.x),mix(hH(i+vec3(0,1,1)),hH(i+vec3(1,1,1)),f.x),f.y),f.z);}
+      float hL(float d,float w){float fw=max(fwidth(d),1e-4);return 1.-smoothstep(w*.5,w*.5+fw*1.2,abs(d));}
+      void main() {`).replace('#include <color_fragment>',`#include <color_fragment>
+      {vec3 p=vHp,nn=normalize(vHn);
+       /* camouflage: large soft-edged patches, seen the same from the side and from above */
+       float c=hN(p*vec3(.36,.42,.3)+vec3(3.1,0.,7.7))*.65+hN(p*vec3(.9,1.,.8)+11.)*.35;float cm=smoothstep(.47,.53,c);
+       vec3 khaki=vec3(.25,.24,.13),olive=vec3(.1,.115,.05),belly=vec3(.34,.42,.45);
+       vec3 col=mix(khaki,olive,cm);
+       /* the belly line: underside and the lower flanks, wing undersides */
+       float bl=smoothstep(-.12,-.42,nn.y)*smoothstep(1.6,.9,p.y)+smoothstep(-.35,-.6,nn.y);bl=clamp(bl,0.,1.);col=mix(col,belly,bl);
+       /* panel lines: frames along the fuselage, stringers, the doors and hatches */
+       float pl=0.;float onBody=step(-11.4,p.z)*step(p.z,7.)*step(abs(p.x),1.05);
+       pl=max(pl,hL(fract(p.z/1.04+.5)-.5,.01)*onBody*step(p.y,2.35)*step(-10.4,p.z)*step(p.z,4.6)*.7);
+       pl=max(pl,hL(p.y-.38,.01)*onBody*step(-2.6,p.z)*step(p.z,3.)*step(.55,abs(nn.x)));
+       /* the clamshell doors each side: upper hinged up, lower down */
+       float dz=step(-.2,p.z)*step(p.z,1.65),dy=step(.18,p.y)*step(p.y,1.72);float sd=step(.6,abs(nn.x));
+       pl=max(pl,(hL(p.z+.2,.014)+hL(p.z-1.65,.014))*step(.18,p.y)*step(p.y,1.72)*sd);pl=max(pl,(hL(p.y-.18,.014)+hL(p.y-1.72,.014)+hL(p.y-1.0,.012))*dz*sd);
+       /* the engine cowls: hinged panels along the nacelles */
+       pl=max(pl,hL(fract(p.z/.95)-.5,.012)*step(2.2,p.y)*step(-2.,p.z)*step(p.z,3.));
+       col*=1.-pl*.32;
+       /* grime: darker low and round the hatches, paler where the sun has had it */
+       float g=hN(p*3.1)*.6+hN(p*11.)*.4;col*=.86+g*.22;col=mix(col,col*vec3(.78,.74,.66),smoothstep(.6,.2,p.y)*.4*(1.-bl*.5));
+       /* soot from the exhausts down the sides of the boom and the top deck behind them */
+       float so=exp(-pow((p.y-2.05)/.45,2.))*smoothstep(-1.6,-2.4,p.z)*smoothstep(-8.5,-3.5,p.z)*step(.3,abs(nn.x)+max(0.,nn.y));
+       col=mix(col,vec3(.03,.028,.025),so*.6);
+       diffuseColor.rgb=col;}`).replace('#include <roughnessmap_fragment>','#include <roughnessmap_fragment>\nroughnessFactor=clamp(roughnessFactor+(hN(vHp*7.)-.5)*.18,.3,.95);');};
+  paint.extensions={derivatives:true};paint.customProgramCacheKey=()=>'hindpaint1';
+  const MT={paint,
+    glass:std({color:C(0x5a6e6a),roughness:.05,metalness:0,transparent:true,opacity:.42,envMapIntensity:1.3,side:T.DoubleSide,depthWrite:false}),
+    frame:std({color:C(0x50523a),roughness:.55,metalness:.15}),
+    dark:std({color:C(0x1b1c1a),roughness:.45,metalness:.6,envMapIntensity:.6}),
+    gun:std({color:C(0x161615),roughness:.32,metalness:.85,envMapIntensity:.8}),
+    pod:std({color:C(0x56583a),roughness:.55,metalness:.2}),
+    hole:std({color:C(0x060606),roughness:1,metalness:0}),
+    blade:std({color:C(0x2d2f2b),roughness:.5,metalness:.25,vertexColors:true,side:T.DoubleSide}),
+    rubber:std({color:C(0x161514),roughness:.85}),
+    inside:std({color:C(0x2a302c),roughness:.85}),
+    helmet:std({color:C(0x4d5236),roughness:.6}),visor:std({color:C(0x0c0d0c),roughness:.1,metalness:.5,envMapIntensity:1.2}),
+    sootIn:std({color:C(0x0d0b0a),roughness:1,side:T.DoubleSide})};
+  H.MT=MT;
+
+  /* ===================== fuselage ===================== */
+  /* z, centre height, half-width, above, below, exponents top/bottom */
+  const BODY=[
+    {z:-11.35,yc:2.06,w:.08,ht:.12,hb:.1,nt:2,nb:2},
+    {z:-11.1,yc:2.03,w:.17,ht:.22,hb:.2,nt:2.1,nb:2.1},
+    {z:-10.4,yc:1.96,w:.25,ht:.3,hb:.28,nt:2.2,nb:2.2},
+    {z:-9.0,yc:1.86,w:.31,ht:.35,hb:.36,nt:2.3,nb:2.3},
+    {z:-6.5,yc:1.68,w:.4,ht:.44,hb:.47,nt:2.4,nb:2.4},
+    {z:-4.4,yc:1.52,w:.52,ht:.58,hb:.66,nt:2.6,nb:2.6},
+    {z:-3.2,yc:1.32,w:.7,ht:.92,hb:1.0,nt:2.9,nb:2.9},
+    {z:-2.35,yc:1.12,w:.83,ht:1.2,hb:1.1,nt:3.2,nb:3.4},
+    {z:-1.0,yc:1.08,w:.87,ht:1.4,hb:1.08,nt:3.8,nb:3.8},
+    {z:1.8,yc:1.08,w:.87,ht:1.4,hb:1.08,nt:3.8,nb:3.8},
+    {z:3.0,yc:1.06,w:.83,ht:1.3,hb:1.06,nt:3.4,nb:3.6},
+    {z:4.0,yc:1.0,w:.7,ht:.86,hb:1.0,nt:2.8,nb:3.2},
+    {z:4.85,yc:.93,w:.62,ht:.56,hb:.9,nt:2.7,nb:3},
+    {z:5.6,yc:.86,w:.55,ht:.44,hb:.7,nt:2.6,nb:2.7},
+    {z:6.3,yc:.8,w:.44,ht:.36,hb:.5,nt:2.5,nb:2.5},
+    {z:6.68,yc:.76,w:.36,ht:.3,hb:.38,nt:2.3,nb:2.4},
+    {z:6.84,yc:.74,w:.24,ht:.2,hb:.26,nt:2.1,nb:2.1},
+    {z:6.9,yc:.74,w:.08,ht:.06,hb:.09,nt:2,nb:2}];
+  const body=loftZ(BODY,{M:48,dz:.11});add(body,paint);const BS=body.userData.S;
+  const topAt=(z,x=0)=>{const s=BS(z);const t=Math.pow(Math.max(0,1-Math.pow(Math.min(1,Math.abs(x)/s.w),s.nt)),1/s.nt);return s.yc+s.ht*t;};
+  const sideAt=(z,y)=>{const s=BS(z);const v=(y-s.yc)/(y>=s.yc?s.ht:s.hb);const n=y>=s.yc?s.nt:s.nb;return s.w*Math.pow(Math.max(0,1-Math.pow(Math.min(1,Math.abs(v)),n)),1/n);};
+  H.topAt=topAt;H.sideAt=sideAt;
+
+  /* ===================== cockpits ===================== */
+  /* faceted glazing: few segments round, flat normals; the frames run along every edge */
+  function canopy(K,segs){K=K.slice().sort((a,b)=>a.z-b.z);const g=loftZ(K.map(k=>({...k,yc:k.base,hb:.01,nb:2})),{M:segs,dz:.5,th0:0,th1:Math.PI});const q=g.toNonIndexed();q.computeVertexNormals();add(q,MT.glass);
+    /* frames: the longitudinal edges and each section ring */
+    const S=g.userData.S;for(let i=0;i<=segs;i+=2){const th=Math.PI*i/segs;const pts=[];for(let k=0;k<K.length;k++){const z=K[k].z;const s=S(z);const [x,y]=ring({...s,hb:.01,nb:2,yc:s.yc},th);pts.push([x,y,z]);}
+      if(pts.length>1)add(tube(pts,i===0||i===segs?.04:.028,6),MT.frame);}
+    K.forEach((k,j)=>{if(j!==1&&j!==K.length-1&&j!==Math.floor(K.length/2))return;const s=S(k.z);const pts=[];for(let i=0;i<=24;i++){const [x,y]=ring({...s,hb:.01,nb:2},Math.PI*i/24);pts.push([x,y,k.z]);}add(tube(pts,.026,5),MT.frame);});
+    /* the cockpit inside: a dark tub under the glass */
+    return S;}
+  const gk=(z,w,top,n=2)=>({z,w,ht:top-topAt(z,w*.9)+.02,base:topAt(z,w*.9)-.02,nt:n});
+  /* gunner's cockpit, low in the nose: a sloped armoured windscreen in front, a blown hood */
+  const gun=[gk(6.62,.22,1.06),gk(6.45,.37,1.42),gk(6.15,.47,1.76),gk(5.6,.52,1.98),gk(5.05,.52,2.0),gk(4.82,.48,1.95)];
+  const gunS=canopy(gun,6);
+  /* pilot's, stepped up behind */
+  const pil=[gk(4.86,.38,1.98),gk(4.62,.52,2.4),gk(4.25,.56,2.64),gk(3.75,.53,2.68),gk(3.35,.43,2.6),gk(3.02,.3,2.45)];
+  canopy(pil,6);
+  /* the frame where the two meet, and the pilot's door on the starboard side (its handle and hinge line) */
+  {const s=BS(4.84);add(tube([[-.48,1.5,4.84],[-.38,1.88,4.84],[0,2.0,4.84],[.38,1.88,4.84],[.48,1.5,4.84]],.04,6),MT.frame);}
+  add(tube([[-.57,2.15,4.2],[-.6,1.75,4.2]],.02,4),MT.frame);
+  /* interiors: tubs, seats, panels and the two crew in their ZSh helmets */
+  [[5.4,1.05,.42],[3.85,1.6,.48]].forEach(([z,y,w],k)=>{add(new T.BoxGeometry(w*1.7,.5,1.2),MT.inside,TR(0,y-.12,z));add(new T.BoxGeometry(w*1.5,.28,.22),MT.inside,TR(0,y+.32,z+.5,-.5));
+    add(new T.BoxGeometry(.42,.6,.12),MT.inside,TR(0,y+.32,z-.42,.15));
+    /* the man: torso, shoulders, the helmet with its visor down */
+    add(new T.CylinderGeometry(.17,.2,.5,10),MT.helmet,TR(0,y+.38,z-.25,.1));add(new T.SphereGeometry(.15,14,10),MT.helmet,TR(0,y+.72,z-.22,0,0,0,1,1.05,1.1));
+    add(new T.SphereGeometry(.152,14,8,-1.1,2.2,1.1,.9),MT.visor,TR(0,y+.72,z-.22,0,0,0,1,1.05,1.1));});
+
+  /* ===================== the nose: chin turret, pods, air-data booms ===================== */
+  {/* the USPU-24 turret and its four-barrel YakB-12.7 */
+   add(new T.SphereGeometry(.25,20,14),MT.dark,TR(0,.33,6.48,0,0,0,1,.85,1));add(new T.CylinderGeometry(.27,.27,.08,22),MT.paint,TR(0,.5,6.45));
+   const gb=new T.Group();const P4=[];for(let i=0;i<4;i++){const a=i/4*Math.PI*2+.4;P4.push(xf(new T.CylinderGeometry(.021,.021,1.0,8),Math.cos(a)*.045,.5,Math.sin(a)*.045));}
+   P4.forEach(g=>add(g,MT.gun,TR(0,.3,6.62,Math.PI/2+.08)));add(new T.CylinderGeometry(.085,.085,.22,12),MT.gun,TR(0,.3,6.66,Math.PI/2+.08));
+   add(new T.CylinderGeometry(.075,.075,.06,12),MT.gun,TR(0,.27,7.0,Math.PI/2+.08));
+   /* under the nose: the Raduga-F guidance antenna (port) and the KPS-53AV sight pod with its window (starboard) */
+   add(new T.SphereGeometry(1,18,12),MT.paint,TR(.33,.22,6.0,0,0,0,.13,.13,.42));add(new T.SphereGeometry(1,18,12),MT.dark,TR(.33,.22,6.38,0,0,0,.09,.09,.08));
+   add(new T.SphereGeometry(1,18,12),MT.paint,TR(-.34,.24,5.95,0,0,0,.17,.18,.5));add(new T.CircleGeometry(.11,16),MT.visor,TR(-.34,.24,6.44,0,0,0));
+   /* the long air-data boom from the starboard side of the gunner's canopy, a second short probe */
+   add(new T.CylinderGeometry(.03,.045,1.9,8),MT.dark,TR(-.42,1.18,7.15,Math.PI/2));add(new T.CylinderGeometry(.012,.02,.5,6),MT.dark,TR(-.42,1.18,8.3,Math.PI/2));
+   [[-1,0],[1,0]].forEach(([s])=>add(new T.BoxGeometry(.004,.06,.12),MT.dark,TR(-.42+s*.02,1.18,7.9,0,0,s*.5)));
+   add(new T.CylinderGeometry(.012,.018,.55,6),MT.dark,TR(.4,1.15,6.75,Math.PI/2));
+   /* nose gear doors (retracted) and the windscreen wipers */
+   add(new T.BoxGeometry(.5,.02,.9),MT.paint,TR(0,.06,5.2));[[6.5,1.2],[4.75,1.9]].forEach(([z,y])=>add(new T.BoxGeometry(.012,.012,.32),MT.dark,TR(0,y,z,-.9)));}
+
+  /* ===================== engines and the top deck ===================== */
+  const NAC=[{z:-2.3,yc:2.56,w:.24,ht:.24,hb:.24,nt:2,nb:2},{z:-1.6,yc:2.56,w:.38,ht:.38,hb:.36,nt:2.2,nb:2.4},{z:-.5,yc:2.58,w:.42,ht:.42,hb:.4,nt:2.3,nb:2.5},
+    {z:1.5,yc:2.58,w:.43,ht:.42,hb:.4,nt:2.3,nb:2.5},{z:2.5,yc:2.58,w:.41,ht:.4,hb:.38,nt:2.2,nb:2.4},{z:3.0,yc:2.58,w:.34,ht:.33,hb:.32,nt:2,nb:2}];
+  [.68,-.68].forEach(cx=>{const g=loftZ(NAC.map(k=>({...k,cx})),{M:28,dz:.15});add(g,paint);
+    /* the intake lip and, in front of it on struts, the PZU dust separator: a big dome with its ring slot */
+    add(new T.TorusGeometry(.31,.05,10,26),MT.paint,TR(cx,2.58,3.02));add(new T.CircleGeometry(.3,24),MT.hole,TR(cx,2.58,3.0));
+    const dome=lathe([[0,-.12],[.36,-.12],[.41,-.07],[.42,0],[.39,.12],[.3,.25],[.17,.32],[0,.34]],28);add(dome,MT.paint,TR(cx,2.58,3.2,Math.PI/2));
+    add(new T.TorusGeometry(.37,.035,8,26),MT.dark,TR(cx,2.58,3.1));
+    for(let i=0;i<4;i++){const a=i/4*Math.PI*2+.785;add(new T.BoxGeometry(.03,.03,.22),MT.dark,TR(cx+Math.cos(a)*.28,2.58+Math.sin(a)*.28,3.08));}
+    /* the exhaust: bent out and down to the side, open, sooty inside */
+    const sd=Math.sign(cx);const ep=[[cx+sd*.12,2.56,-1.75],[cx+sd*.3,2.52,-2.05],[cx+sd*.48,2.46,-2.27]];add(tube(ep,.22,16),MT.paint);const ea=Math.atan2(sd*.6,-.8);
+    add(new T.TorusGeometry(.22,.03,8,18),MT.dark,TR(cx+sd*.49,2.46,-2.28,0,ea,0));add(new T.CircleGeometry(.21,18),MT.sootIn,TR(cx+sd*.45,2.47,-2.24,0,ea,0));});
+  /* between and behind the nacelles: the main gearbox fairing, the oil cooler hump with its fan grille behind the mast */
+  add(loftZ([{z:-3.4,yc:2.25,w:.22,ht:.2,hb:.4,nt:2,nb:2},{z:-2.4,yc:2.4,w:.62,ht:.42,hb:.4,nt:2.6,nb:2},{z:-.9,yc:2.6,w:.66,ht:.55,hb:.4,nt:2.8,nb:2},
+    {z:.9,yc:2.62,w:.64,ht:.52,hb:.4,nt:2.8,nb:2},{z:2.2,yc:2.55,w:.5,ht:.35,hb:.4,nt:2.4,nb:2},{z:2.9,yc:2.45,w:.2,ht:.18,hb:.3,nt:2,nb:2}],{M:30,dz:.15}),paint);
+  {const gr=new T.CylinderGeometry(.33,.36,.22,22);add(gr,MT.paint,TR(0,3.12,-1.55,.1));add(new T.CircleGeometry(.29,22),MT.hole,TR(0,3.235,-1.56,-Math.PI/2+.1));
+   for(let i=0;i<8;i++)add(new T.BoxGeometry(.58,.012,.02),MT.dark,TR(0,3.24,-1.56-.27+i*.075,.1));}
+  /* the APU exhaust, the Lipa IR jammer on its plinth behind the cooler, whip and blade antennas */
+  add(new T.CylinderGeometry(.08,.08,.25,10),MT.dark,TR(-.3,2.75,-2.6,0,0,Math.PI/2));
+  add(new T.CylinderGeometry(.2,.2,.42,16),MT.dark,TR(0,2.92,-3.05));add(new T.CylinderGeometry(.13,.2,.3,16),MT.paint,TR(0,2.6,-3.05));
+  add(new T.CylinderGeometry(.006,.012,1.2,5),MT.dark,TR(0,2.65,-5.6,-.35));add(new T.BoxGeometry(.02,.26,.3),MT.dark,TR(0,-.08,-1.4,-.2));
+  add(new T.BoxGeometry(.02,.18,.22),MT.dark,TR(0,1.0,-7.5,-.3));
+  /* flare dispensers on the boom sides */
+  [[-4.6],[-5.3]].forEach(([z])=>{addM(new T.BoxGeometry(.18,.22,.5),MT.pod,TR(sideAt(z,1.6)+.07,1.6,z));});
+
+  /* ===================== tail: fin, stabilator, skid ===================== */
+  {add(vwing([{x:0,y:1.95,zLE:-9.3,c:1.95,t:.14},{x:0,y:3.1,zLE:-10.1,c:1.5,t:.13},{x:0,y:4.3,zLE:-10.95,c:1.05,t:.12}]),paint);
+   /* the stabilator through the boom, each side */
+   const st=wing([{x:.2,y:1.86,zLE:-8.45,c:.85,t:.11},{x:1.55,y:1.86,zLE:-8.75,c:.55,t:.1}]);addM(st,paint);
+   /* the ventral fin and the tail skid under it */
+   add(vwing([{x:0,y:1.75,zLE:-9.5,c:1.3,t:.12},{x:0,y:1.25,zLE:-9.9,c:.8,t:.1}]),paint);add(tube([[0,1.4,-10.0],[0,1.05,-10.35],[0,1.08,-10.75]],.03,6),MT.dark);}
+  /* a vertical surface (fin, pylon): stations up or down in y, the section's thickness in x */
+  function vwing(st){const up=st[st.length-1].y>st[0].y;const pos=[],idx=[];const F=st.map(s=>foil(s.c,s.t));const n=F[0].length;
+    st.forEach((s,k)=>F[k].forEach(([a,b])=>pos.push((s.x||0)+b,s.y,s.zLE-a)));
+    for(let k=0;k<st.length-1;k++)for(let i=0;i<n;i++){const j=(i+1)%n;const a=k*n+i,b=k*n+j,c=(k+1)*n+i,d=(k+1)*n+j;if(up)idx.push(a,d,c,a,b,d);else idx.push(a,c,d,a,d,b);}
+    [0,st.length-1].forEach((k,e)=>{const c0=pos.length/3;let cx=0,cy=0,cz=0;for(let i=0;i<n;i++){cx+=pos[(k*n+i)*3];cy+=pos[(k*n+i)*3+1];cz+=pos[(k*n+i)*3+2];}pos.push(cx/n,cy/n,cz/n);
+      const top=(e===1)===up;for(let i=0;i<n;i++){const j=(i+1)%n;if(top)idx.push(c0,k*n+i,k*n+j);else idx.push(c0,k*n+j,k*n+i);}});
+    const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(pos,3));g.setIndex(idx);g.computeVertexNormals();return g;}
+  /* ===================== stub wings, pylons, stores ===================== */
+  {const an=.21,x0=.72,span=2.55,y0=1.32,zr=1.2;const S=k=>{const t=k;return{x:x0+t*span*Math.cos(an),y:y0-t*span*Math.sin(an),zLE:zr-t*.35,c:lerp(1.95,1.3,t),t:lerp(.16,.13,t),tw:0};};
+   addM(wing([S(0),S(.5),S(1)]),paint);
+   const tip=S(1);
+   /* the wingtip endplate: a stubby vertical pylon carrying the Shturm launch rails, two tubes each side */
+   addM(new T.BoxGeometry(.1,.85,1.05),paint,TR(tip.x+.02,tip.y-.3,tip.zLE-.55));
+   [[.18],[-.42]].forEach(([dy])=>{addM(new T.CylinderGeometry(.075,.075,1.85,14),MT.pod,TR(tip.x+.15,tip.y+dy,tip.zLE-.4,Math.PI/2));
+     addM(new T.CircleGeometry(.07,14),MT.dark,TR(tip.x+.15,tip.y+dy,tip.zLE+.53));addM(new T.TorusGeometry(.075,.012,6,14),MT.dark,TR(tip.x+.15,tip.y+dy,tip.zLE+.5));
+     addM(new T.BoxGeometry(.06,.05,1.5),MT.dark,TR(tip.x+.07,tip.y+dy,tip.zLE-.4));});
+   /* two pylons under each wing, a B-8V20 under each: twenty 80 mm tubes behind a blunt front fairing */
+   const holes=tex(256,256,(c,w,h)=>{c.fillStyle='#4a4c34';c.fillRect(0,0,w,h);c.fillStyle='#0a0a09';const R0=w/2;
+     for(let ring_=0;ring_<3;ring_++){const n=[1,7,12][ring_],rr_=[0,.38,.74][ring_]*R0*.86;for(let i=0;i<n;i++){const a=i/n*Math.PI*2;c.beginPath();c.arc(w/2+Math.cos(a)*rr_,h/2+Math.sin(a)*rr_,R0*.12,0,7);c.fill();}}},{clamp:true});
+   const front=std({map:holes,roughness:.6,metalness:.2});
+   const podG=lathe([[0,-1.12],[.2,-1.12],[.24,-1.0],[.26,-.85],[.26,.85],[.255,.95],[.235,1.04],[.2,1.09],[0,1.09]],24);
+   [.38,.78].forEach(t=>{const s=S(t);const px=s.x,py=s.y-.12;
+     addM(vwing([{x:px,y:py+.08,zLE:s.zLE-.3,c:1.0,t:.12},{x:px,y:py-.36,zLE:s.zLE-.35,c:.9,t:.12}]),paint);
+     addM(podG,MT.pod,TR(px,py-.6,s.zLE-.95,Math.PI/2));addM(new T.CircleGeometry(.2,24),front,TR(px,py-.6,s.zLE-.95+1.095));
+     addM(new T.TorusGeometry(.262,.012,6,26),MT.dark,TR(px,py-.6,s.zLE-.95+.6));addM(new T.TorusGeometry(.262,.012,6,26),MT.dark,TR(px,py-.6,s.zLE-.95-.6));});}
+
+  /* ===================== windows, steps, wheels ===================== */
+  [[2.45],[1.95],[.85]].forEach(([z],k)=>{const y=1.42,x=sideAt(z,y);addM(new T.BoxGeometry(.012,.3,.3),MT.visor,TR(x+.004,y,z));addM(new T.TorusGeometry(.17,.016,4,4),MT.frame,TR(x+.008,y,z,0,Math.PI/2,Math.PI/4));});
+  /* the main wheels, half out of their bays behind the wings */
+  {const z=-1.25,y=.32,x=sideAt(z,y)+.02;addM(new T.TorusGeometry(.3,.12,12,22),MT.rubber,TR(x,y,z,0,Math.PI/2,0));addM(new T.CylinderGeometry(.22,.22,.18,18),MT.dark,TR(x,y,z,0,0,Math.PI/2));
+   addM(new T.SphereGeometry(1,20,12,0,Math.PI*2,0,Math.PI/2),paint,TR(x-.1,y+.05,z,0,0,-Math.PI/2,.5,.32,.6));}
+  /* the steps up to the cockpits and the gunner's hatch hinge line */
+  [[4.4,.9],[5.2,.7]].forEach(([z,y])=>add(new T.BoxGeometry(.03,.04,.22),MT.dark,TR(-sideAt(z,y)-.01,y,z)));
+
+  /* ===================== markings ===================== */
+  const star=tex(256,256,(c,w,h)=>{c.clearRect(0,0,w,h);const st=(r,col)=>{c.fillStyle=col;c.beginPath();for(let i=0;i<10;i++){const a=-Math.PI/2+i*Math.PI/5,rr_=i%2?r*.4:r;c.lineTo(w/2+Math.cos(a)*rr_,h/2+Math.sin(a)*rr_);}c.closePath();c.fill();};
+    st(122,'#b3221c');st(112,'#f2efe6');st(100,'#b3221c');},{clamp:true});
+  const num=tex(256,128,(c,w,h)=>{c.clearRect(0,0,w,h);c.font='bold 96px "Arial Narrow",Arial,sans-serif';c.textAlign='center';c.lineWidth=5;c.strokeStyle='rgba(30,30,25,.6)';c.strokeText('118',w/2,100);c.fillStyle='#ecebe2';c.fillText('118',w/2,100);},{clamp:true});
+  const dec=m=>std({map:m,transparent:true,depthWrite:false,roughness:.6,polygonOffset:true,polygonOffsetFactor:-4,polygonOffsetUnits:-4,envMapIntensity:.4});
+  const starM=dec(star),numM=dec(num);H.decals=[];
+  [1,-1].forEach(sd=>{{const z=-6.6,y=1.68,x=(sideAt(z,y)+.006)*sd;const p=new T.PlaneGeometry(.52,.52);p.applyMatrix4(TR(x,y,z,0,sd*Math.PI/2,0));add(p,starM);}
+    {const z=3.45,y=1.55,x=(sideAt(z,y)+.008)*sd;const p=new T.PlaneGeometry(.78,.39);p.applyMatrix4(TR(x,y,z,0,sd*Math.PI/2,0));add(p,numM);}});
+
+  /* ===================== the airframe as meshes ===================== */
+  const air=new T.Group();
+  parts.forEach((gs,m)=>{const g=mergeAttrs(gs);g.computeBoundingSphere();const me=new T.Mesh(g,m);me.castShadow=m!==MT.glass;me.receiveShadow=true;air.add(me);});
+
+  /* ===================== main rotor ===================== */
+  const rotor=new T.Group();rotor.position.set(0,3.2,0);rotor.rotation.x=.075;air.add(rotor);
+  const head=new T.Group();rotor.add(head);
+  {const hm=(g,m,M4)=>{const q=g;if(M4)q.applyMatrix4(M4);const me=new T.Mesh(q,m);me.castShadow=true;head.add(me);return me;};
+   hm(new T.CylinderGeometry(.16,.19,.75,16),MT.dark,TR(0,.3,0));hm(new T.CylinderGeometry(.4,.42,.08,24),MT.dark,TR(0,.28,0));hm(new T.CylinderGeometry(.34,.36,.06,24),MT.gun,TR(0,.36,0));
+   hm(new T.CylinderGeometry(.3,.3,.3,5),MT.dark,TR(0,.78,0));hm(new T.CylinderGeometry(.16,.24,.18,16),MT.dark,TR(0,1.0,0));
+   for(let i=0;i<5;i++){const a=i/5*Math.PI*2;const c=Math.cos(a),s=Math.sin(a);
+     hm(new T.BoxGeometry(.6,.14,.16),MT.dark,TR(c*.45,.78,-s*.45,0,a,0));
+     hm(new T.CylinderGeometry(.045,.045,.5,8),MT.gun,TR(c*.42+(-s)*.14,.86,-s*.42-c*.14,0,a,Math.PI/2));
+     hm(new T.CylinderGeometry(.018,.018,.5,6),MT.gun,TR(c*.3,.52,-s*.3,0,0,0));}}
+  /* the blades: twisted, a cuff at the root, a painted tip */
+  const bladeG=(()=>{const R0=.75,R1=8.65,N=22;const sec=foil(.58,.12);const pos=[],col=[],idx=[];const n=sec.length;
+    for(let k=0;k<=N;k++){const r=lerp(R0,R1,k/N),tw=lerp(.12,-.05,k/N);const tipK=r>R1-.32?1:0;
+      sec.forEach(([a,b])=>{const zz=-(a-.145),yy=b;pos.push(r,zz*Math.sin(tw)+yy*Math.cos(tw),zz*Math.cos(tw)-yy*Math.sin(tw));const cc=tipK?[.65,.52,.08]:r<1.1?[.45,.45,.42]:[1,1,1];col.push(...cc);});}
+    for(let k=0;k<N;k++)for(let i=0;i<n;i++){const j=(i+1)%n;const a=k*n+i,b=k*n+j,c=(k+1)*n+i,d=(k+1)*n+j;idx.push(a,c,d,a,d,b);}
+    const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(pos,3));g.setAttribute('color',new T.Float32BufferAttribute(col,3));g.setIndex(idx);g.computeVertexNormals();return g;})();
+  const blades=new T.Group();blades.position.y=.78;rotor.add(blades);H.blades=[];
+  for(let i=0;i<5;i++){const b=new T.Mesh(bladeG,MT.blade);b.rotation.y=i/5*Math.PI*2;b.rotation.z=.045;b.castShadow=true;blades.add(b);H.blades.push(b);}
+  /* the blur of the spinning disc */
+  const blurT=tex(512,512,(c,w,h)=>{const g=c.createImageData(w,h),d=g.data;for(let y=0;y<h;y++)for(let x=0;x<w;x++){const u=(x+.5)/w*2-1,v=(y+.5)/h*2-1,r=Math.hypot(u,v),i=(y*w+x)*4;
+      let a=0;if(r<1&&r>.085){a=.13+.05*Math.sin(r*90)*(r>.5?1:.4);if(r>.965)a+=.25;if(r>.93&&r<.965)a+=.12;a*=sstep(.085,.14,r);}
+      const tip=r>.93;d[i]=tip?150:40;d[i+1]=tip?128:42;d[i+2]=tip?40:38;d[i+3]=clamp(a,0,1)*255;}c.putImageData(g,0,0);},{clamp:true});
+  const blurM=new T.MeshBasicMaterial({map:blurT,transparent:true,depthWrite:false,side:T.DoubleSide,opacity:0,fog:true});
+  const disc=new T.Mesh(new T.PlaneGeometry(17.4,17.4).rotateX(-Math.PI/2),blurM);disc.position.y=.82;disc.renderOrder=3;rotor.add(disc);
+
+  /* ===================== tail rotor (port side of the fin) ===================== */
+  const trot=new T.Group();trot.position.set(.36,3.42,-10.95);trot.rotation.z=-Math.PI/2;air.add(trot);
+  {const hb=new T.Mesh(new T.CylinderGeometry(.11,.14,.56,14),MT.dark);hb.position.y=-.08;trot.add(hb);const cap=new T.Mesh(new T.SphereGeometry(.11,12,8),MT.dark);cap.position.y=.22;trot.add(cap);}
+  const tbG=(()=>{const g=wing([{x:.15,y:0,zLE:.13,c:.27,t:.11},{x:1.95,y:0,zLE:.12,c:.24,t:.1}]);const c=new Float32Array(g.attributes.position.count*3);for(let i=0;i<g.attributes.position.count;i++){const r=g.attributes.position.getX(i);c.set(r>1.7?[.62,.12,.08]:[1,1,1],i*3);}g.setAttribute('color',new T.BufferAttribute(c,3));return g;})();
+  const tblades=new T.Group();tblades.position.y=.12;trot.add(tblades);
+  for(let i=0;i<3;i++){const b=new T.Mesh(tbG,MT.blade);b.rotation.y=i/3*Math.PI*2;tblades.add(b);}
+  const tdisc=new T.Mesh(new T.CircleGeometry(1.97,32).rotateX(-Math.PI/2),new T.MeshBasicMaterial({map:blurT,transparent:true,depthWrite:false,side:T.DoubleSide,opacity:0,fog:true}));tdisc.position.y=.12;trot.add(tdisc);
+
+  air.traverse(o=>{o.frustumCulled=true;});
+  H.air=air;H.rotor=rotor;H.blades=blades;H.disc=disc;H.trot=trot;H.tblades=tblades;H.tdisc=tdisc;
+  /* spin: blur 0 = blades seen sharp (stopped or a fast shutter), 1 = in flight */
+  H.spin=(g,ang,tang,blur)=>{const B=g.userData.parts;B.blades.rotation.y=-ang;B.tblades.rotation.y=tang;B.disc.material.opacity=lerp(0,1,blur);B.tdisc.material.opacity=lerp(0,.9,blur);
+    B.bladeMat.opacity=lerp(1,.38,blur);B.bladeMat.transparent=blur>0.01;B.tbladeMat.opacity=lerp(1,.18,blur);B.tbladeMat.transparent=blur>0.01;};
+  /* a flying copy: its own rotor parts and blade materials so two can spin out of step */
+  H.make=()=>{const g=air.clone(true);const P={};g.traverse(o=>{});const rot=g.children.find(o=>o.isGroup&&o.position.y===3.2);const tr=g.children.find(o=>o.isGroup&&o.position.z===-10.95);
+    const bl=rot.children.find(o=>o.isGroup&&o.position.y===.78),di=rot.children.find(o=>o.isMesh&&o.renderOrder===3);
+    const tbl=tr.children.find(o=>o.isGroup),tdi=tr.children.find(o=>o.isMesh&&o.material.map===blurT);
+    const bm=MT.blade.clone(),tbm=MT.blade.clone();bl.children.forEach(b=>b.material=bm);tbl.children.forEach(b=>b.material=tbm);di.material=di.material.clone();tdi.material=tdi.material.clone();
+    g.userData.parts={blades:bl,disc:di,tblades:tbl,tdisc:tdi,bladeMat:bm,tbladeMat:tbm,rotor:rot};return g;};
+  let tris=0;air.traverse(o=>{if(o.isMesh){const g=o.geometry;tris+=(g.index?g.index.count:g.attributes.position.count)/3;}});H.tris=Math.round(tris);
+  return H;})();
+
 /* ---------- F.O.B. "Kurgan" ---------- */
 const LOOT=[],NPCS=[];let flagMesh=null;
 /* concertina razor wire (BTO-22 pattern): a galvanised tape crimped round a core wire, with double-edged blades every
@@ -4536,6 +4848,9 @@ T.ShaderChunk.lights_physical_fragment=`
    #ifdef NO_PUDDLE
    flat_=0.;roughnessFactor=max(roughnessFactor,.55);
    #endif
+   #ifdef DRY_MATTE
+   flat_=0.;roughnessFactor=max(roughnessFactor,.88);
+   #endif
    if(flat_>0.){vec2 pq=wpW.xz;float pn=zWN(pq*.32)*.6+zWN(pq*1.4+4.)*.3+zWN(pq*5.)*.1;
      float pud=flat_*smoothstep(.66-wk*.2,.71-wk*.2,pn)*(1.-inside);
      if(pud>0.){float dpx=length(vFogV);
@@ -4583,10 +4898,21 @@ const RAIN=(()=>{const N=5200;const base=new T.PlaneGeometry(1,1);base.translate
 /* splashes: short-lived expanding crowns on the ground around the player */
 const SPL=(()=>{const N=520,P=new Float32Array(N*3),A=new Float32Array(N),Ph=new Float32Array(N),age=new Float32Array(N);for(let i=0;i<N;i++){Ph[i]=Math.random();P[i*3+1]=-200;}
   const g=new T.BufferGeometry();g.setAttribute('position',new T.BufferAttribute(P,3));g.setAttribute('ph',new T.BufferAttribute(Ph,1));
-  const m=new T.ShaderMaterial({transparent:true,depthWrite:false,fog:false,uniforms:{uT:{value:0},uRain:{value:0},uScale:{value:600}},
-    vertexShader:`attribute float ph;uniform float uT,uScale;varying float vAge;void main(){vAge=fract(uT*3.2+ph);vec4 mv=modelViewMatrix*vec4(position,1.);gl_PointSize=uScale*(.04+.07*vAge)/-mv.z;gl_Position=projectionMatrix*mv;}`,
-    fragmentShader:`uniform float uRain;varying float vAge;void main(){vec2 d=gl_PointCoord-.5;float r=length(d)*2.;float ring=(1.-smoothstep(0.,.08,abs(r-.35-vAge*.55)))+(1.-smoothstep(0.,.25,r))*(1.-vAge)*1.4;
-      float a=ring*(1.-vAge)*uRain*.55;if(a<.01)discard;gl_FragColor=vec4(.82,.84,.86,a);}`});
+  /* (no splash may shrink to a speck: under ~3 px it fades out instead - a pixel-sized white point on the ground is
+     what read as white dots in the grass - and they go with distance, fogged like everything else) */
+  const m=new T.ShaderMaterial({transparent:true,depthWrite:false,fog:true,uniforms:T.UniformsUtils.merge([T.UniformsLib.fog,{uT:{value:0},uRain:{value:0},uScale:{value:600}}]),
+    vertexShader:`attribute float ph;uniform float uT,uScale;varying float vAge;varying float vK;
+      #include <fog_pars_vertex>
+      void main(){vAge=fract(uT*3.2+ph);vec3 transformed=position;vec4 mvPosition=modelViewMatrix*vec4(position,1.);float px=uScale*(.04+.07*vAge)/-mvPosition.z;
+        vK=smoothstep(3.,6.,px)*(1.-smoothstep(5.,8.,-mvPosition.z));gl_PointSize=max(px,3.);gl_Position=projectionMatrix*mvPosition;
+        #include <fog_vertex>
+      }`,
+    fragmentShader:`uniform float uRain;varying float vAge;varying float vK;
+      #include <fog_pars_fragment>
+      void main(){vec2 d=gl_PointCoord-.5;float r=length(d)*2.;float ring=(1.-smoothstep(0.,.1,abs(r-.35-vAge*.55)))+(1.-smoothstep(0.,.25,r))*(1.-vAge)*.8;
+      float a=ring*(1.-vAge)*uRain*.32*vK;if(a<.01)discard;gl_FragColor=vec4(.62,.64,.66,a);
+      #include <fog_fragment>
+      }`});
   const p=new T.Points(g,m);p.frustumCulled=false;p.renderOrder=8;p.visible=false;scene.add(p);return{p,m,P,Ph,age,N};})();
 
 const WEATHER={rain:0,target:0,wet:0,cov:0,phase:'clear',timer:900+Math.random()*600,enabled:false,flash:0,thunderT:-1,base:null};
@@ -4623,8 +4949,8 @@ function weatherUpdate(dt,cam,indoor){const W=WEATHER;
   RU.uRes.value.set(renderer.domElement.width,renderer.domElement.height);
   /* splashes: relocate each one when its little animation wraps */
   SPL.p.visible=r>.02;SPL.m.uniforms.uT.value=S.t;SPL.m.uniforms.uRain.value=r;SPL.m.uniforms.uScale.value=renderer.domElement.height*.9;
-  if(SPL.p.visible){const P=SPL.P;for(let i=0;i<SPL.N;i++){const a=(S.t*3.2+SPL.Ph[i])%1;if(a<SPL.age[i]){if(Math.random()<r){const ang=Math.random()*6.283,d=Math.sqrt(Math.random())*13+.6;
-        const x=cam.x+Math.cos(ang)*d,z=cam.z+Math.sin(ang)*d;const bx=WU.box.value;const ins=x>bx.x&&x<bx.z&&z>bx.y&&z<bx.w;P[i*3]=x;P[i*3+1]=ins?-200:groundY(x,z)+.03;P[i*3+2]=z;}else P[i*3+1]=-200;}SPL.age[i]=a;}
+  if(SPL.p.visible){const P=SPL.P;for(let i=0;i<SPL.N;i++){const a=(S.t*3.2+SPL.Ph[i])%1;if(a<SPL.age[i]){if(Math.random()<r){const ang=Math.random()*6.283,d=Math.sqrt(Math.random())*7.5+.6;
+        const x=cam.x+Math.cos(ang)*d,z=cam.z+Math.sin(ang)*d;const bx=WU.box.value;const ins=x>bx.x&&x<bx.z&&z>bx.y&&z<bx.w;const sf=typeof surface==='function'?surface(x,z):'dirt';P[i*3]=x;P[i*3+1]=ins||sf==='grass'?-200:groundY(x,z)+.03;P[i*3+2]=z;}else P[i*3+1]=-200;}SPL.age[i]=a;}
     SPL.p.geometry.attributes.position.needsUpdate=true;}
   if(sfx.rain){sfx.rain.g.gain.value=r*.34*(indoor?.55:1);sfx.rain.f.frequency.value=indoor?850:3800;}
   return r;}
@@ -4646,7 +4972,7 @@ const TXcamo=tex(512,512,(g,w,h)=>{g.fillStyle='#6b6a4a';g.fillRect(0,0,w,h);con
     for(const ox of [0,-w,w])for(const oy of [0,-h,h]){g.beginPath();for(let k=0;k<=14;k++){const t=k/14*6.28,rr_=1+.35*Math.sin(t*3+i)+.2*Math.sin(t*5+i*2);g.lineTo(x+ox+Math.cos(t+a)*rx*rr_,y+oy+Math.sin(t+a)*ry*rr_);}g.fill();}}});
   const im=g.getImageData(0,0,w,h),d=im.data;for(let i=0;i<d.length;i+=4){const n=(r()-.5)*14;d[i]+=n;d[i+1]+=n;d[i+2]+=n;}g.putImageData(im,0,0);});
 const WM={log:std({map:PB.logs.a,normalMap:PB.logs.n,roughnessMap:PB.logs.r,roughness:1,color:C(0xa49c90),normalScale:new T.Vector2(1.2,1.2),envMapIntensity:.25}),
-  bark:std({map:TX.bark,color:C(0xb4a894),roughness:1,envMapIntensity:.2}),end:std({map:TX.endgrain,roughness:.95,envMapIntensity:.2}),
+  bark:std({map:TX.bark,color:C(0xb4a894),roughness:1,envMapIntensity:.2}),end:std({map:TX.endgrain,color:C(0x7c705f),roughness:1,envMapIntensity:.12}),
   board:std({map:PB.boards.a,normalMap:PB.boards.n,roughnessMap:PB.boards.r,roughness:1,color:C(0x948c80),envMapIntensity:.25,side:T.DoubleSide}),
   plank:std({map:PB.planks.a,normalMap:PB.planks.n,roughnessMap:PB.planks.r,roughness:1,color:C(0x8c8478),envMapIntensity:.25}),
   rust:std({map:PB.rust.a,normalMap:PB.rust.n,roughnessMap:PB.rust.r,roughness:1,metalness:.4,envMapIntensity:.6,side:T.DoubleSide}),
@@ -4656,9 +4982,11 @@ const WM={log:std({map:PB.logs.a,normalMap:PB.logs.n,roughnessMap:PB.logs.r,roug
   camo:std({map:TXcamo,normalMap:PB.canvas.n,roughness:.95,side:T.DoubleSide,envMapIntensity:.2}),
   stone:std({color:C(0x4e4b44),roughness:.92,envMapIntensity:.25}),char:std({color:C(0x161412),roughness:.95}),
   ember:std({color:C(0x1a0e08),emissive:C(0xff5a14),emissiveIntensity:1.6,roughness:.9}),tar:std({color:C(0x232321),roughness:.85,side:T.DoubleSide,envMapIntensity:.4})};
+/* sawn end grain drinks the rain: it darkens, it never turns glossy (a wet, mirror-bright disc facing the torch read as white) */
+WM.end.defines.DRY_MATTE='';
 /* a log as two parts (bark side, sawn ends) so the ends show their rings */
 /* (sawn-log texture: grain runs along u, so u goes along the log; bark textures run along v) */
-function logGeo(r,L,seg=12,alongU=false){const s=new T.CylinderGeometry(r,r*1.03,L,seg,1,true);{const uv=s.attributes.uv;for(let i=0;i<uv.count;i++){const a=uv.getX(i)*r*6.28/1.4,b=uv.getY(i)*L/1.4;if(alongU)uv.setXY(i,b*.6,a);else uv.setXY(i,a,b);}}
+function logGeo(r,L,seg=12,alongU=false){const rr_=r*1.03;seg=Math.max(seg,rr_>=.19?24:rr_>=.11?18:14);const s=new T.CylinderGeometry(r,r*1.03,L,seg,1,true);{const uv=s.attributes.uv;for(let i=0;i<uv.count;i++){const a=uv.getX(i)*r*6.28/1.4,b=uv.getY(i)*L/1.4;if(alongU)uv.setXY(i,b*.6,a);else uv.setXY(i,a,b);}}
   const e=new T.CircleGeometry(r*1.01,seg);const ea=e.clone().rotateX(-Math.PI/2).translate(0,L/2,0),eb=e.clone().rotateX(Math.PI/2).translate(0,-L/2,0);return{s,e:[ea,eb]};}
 /* collect geometry per material and flush as one mesh each */
 function bucket(){const B=new Map();return{add(g,m,mat4){const q=g.index?g.toNonIndexed():g.clone();if(mat4)q.applyMatrix4(mat4);if(window.__bkLog){q.computeBoundingBox();window.__bkLog.push(q.boundingBox.clone());}if(!B.has(m))B.set(m,[]);B.get(m).push(q);},
@@ -4677,6 +5005,11 @@ function splinters(bk,M4,r,y0,rnd_,bark,n=11,h0=.12,h1=.5){const rr=(a,b)=>a+(b-
     const g=new T.ConeGeometry(r*rr(.09,.2),h,3);g.scale(1,1,rr(.3,.55));g.translate(0,h/2,0);
     g.applyMatrix4(new T.Matrix4().makeRotationFromEuler(new T.Euler(rr(-.18,.18)+(rad/r)*.22,a+Math.PI/2,rr(-.15,.15),'YXZ')));
     g.translate(Math.cos(a)*rad,y0-.02,Math.sin(a)*rad);bk.add(g,rad>r*.7&&k%2===0?bark:SPLW(),M4);}}
+/* a soft dark contact shadow to set small things down on a surface */
+let _ctM=null;function CONTACT(){if(_ctM)return _ctM;const t=tex(64,64,(c,w,h)=>{const g=c.createRadialGradient(w/2,h/2,0,w/2,h/2,w/2);g.addColorStop(0,'rgba(0,0,0,.75)');g.addColorStop(.6,'rgba(0,0,0,.35)');g.addColorStop(1,'rgba(0,0,0,0)');c.fillStyle=g;c.fillRect(0,0,w,h);},{clamp:true});
+  return _ctM=new T.MeshBasicMaterial({map:t,transparent:true,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2});}
+/* a log from point A to point B (its axis between them) */
+function putLogAB(bk,r,A,B,mat){const D=B.clone().sub(A),L=D.length();D.normalize();const q=new T.Quaternion().setFromUnitVectors(V3(0,1,0),D);putLog(bk,r,L,new T.Matrix4().compose(A.clone().add(B).multiplyScalar(.5),q,V3(1,1,1)),mat);}
 function putLog(bk,r,L,M4,mat){const g=logGeo(r,L,12,(mat||WM.log)===WM.log);bk.add(g.s,mat||WM.log,M4);g.e.forEach(e=>bk.add(e,WM.end,M4));}
 /* cover boxes: block bullets and sight lines (enemies, the captain, the player's own rounds are not affected - they hit
    the meshes) - centre, half extents, yaw */
@@ -4790,7 +5123,7 @@ FX.water=new PSys(360,PTEX.soft,false,{order:3});
   const spot=(dmin)=>{for(let i=0;i<400;i++){const x=wr(-860,-712),z=wr(-470,-270);if(wl-H(x,z)>dmin)return[x,z];}return[-790,-372];};
   for(let i=0;i<9;i++){const r=wr(.1,.19),L=wr(1.8,4.2);const g=new T.Group();const lg=logGeo(r,L);const a=new T.Mesh(lg.s,WM.bark);g.add(a);lg.e.forEach(e=>g.add(new T.Mesh(e,WM.end)));
     g.children.forEach(c=>c.rotation.z=Math.PI/2);/* a stub of a branch */if(WR()<.6){const b=new T.Mesh(new T.CylinderGeometry(.02,.035,.6,6),WM.bark);b.position.set(wr(-L/3,L/3),.06,0);b.rotation.set(.6,0,.9);g.add(b);}
-    const [x,z]=spot(.5);bk(g,x,z,{y0:-r*.4,amp:.01,tilt:.02});}
+    const [x,z]=spot(.5);bk(g,x,z,{y0:-r*.62,amp:.008,tilt:.015});}
   {const bar=(x,z,tilt)=>{const g=new T.Group();const body=mesh(lathe([[0,-.44],[.29,-.44],[.295,-.42],[.29,-.3],[.3,-.28],[.29,0],[.3,.28],[.29,.3],[.295,.42],[.29,.44],[0,.44]],20),WM.rust,0,0,0,g);
       g.rotation.set(tilt,0,.5);bk(g,x,z,{y0:-.18,amp:.02,tilt:.05});};const a=spot(.6);bar(a[0],a[1],.4);const b=spot(.6);bar(b[0],b[1],1.2);}
   {const g=new T.Group();mesh(rbox(.34,.46,.17,.03),std({color:C(0x3a4430),roughness:.6,metalness:.3}),0,0,0,g);mesh(rbox(.07,.06,.05,.01),M.black,.1,.25,0,g);g.rotation.set(1.3,0,.2);const a=spot(.4);bk(g,a[0],a[1],{y0:-.04,amp:.025,tilt:.12});}
@@ -4996,9 +5329,11 @@ function busStop(){const B=BUS,G=new T.Group();G.position.set(B.x,B.y,B.z);G.rot
   putLog(bk,LR,SH.W+2*ov,TRS(...L2W(0,top,-D2),0,0,Math.PI/2),WM.log);
   /* the fallen logs from the corner: outside along the east wall, two inside under the gap */
   [[3.2,1.6,.5,.3,0],[3.6,2.1,.9,-.25,0],[3.0,2.4,1.5,.15,1],[2.6,1.2,2.6,-.5,0]].forEach(([dx,dz,a,ry,on])=>{const L=rr(2.2,3.6),yw=a+ry,[cx_,,cz_]=L2W(dx,0,dz);
-    /* along its length the log rests on the highest ground under it (and the one thrown across another sits on it) */
-    let gy=-1e9;for(let t=-.5;t<=.5;t+=.125)gy=Math.max(gy,H(cx_+Math.sin(yw+Math.PI/2)*t*L,cz_+Math.cos(yw+Math.PI/2)*t*L));
-    putLog(bk,LR,L,TRS(cx_,gy+LR*.92+(on?LR*1.7:0),cz_,0,yw,Math.PI/2),WM.log);});
+    /* it lies along the ground as the ground lies - each end on what is under it, raised only where a hump would come
+       through it (and the one thrown across another rests on that) */
+    const dx_=Math.cos(yw)*L/2,dz_=-Math.sin(yw)*L/2;const A=V3(cx_-dx_,0,cz_-dz_),B=V3(cx_+dx_,0,cz_+dz_);A.y=H(A.x,A.z);B.y=H(B.x,B.z);
+    let lift=0;for(let t=0;t<=1;t+=.1){const x=lerp(A.x,B.x,t),z=lerp(A.z,B.z,t);lift=Math.max(lift,H(x,z)-lerp(A.y,B.y,t)-LR*.25);}
+    const up=LR*.88+lift+(on?LR*1.75:0);A.y+=up;B.y+=up;putLogAB(bk,LR,A,B,WM.log);});
   putLog(bk,LR,2.4,TRS(...L2W(1.3,.14,3.0),.0,.4,Math.PI/2+.08),WM.log);
   /* roof: rafters, a ridge beam snapped where the corner went, rusted corrugated sheets on the west slope, boards on what
      is left of the east slope with a few hanging into the gap */
@@ -5037,22 +5372,23 @@ function busStop(){const B=BUS,G=new T.Group();G.position.set(B.x,B.y,B.z);G.rot
   /* the fire is in here now, not out in the yard: a barrel stove kept low - a few embers glowing dull red behind the
      door's vent slots, the pot of water warming on top. Nothing that shows from the air */
   {const [x,yy,z]=L2W(-1.6,0,2.7);const st=new T.Group();st.position.set(x,yy,z);st.rotation.y=Math.PI/2;scene.add(st);
-   const soot=std({color:C(0x1c1916),roughness:.8,metalness:.4,envMapIntensity:.3});
+   const soot=std({color:C(0x1c1916),roughness:.8,metalness:.4,envMapIntensity:.3}),drum=std({map:PB.rust.a,normalMap:PB.rust.n,color:C(0x5a4a40),roughness:.85,metalness:.3,envMapIntensity:.25});
    /* the drum on its side, its rims, the flat top plate welded on, four angle-iron legs */
-   mesh(new T.CylinderGeometry(.29,.29,.82,28,1,true),WM.rust,0,.52,0,st).rotation.z=Math.PI/2;
-   [-.41,.41].forEach(a=>{const rm=mesh(new T.TorusGeometry(.29,.012,8,28),WM.rust,a,.52,0,st);rm.rotation.y=Math.PI/2;});
+   mesh(new T.CylinderGeometry(.29,.29,.82,28,1,true),drum,0,.52,0,st).rotation.z=Math.PI/2;
+   [-.41,.41].forEach(a=>{const rm=mesh(new T.TorusGeometry(.29,.012,8,28),drum,a,.52,0,st);rm.rotation.y=Math.PI/2;});
+   [-.13,.13].forEach(a=>{const rm=mesh(new T.TorusGeometry(.292,.008,6,28),drum,a,.52,0,st);rm.rotation.y=Math.PI/2;});
    mesh(new T.CircleGeometry(.29,28),soot,-.41,.52,0,st).rotation.y=-Math.PI/2;
    mesh(rbox(.7,.02,.34,.004),soot,0,.82,0,st);
-   [[-.3,-.18],[-.3,.18],[.3,-.18],[.3,.18]].forEach(([a,b])=>{const l=mesh(rbox(.04,.3,.04,.004),WM.rust,a,.15,b,st);l.rotation.set(b>0?.15:-.15,0,a>0?-.1:.1);});
+   [[-.3,-.18],[-.3,.18],[.3,-.18],[.3,.18]].forEach(([a,b])=>{const l=mesh(rbox(.04,.3,.04,.004),drum,a,.15,b,st);l.rotation.set(b>0?.15:-.15,0,a>0?-.1:.1);});
    /* the door on the front end: a plate on two hinges with vent slots, embers glowing through them, a latch */
    const fr=new T.Group();fr.position.set(.415,.52,0);fr.rotation.y=Math.PI/2;st.add(fr);
    const glow=std({color:C(0x120604),emissive:C(0xff3a0c),emissiveIntensity:.55,roughness:1});WEST.stoveGlow=glow;
-   mesh(new T.CircleGeometry(.2,24),glow,0,0,-.004,fr);
+   mesh(new T.CircleGeometry(.2,24),glow,0,0,-.004,fr);mesh(new T.RingGeometry(.198,.292,32,1),soot,0,0,-.002,fr);
    const door=new T.Shape();door.absarc(0,0,.2,0,Math.PI*2,false);for(let i=0;i<4;i++){const hl=new T.Path();const y=-.1+i*.05;hl.moveTo(-.09,y-.008);hl.lineTo(.09,y-.008);hl.lineTo(.09,y+.008);hl.lineTo(-.09,y+.008);hl.lineTo(-.09,y-.008);door.holes.push(hl);}
    mesh(new T.ExtrudeGeometry(door,{depth:.012,bevelEnabled:false,curveSegments:24}),soot,0,0,0,fr);
-   [-.12,.12].forEach(y=>mesh(new T.CylinderGeometry(.012,.012,.05,10),WM.rust,-.2,y,.006,fr));mesh(rbox(.06,.02,.02,.004),WM.rust,.17,.0,.02,fr);
+   [-.12,.12].forEach(y=>mesh(new T.CylinderGeometry(.012,.012,.05,10),drum,-.2,y,.006,fr));mesh(rbox(.06,.02,.02,.004),drum,.17,.0,.02,fr);
    /* the pipe: up from the back of the top, a damper handle, out through the roof */
-   mesh(new T.CylinderGeometry(.065,.065,2.6,16),WM.rust,-.22,2.1,0,st);mesh(new T.TorusGeometry(.068,.01,8,16),WM.rust,-.22,.95,0,st).rotation.x=Math.PI/2;
+   mesh(new T.CylinderGeometry(.065,.065,2.6,16),drum,-.22,2.1,0,st);mesh(new T.TorusGeometry(.068,.01,8,16),drum,-.22,.95,0,st).rotation.x=Math.PI/2;
    mesh(rbox(.16,.012,.02,.003),M.black,-.22,1.15,.09,st);
    /* the soot-black pot moved in off the old fire, on the top plate */
    mesh(lathe([[0,0],[.13,0],[.145,.03],[.145,.17],[.155,.18],[.135,.18],[.13,.02],[0,.02]],24),M.black,.1,.83,0,st);
@@ -5061,7 +5397,7 @@ function busStop(){const B=BUS,G=new T.Group();G.position.set(B.x,B.y,B.z);G.rot
    const L=new T.PointLight(0xff6a2a,.0,3.2,2);L.position.set(.7,.4,0);st.add(L);WEST.stoveL=L;st.updateMatrixWorld(true);WEST.stove=st.localToWorld(V3(.42,.5,0));
    WEST.fire=st.localToWorld(V3(-.22,3.35,0));}
   [1.1,1.55].forEach(y=>{bk.add(rbox(.32,.03,2.2,.005),WM.plank,TRS(...L2W(-W2+.32,y,-1.2)));[-2.15,-.25].forEach(zz=>{bk.add(rbox(.04,.22,.04,.004),WM.board,TRS(...L2W(-W2+.2,y-.12,zz)));bk.add(rbox(.04,.04,.3,.004),WM.board,TRS(...L2W(-W2+.32,y-.16,zz),Math.PI/4.5,Math.PI/2,0));});});
-  {const jar=std({color:C(0x8a9688),roughness:.25,transparent:true,opacity:.7,envMapIntensity:.5});for(let i=0;i<6;i++){const [x,yy,z]=L2W(-W2+.3,1.115+(i%2)*.45,-2.1+i*.33);const m=mesh(lathe([[0,0],[.05,0],[.055,.02],[.055,.13],[.04,.16],[.04,.18],[0,.18]],12),i%3?M.tushonka:jar,x,yy,z,scene);m.castShadow=true;}}
+  {const jar=std({color:C(0x8a9688),roughness:.25,transparent:true,opacity:.7,envMapIntensity:.5});for(let i=0;i<6;i++){const [x,yy,z]=L2W(-W2+.3,1.115+(i%2)*.45,-2.1+i*.33);const m=mesh(lathe([[0,0],[.05,0],[.055,.02],[.055,.13],[.04,.16],[.04,.18],[0,.18]],12),i%3?M.tushonka:jar,x,yy,z,scene);m.castShadow=true;const sh=mesh(new T.CircleGeometry(.075,16),CONTACT(),x,yy+.002,z,scene,false);sh.rotation.x=-Math.PI/2;sh.renderOrder=2;}}
   bk.add(rbox(.8,.05,1.9,.01),WM.plank,TRS(...L2W(-1.75,.42,.5)));[[-.7],[.7]].forEach(([a])=>putLog(bk,.16,.8,TRS(...L2W(-1.75,.16,.5+a),0,0,Math.PI/2),WM.bark));
   const crate=std({map:PB.boards.a,normalMap:PB.boards.n,roughness:.9,color:C(0x5c6a48)});
   [[-1.5,-2.6,0],[-1.5,-2.6,.46],[-.8,-2.85,0]].forEach(([a,b,y])=>{const m=mesh(rbox(.75,.44,.45,.02),crate,...L2W(a,y+.22,b),scene);m.rotation.y=rr(-.1,.1);shootables.push(m);});
@@ -5098,10 +5434,37 @@ function busStop(){const B=BUS,G=new T.Group();G.position.set(B.x,B.y,B.z);G.rot
   {const cx=-881.3,cz=-338.05,yy=H(cx,cz);for(let k=0;k<6;k++)for(let i=0;i<9;i++){const M4=TRS(cx-.95+i*.23+rr(-.02,.02),yy+.1+k*.2,cz+rr(-.04,.04),Math.PI/2,0,0);const g=logGeo(.095,.5,7);bk.add(g.s,WM.bark,M4);g.e.forEach(e=>bk.add(e,WM.end,M4));}
    [-1.1,1.1].forEach(a=>bk.add(new T.CylinderGeometry(.04,.05,1.45,6).translate(0,.7,0),WM.bark,TRS(cx+a,yy,cz)));solidAABB(cx-1.15,cx+1.15,cz-.3,cz+.3);}
   /* chopping block with an axe, a sawhorse with a log on it and the bow saw */
-  {const cx=-875.6,cz=-340.4,yy=H(cx,cz);bk.add(new T.CylinderGeometry(.24,.27,.5,12).translate(0,.25,0),WM.bark,TRS(cx,yy,cz));bk.add(new T.CircleGeometry(.235,12).rotateX(-Math.PI/2).translate(0,.5,0),WM.end,TRS(cx,yy,cz));
-   bk.add(new T.CylinderGeometry(.016,.02,.7,6).translate(0,.35,0),WM.plank,TRS(cx+.05,yy+.47,cz,0,.4,.85));bk.add(rbox(.16,.1,.02,.005),WM.rust,TRS(cx+.02,yy+.52,cz,0,.4,.85));solids.push({cx,cz,r:.3});
-   const sx=-876.8,sz=-342.2,sy=H(sx,sz);[[-1,-1],[-1,1],[1,-1],[1,1]].forEach(([a,b])=>bk.add(new T.CylinderGeometry(.03,.03,.95,5).translate(0,.4,0),WM.bark,TRS(sx+a*.45,sy,sz+b*.12,b*.35,0,0)));
-   putLog(bk,.13,1.8,TRS(sx,sy+.8,sz,0,0,Math.PI/2),WM.bark);solidAABB(sx-.9,sx+.9,sz-.3,sz+.3);}
+  {const cx=-875.6,cz=-340.4,yy=Math.min(H(cx,cz),H(cx+.25,cz),H(cx-.25,cz),H(cx,cz+.25),H(cx,cz-.25))-.03;
+   /* the block: a round of birch, its top scarred by years of splitting, a split down one side */
+   bk.add(new T.CylinderGeometry(.25,.28,.53,24,3).translate(0,.265,0),WM.bark,TRS(cx,yy,cz,0,.3,0));
+   {const top=new T.CircleGeometry(.252,24);top.rotateX(-Math.PI/2);top.translate(0,.531,0);bk.add(top,WM.end,TRS(cx,yy,cz,0,.3,0));}
+   bk.add(rbox(.01,.3,.16,.002),WM.char,TRS(cx+.27,yy+.32,cz+.04,0,0,.02));
+   /* the axe: the head's blade bitten into the top of the block, the haft rising out of it at an angle */
+   {const ag=new T.Group();ag.position.set(cx+.04,yy+.53+.105,cz+.02);ag.rotation.set(0,.7,.62,'YXZ');scene.add(ag);
+    const prof=new T.Shape();prof.moveTo(-.03,.05);prof.lineTo(.032,.05);prof.lineTo(.036,-.015);prof.quadraticCurveTo(.05,-.09,.072,-.165);prof.quadraticCurveTo(0,-.19,-.075,-.17);prof.quadraticCurveTo(-.052,-.1,-.034,-.02);prof.lineTo(-.03,.05);
+    const eye=new T.Path();eye.absellipse(0,.012,.016,.024,0,Math.PI*2,true);prof.holes.push(eye);
+    const hg=new T.ExtrudeGeometry(prof,{depth:.034,bevelEnabled:true,bevelThickness:.004,bevelSize:.003,bevelSegments:2,curveSegments:10});hg.translate(0,0,-.017);
+    /* (the blade thins to its edge: pull the front and back faces together towards the bottom) */
+    {const q=hg.attributes.position;for(let i=0;i<q.count;i++){const y=q.getY(i),k=sstep(-.04,-.17,y);q.setZ(i,q.getZ(i)*(1-.88*k));}hg.computeVertexNormals();}
+    const steel=std({color:C(0x2a2a28),roughness:.42,metalness:.85,envMapIntensity:.6});
+    const hm_=mesh(hg,steel,0,0,0,ag);hm_.castShadow=true;
+    /* the haft: through the eye, a long gentle S to a swelled end */
+    const cu=new T.CatmullRomCurve3([V3(-.0,.012,0),V3(.12,.008,0),V3(.36,.0,0),V3(.58,.012,0),V3(.7,.03,0)]);
+    const haft=new T.TubeGeometry(cu,24,.015,10,false);{const q=haft.attributes.position;for(let i=0;i<q.count;i++){const x=q.getX(i);const sw=1+.35*sstep(.55,.7,x)-.15*sstep(.05,.3,x)*(1-sstep(.3,.5,x));const c=cu.getPoint(clamp(x/.7,0,1));q.setY(i,c.y+(q.getY(i)-c.y)*sw);q.setZ(i,q.getZ(i)*sw*1.25);}haft.computeVertexNormals();}
+    mesh(haft,WM.plank,0,0,0,ag).castShadow=true;mesh(new T.SphereGeometry(.021,12,8),WM.plank,.7,.03,0,ag).scale.set(.6,1,1.2);
+    mesh(new T.CylinderGeometry(.006,.006,.042,6),steel,0,.044,0,ag).rotation.x=Math.PI/2;}
+   solids.push({cx,cz,r:.3});
+   /* the sawhorse: two X-trestles of poles lashed where they cross, a stretcher between, the log lying in the crotches;
+      a bow saw hung on one end */
+   const sx=-876.8,sz=-342.2,sy=Math.min(H(sx-.6,sz),H(sx+.6,sz))-.04;const L=1.15,cr=.62;
+   [-.55,.55].forEach(a=>{[-1,1].forEach(b=>{const ang=b*.55;const M4=TRS(sx+a,sy,sz,ang,0,0);const g=new T.CylinderGeometry(.032,.036,L,12);g.translate(0,L/2,0);bk.add(g,WM.bark,M4);});
+     bk.add(new T.TorusGeometry(.045,.008,6,14),WM.rope||WM.canvas,TRS(sx+a,sy+Math.cos(.55)*cr,sz,0,Math.PI/2,0));});
+   bk.add(new T.CylinderGeometry(.028,.028,1.25,10),WM.bark,TRS(sx,sy+.3,sz,0,0,Math.PI/2));
+   {const ly=sy+Math.cos(.55)*cr+.15;putLog(bk,.13,1.85,TRS(sx,ly,sz,0,0,Math.PI/2),WM.bark);}
+   {const bg=new T.Group();bg.position.set(sx+.62,sy+.95,sz+.05);bg.rotation.set(0,.0,-.15);scene.add(bg);const st=std({color:C(0x3a3a36),roughness:.5,metalness:.7});
+    const cu=new T.CatmullRomCurve3([V3(-.32,0,0),V3(-.3,.12,0),V3(0,.2,0),V3(.3,.12,0),V3(.32,0,0)]);mesh(new T.TubeGeometry(cu,20,.012,8,false),std({color:C(0x7a4a2a),roughness:.6}),0,0,0,bg);
+    mesh(new T.BoxGeometry(.66,.03,.002),st,0,-.005,0,bg);}
+   solidAABB(sx-.9,sx+.9,sz-.35,sz+.35);}
   /* the tarp shelter: four poles, a sagging olive tarp tied off with ropes, their table and radio underneath */
   {const cx=-873,cz=-343.6,yy=H(cx,cz);const pts=[[-1.6,-1.4,1.55],[1.6,-1.4,1.55],[-1.6,1.4,1.95],[1.6,1.4,1.95]];
    pts.forEach(([a,b,h])=>{bk.add(new T.CylinderGeometry(.04,.05,h+.1,6).translate(0,(h+.1)/2-.05,0),WM.bark,TRS(cx+a,H(cx+a,cz+b),cz+b));solids.push({cx:cx+a,cz:cz+b,r:.08});});
@@ -6321,7 +6684,7 @@ function frame(now){requestAnimationFrame(frame);
    const ind=inHouse(camera.position.x,camera.position.z);const r=weatherUpdate(dt,camera.position,ind);
    postMat.uniforms.uDrops.value=(S.state==='play'||S.state==='ride')&&!ind?clamp(r*1.4,0,1)*(.45+.55*clamp(-camera.rotation.x*2+.5,0,1)):0;}
   if(S.state!=='ride')btrTick(dt);
-  ch2Tick(dt,rdt);ch3Tick(dt,rdt);
+  ch2Tick(dt,rdt);ch3Tick(dt,rdt);heliTick(dt);forestTick(dt);
   if(S.state==='ride')tickRide(dt,rdt);
   else if(S.state==='play'){movePlayer(dt);findInteract();shoot(dt);tickStats(dt);
     if(S.searched&&S.chapter!==2&&!SHADOW.on&&!SHADOW.dead&&player.pos.z<-250){const inH=inHouse(player.pos.x,player.pos.z);if(inH)S.wasIn=true;
@@ -6687,10 +7050,13 @@ function ch2Offload(){const inR=(x,z)=>x>-40&&x<160&&z>-474&&z<-222;return dropR
    entries and animations, and free what nothing else uses */
 function dropRegion(inR,keepX=[],instR=inR){const t0=performance.now();roffRestore();const keep=new Set([sky,camera,GRASS.mesh,playerBody.root,...keepX]);
   scene.updateMatrixWorld(true);const v=V3(),rm=[];
-  for(const o of scene.children){if(keep.has(o)||o.isLight||o.frustumCulled===false)continue;
+  /* (kept whatever is flagged to stay - the things that live everywhere: creatures, the enemy, the flyovers, the camera's
+     own flower ring - and a group is judged by where its contents are, not by its origin: a container left at 0,0,0
+     whose parts are placed in the world is not part of the region just because its origin is) */
+  for(const o of scene.children){if(keep.has(o)||o.isLight||o.frustumCulled===false||o.userData.keep||o.userData.noCull)continue;
     if(o.isInstancedMesh){const b=o.geometry.boundingSphere;if(!b)continue;v.copy(b.center).applyMatrix4(o.matrixWorld);if(instR(v.x,v.z))rm.push(o);continue;}
     if(o.isMesh||o.isPoints||o.isLine){const g=o.geometry;if(!g.boundingSphere)g.computeBoundingSphere();if(g.boundingSphere.radius>90)continue;v.copy(g.boundingSphere.center).applyMatrix4(o.matrixWorld);if(inR(v.x,v.z))rm.push(o);continue;}
-    o.getWorldPosition(v);if(inR(v.x,v.z))rm.push(o);}
+    {const bb=new T.Box3().setFromObject(o);if(bb.isEmpty())o.getWorldPosition(v);else bb.getCenter(v);}if(inR(v.x,v.z))rm.push(o);}
   const gone=new Set();rm.forEach(o=>o.traverse(c=>gone.add(c)));
   /* lights inside removed groups stay in the scene, switched off */
   const lights=[];rm.forEach(o=>o.traverse(c=>{if(c.isLight)lights.push(c);}));lights.forEach(c=>{c.intensity=0;scene.attach(c);gone.delete(c);if(c.target)gone.delete(c.target);});
@@ -7020,7 +7386,7 @@ const RMASS=[4,4,2,2,1,2,1,.7,.4,2,1,.7,.4,3,1.6,1,.5,3,1.6,1,.5];
 /* joint cones: [parent point, joint, child point, max angle] - and the hips and shoulders against axes in the trunk's
    own frame (thigh forward up to ~110 deg, back ~35; arm almost anywhere but not behind the back) */
 const RCONE=[[1,2,3,.65],[2,3,4,.5],[0,1,2,.55],[5,6,7,2.5],[9,10,11,2.5],[13,14,15,2.35],[17,18,19,2.35]];
-class Ragdoll{constructor(h,hitP,dir,o={}){this.h=h;this.t=0;this.acc=0;this.still=0;this.done=false;const B=h.P.bones;h.root.updateMatrixWorld(true);
+class Ragdoll{constructor(h,hitP,dir,o={}){this.h=h;h.root.traverse(q=>{if(q.isSkinnedMesh)q.frustumCulled=false;});this.t=0;this.acc=0;this.still=0;this.done=false;const B=h.P.bones;h.root.updateMatrixWorld(true);
     const w=n=>B[n].getWorldPosition(new T.Vector3());const fw=V3(0,0,1).applyQuaternion(h.root.getWorldQuaternion(new T.Quaternion())).setY(0).normalize();
     const P=[w('hips'),w('spine'),w('neck'),w('head'),null,w('shL'),w('elL'),w('wrL'),null,w('shR'),w('elR'),w('wrR'),null,w('hpL'),w('knL'),w('anL'),null,w('hpR'),w('knR'),w('anR'),null];
     P[4]=P[3].clone().add(P[3].clone().sub(P[2]).normalize().multiplyScalar(.17));P[8]=P[7].clone().add(P[7].clone().sub(P[6]).normalize().multiplyScalar(.09));P[12]=P[11].clone().add(P[11].clone().sub(P[10]).normalize().multiplyScalar(.09));
@@ -7078,7 +7444,7 @@ function droppedTick(dt){for(let i=DROPPED.length-1;i>=0;i--){const d=DROPPED[i]
       if(d.t>.4){const e=new T.Euler().setFromQuaternion(d.g.quaternion,'YXZ');d.g.rotation.set(0,e.y,Math.PI/2*(e.z>=0?1:-1),'YXZ');d.g.position.y=fy;DROPPED.splice(i,1);}}}}
 
 /* ======================= rifle fire from NPCs ======================= */
-const NFL=new T.Mesh(new T.PlaneGeometry(1,1),new T.MeshBasicMaterial({map:PTEX.star,transparent:true,blending:T.AdditiveBlending,depthWrite:false,color:C(0xffc070),fog:false}));NFL.visible=false;scene.add(NFL);
+const NFL=new T.Mesh(new T.PlaneGeometry(1,1),new T.MeshBasicMaterial({map:PTEX.star,transparent:true,blending:T.AdditiveBlending,depthWrite:false,color:C(0xffc070),fog:false}));NFL.visible=false;NFL.userData.keep=true;scene.add(NFL);
 function npcMuzzle(gun){const p=gun.localToWorld(gun.userData.muzzle.clone());return p;}
 function npcFlash(p,big=true){FX.glow.spawn(p,V3(),.05,big?.45:.32,big?.6:.45,[1,.78,.42,1],[1,.5,.2,0]);for(let i=0;i<2;i++)FX.smoke.spawn(p,V3(wr(-.2,.2),wr(.1,.4),wr(-.2,.2)),wr(.8,1.4),.05,.4,[.72,.7,.66,.3],[.8,.8,.78,0],{drag:1.6,up:.2});}
 /* the player is hit or missed: a miss cracks past and kicks up dirt next to you */
@@ -7227,7 +7593,7 @@ const CFG=(function(){const G={};
   const finger=(L,r0)=>{const q=new T.ConeGeometry(r0,L,10,5);q.translate(0,L/2,0);q.scale(1,1,.65);const pp=q.attributes.position,cc=new Float32Array(pp.count*3);
     for(let i=0;i<pp.count;i++)setCol(cc,i,mixc([.2,.16,.1],[.78,.62,.42],sstep(.62,1,pp.getY(i)/L)));q.setAttribute('color',new T.BufferAttribute(cc,3));q.computeVertexNormals();return q;};
   G.legL=[[.12,.11],[.135,.12],[.14,.125],[.13,.12]];
-  G.leg=G.legL.map(([a,b])=>[segGeo(a,.017,.014,6),segGeo(b,.013,.01,5),finger(.05,.009)]);
+  G.leg=G.legL.map(([a,b])=>[segGeo(a,.023,.019,6),segGeo(b,.018,.014,5),finger(.055,.012)]);
   G.chM=segGeo(.17,.034,.03,6);G.chC=segGeo(.085,.03,.036,3);
   /* the claw: a long, flattened palm studded with tubercles on top, orange-red beneath; the fixed finger (pollex) runs on
      from it, the movable one (dactyl) hinges above; both edged with blunt teeth */
@@ -7449,8 +7815,11 @@ function crawTick(C_,dt){if(C_.state==='off')return;
     else{const h=C_.home||C_.lurk||C_.p,tx=h.x-C_.p.x,tz=h.z-C_.p.z,dd=Math.hypot(tx,tz);face(Math.atan2(tx,tz),3);C_.raise=damp(C_.raise,.2,2,dt);C_.spread=0;C_.rear=damp(C_.rear,0,2,dt);
       if(dd>.8)C_.v.addScaledVector(V3(tx,0,tz).normalize(),dt*5);else C_.state='lurk';
       if(d<12&&(C_.alpha||wade>0))C_.state='hunt';}}
-  else if(C_.state==='dead'){C_.st+=dt;C_.curl=Math.min(1,C_.curl+dt*.7);C_.tuck=Math.min(1,C_.tuck+dt*.5);C_.roll=damp(C_.roll,.5,1.5,dt);C_.raise=damp(C_.raise,0,2,dt);C_.rear=damp(C_.rear,0,2,dt);C_.spread=damp(C_.spread,0,2,dt);C_.strike=0;C_.fan=0;
-    C_.claws.forEach(c=>c.open=damp(c.open,.2,2,dt));wantY=fl+.06*s;if(C_.st<3&&WR()<dt*6){const L=C_.legs[Math.floor(WR()*8)];L.foot.y+=.02*s;}}
+  else if(C_.state==='dead'){C_.st+=dt;
+    /* dead on the bank or in the shallows it settles with the legs drawn in a little, the tail half under, canted onto one
+       side; where the water is deeper than it is tall it rolls and floats belly up, the legs folded up into the air */
+    const fl_=dep>.13*s;C_.floatD=fl_;C_.curl=fl_?Math.min(1,C_.curl+dt*.45):Math.min(.32,C_.curl+dt*.3);C_.tuck=Math.min(.55,C_.tuck+dt*.4);C_.roll=damp(C_.roll,fl_?Math.PI*.9:.22,fl_?1.1:1.5,dt);C_.raise=damp(C_.raise,0,2,dt);C_.rear=damp(C_.rear,0,2,dt);C_.spread=damp(C_.spread,0,2,dt);C_.strike=0;C_.fan=0;
+    C_.claws.forEach(c=>c.open=damp(c.open,.2,2,dt));wantY=fl_?W3.wl+.012*s:fl+.06*s;if(!fl_&&C_.st<3&&WR()<dt*6){const L=C_.legs[Math.floor(WR()*8)];L.foot.y+=.02*s;}}
   /* move: stay in the basin, not into the deepest holes or far up the dry bank; off the player and off each other */
   if(C_.state!=='dead'){const sp=C_.v.length(),mx=C_.state==='flip'?16:C_.state==='emerge'?6:C_.state==='grab'?1.4:C_.state==='stalk'?3.4:C_.alpha?4.6:4.2;if(sp>mx)C_.v.multiplyScalar(mx/sp);
     const nx=C_.p.x+C_.v.x*dt,nz=C_.p.z+C_.v.z*dt;if(inDET(nx,nz)&&W3.wl-H(nx,nz)<1.6&&H(nx,nz)<W3.wl+1.2){C_.p.x=nx;C_.p.z=nz;}else C_.v.multiplyScalar(.2);
@@ -7491,7 +7860,7 @@ function crawShot(C_,m,p,dir){if(C_.state==='dead'||C_.state==='off')return;crab
 function crabWater(x,z){for(const C_ of CRAWS)if(C_.state==='lurk'&&Math.hypot(x-C_.p.x,z-C_.p.z)<7&&(C_.alpha||CRAB.met))crawEmerge(C_);}
 function crabBlood(p,dir){for(let i=0;i<9;i++){const v=dir.clone().normalize().multiplyScalar(-wr(.3,1.4)).add(V3(wr(-.6,.6),wr(.2,1),wr(-.6,.6)));FX.blood.spawn(p,v,wr(.3,.6),wr(.02,.04),wr(.08,.16),[.55,.62,.6,.8],[.5,.58,.58,0],{g:4,drag:2.5,fi:0});}}
 function crawKill(C_,silent){if(C_.state==='dead')return;if(C_.alpha&&C_.state==='off')crabInit();if(S.held&&S.held.by===C_)crawRelease(C_,false);C_.state='dead';C_.dead=true;C_.st=silent?9:0;C_.v.set(0,0,0);crawHitOff(C_);
-  if(silent){C_.curl=C_.tuck=1;C_.raise=C_.rear=C_.spread=0;C_.roll=.5;C_.y=H(C_.p.x,C_.p.z)+.06*C_.s;C_.g.visible=C_.legG.visible=true;crawPose(C_,0);return;}sfx.crab('die',V3(C_.p.x,Math.max(W3.wl,C_.y),C_.p.z));}
+  if(silent){const fh=H(C_.p.x,C_.p.z),fl_=W3.wl-fh>.13*C_.s;C_.floatD=fl_;C_.curl=fl_?1:.32;C_.tuck=.55;C_.raise=C_.rear=C_.spread=0;C_.roll=fl_?Math.PI*.9:.22;C_.y=fl_?W3.wl+.012*C_.s:fh+.06*C_.s;C_.g.visible=C_.legG.visible=true;crawPose(C_,0);return;}sfx.crab('die',V3(C_.p.x,Math.max(W3.wl,C_.y),C_.p.z));}
 function crabKill(silent){crawKill(CRAB,silent);}
 /* ---------- low mist: soft sheets drifting over the wet ground in the fog, drawn when the scripted fog is in ---------- */
 const MIST=(()=>{const pts=[];const r=rng(77);
@@ -7694,7 +8063,7 @@ const SEPDEF=[{char:'patrol',hood:true,kit:true,helm:true,spot:'e1',idle:{p:null
 class Sep{constructor(d,i){this.d=d;this.i=i;
     const c=CD.chars[d.char];const h=buildHuman({char:d.char,outfit:c.outfit,vest:false,helmet:false,hood:d.hood,uniqMat:true,matMap:{emr:'khaki',velcro:'khakiW'},drop:['pad','padhard','strap'],tint:[.96-i*.004,.94+i*.002,.93]});
     h.hooded=!!(d.hood&&c.hood);this.h=h;this.hits=addHits(h,this);holeMats(h);if(d.kit)sepKit(h);else sepBag(h);if(d.helm)ssh68(h);
-    this.g=new T.Group();this.g.add(h.root);scene.add(this.g);
+    this.g=new T.Group();this.g.userData.keep=true;this.g.add(h.root);scene.add(this.g);
     const sp=WEST.spots[d.spot];this.spot=V3(sp.x,0,sp.z);const ip=d.idle.p?V3(d.idle.p[0],0,d.idle.p[1]):this.spot.clone();this.pos=ip;this.yaw=d.idle.yaw;
     this.an=animate(h,{pose:d.idle.pose,gun:npcAK({wood:true}),hands:an=>this.post(an)});this.an.go(d.idle.pose,.01);
     this.hp=100;this.state='idle';this.aw=0;this.chk=wr(0,.25);this.peek=false;this.pt=wr(.8,2);this.burst=0;this.fireCd=wr(.6,1.4);this.acq=0;this.G={a:0,run:0,t:0,var:1,calm:false};this.ph=0;this.v=0;this.flinch=0;this.supT=-9;
@@ -7869,7 +8238,281 @@ function objMarker(dt){const el=_om.el||(_om.el=$('omk'));if(!el)return;
     el.classList.toggle('edge',off);el.style.transform='translate('+x.toFixed(1)+'px,'+y.toFixed(1)+'px)';
     el.querySelector('span').textContent=Math.round(d)+' m';}
   _om.a=damp(_om.a,show?1:0,6,dt);el.style.opacity=_om.a.toFixed(2);}
-window.__c3={CRAWS,crawReset,crawEmerge,crawTick,crawGrab,crawFlip,objTarget,objMarker,BUS,CRATERS,__audio:{init:initAudio,tick:audioTick,sfx,AUD,ac:()=>AC,surface},FXn:()=>FX.blood.P.length+FX.bloodMist.P.length,__bloodP:()=>FX.blood.P.concat(FX.bloodMist.P),frontZ,__sim,ANIMS,mzInit,MIST,CRAB,crabInit,WEATHER,player,CH3,MZ,WEST,WATER,SEPDEF,Sep,ch3Spawn,ch3Comms,ch3Alert,Ragdoll,RAGS,HITS,STAINS,bloodSpurt,stain,losClear,coverHit,floorAt,limpPose,AP,buildHuman,animate,npcAK,sepKit,ssh68,addHits,holeMats};
+window.__c3={CRAWS,crawReset,crawEmerge,crawTick,crawGrab,crawFlip,crawKill,objTarget,objMarker,BUS,CRATERS,__audio:{init:initAudio,tick:audioTick,sfx,AUD,ac:()=>AC,surface},FXn:()=>FX.blood.P.length+FX.bloodMist.P.length,__bloodP:()=>FX.blood.P.concat(FX.bloodMist.P),frontZ,__sim,ANIMS,mzInit,MIST,CRAB,crabInit,WEATHER,player,CH3,MZ,WEST,WATER,SEPDEF,Sep,ch3Spawn,ch3Comms,ch3Alert,Ragdoll,RAGS,HITS,STAINS,bloodSpurt,stain,losClear,coverHit,floorAt,limpPose,AP,buildHuman,animate,npcAK,sepKit,ssh68,addHits,holeMats};
+
+/* ---------- Hinds overhead: now and then one, or a pair, passes over going somewhere else - low over the trees or
+   higher under the cloud, nose down at cruise, banking a little as it corrects its course. You hear it long before it
+   comes out of the haze: the blade slap, then the turbines' whine as it nears, pitch falling as it goes past. Only in
+   ordinary play: never in a ride, a cutscene, a fade or a card, a pause or the inventory; and not in the first minute
+   after one of those. One pass is guaranteed over the forest on the way west. ---------- */
+const HELI={list:[],next:150+Math.random()*120,calm:0,n:0,forest:false,bus:null};
+/* the sound: two loops synthesised once - the rotor (blade slap at the five-blade passing rate, the low whop, the
+   tail rotor's buzz, the broadband rush) and the turbines (whine, its harmonics, hiss) */
+function heliBuffers(){if(HELI.buf||!AC)return HELI.buf;const sr=22050,n=sr*2,R0=AC.createBuffer(1,n,sr),T0=AC.createBuffer(1,n,sr);const r=R0.getChannelData(0),t=T0.getChannelData(0);
+  let lp=0,lp2=0;const rnd_=rng(2424);
+  for(let i=0;i<n;i++){const s=i/sr;const nz=rnd_()*2-1;lp+= (nz-lp)*.25;lp2+=(nz-lp2)*.06;
+    const ph=(s*20)%1,dt=ph/20;const k=Math.floor(s*20);const amp=.85+.3*Math.sin(k*1.7)*Math.sin(k*.37);
+    const slap=Math.exp(-dt/.0045)*nz*.8*amp,whop=Math.exp(-dt/.03)*Math.sin(2*Math.PI*48*dt)*1.1*amp,tail=((s*55)%1-.5)*.12+Math.sin(2*Math.PI*110*s)*.05;
+    r[i]=slap+whop+tail+lp2*.55+lp*.12;}
+  for(let i=0;i<n;i++){const s=i/sr;const nz=rnd_()*2-1;const fm=Math.sin(2*Math.PI*.5*s)*6;
+    t[i]=Math.sin(2*Math.PI*(2240*s+fm))*.18+Math.sin(2*Math.PI*(4480*s+fm*2))*.08+Math.sin(2*Math.PI*(5810*s))*.12+Math.sin(2*Math.PI*(6720*s+fm*3))*.05+nz*.1;}
+  /* (normalise) */[r,t].forEach(a=>{let m=0;for(let i=0;i<n;i++)m=Math.max(m,Math.abs(a[i]));for(let i=0;i<n;i++)a[i]/=m||1;});
+  return HELI.buf={r:R0,t:T0};}
+function heliSound(h){if(!AC||!heliBuffers())return null;if(!HELI.bus){HELI.bus=AC.createGain();HELI.bus.gain.value=1;HELI.bus.connect(AUD.master);}
+  const pn=AC.createPanner();pn.panningModel='HRTF';pn.distanceModel='inverse';pn.refDistance=55;pn.rolloffFactor=1;pn.maxDistance=8000;
+  const lp=AC.createBiquadFilter();lp.type='lowpass';lp.frequency.value=2000;lp.Q.value=.5;lp.connect(pn);pn.connect(HELI.bus);const w=AC.createGain();w.gain.value=.35;pn.connect(w);w.connect(AUD.send);
+  const mk=(b,g0)=>{const s=AC.createBufferSource();s.buffer=b;s.loop=true;const g=AC.createGain();g.gain.value=0;s.connect(g).connect(lp);s.start(0,Math.random()*1.9);return{s,g,g0};};
+  return{pn,lp,rot:mk(HELI.buf.r,1.7),tur:mk(HELI.buf.t,.55)};}
+function heliSoundStop(S_){if(!S_)return;try{[S_.rot,S_.tur].forEach(x=>{x.g.gain.setTargetAtTime(0,AC.currentTime,.3);x.s.stop(AC.currentTime+1.5);});setTimeout(()=>{try{S_.pn.disconnect();}catch(_){}},2000);}catch(_){}}
+/* how much of the screen is covered by something that is not play: a fade, a chapter card, the menu, death */
+function heliCover(){if(S.state==='dead'||S.state==='load'||S.state==='view')return 1;const f=$('fade');let k=f?(parseFloat(f.style.opacity)||0):0;const c=$('card');if(c&&c.classList.contains('on'))k=1;return k;}
+const heliRide=()=>S.state==='ride'||(typeof RIDE!=='undefined'&&RIDE.on);
+/* when one may set out: plain play, nothing over the screen, nobody mid-sentence (the letterbox of a spoken line) */
+function heliOK(){if(S.state!=='play'||heliRide()||heliCover()>.04)return false;const b=$('bars');if(b&&(parseFloat(b.style.opacity)||0)>.04)return false;return true;}
+/* a flight: from far off, past the player at an offset, on to far off the other side; a wingman sometimes */
+function heliSpawn(o={}){const pp=player.pos;const hd=o.hd!==undefined?o.hd:Math.random()*Math.PI*2;const dir=V3(Math.sin(hd),0,Math.cos(hd)),side=V3(dir.z,0,-dir.x);
+  const off=o.off!==undefined?o.off:(Math.random()<.25?(Math.random()-.5)*40:(Math.random()<.5?-1:1)*(60+Math.random()*190));const L=1500;
+  let gmax=-1e9;for(let s=-L;s<=L;s+=40){const x=pp.x+side.x*off+dir.x*s,z=pp.z+side.z*off+dir.z*s;gmax=Math.max(gmax,H(x,z));}
+  const alt=o.alt!==undefined?o.alt:(Math.random()<.3?40+Math.random()*12:60+Math.random()*80);const y=Math.max(H(pp.x,pp.z)+alt,gmax+32);
+  const sp=o.sp||62+Math.random()*10,yr=o.yr!==undefined?o.yr:(Math.random()-.5)*.012;const pair=o.pair!==undefined?o.pair:Math.random()<.45;
+  const mk=(dx,dz,dy,lag)=>{const g=HIND.make();g.userData.keep=true;scene.add(g);const p=V3(pp.x+side.x*off-dir.x*L,y,pp.z+side.z*off-dir.z*L).addScaledVector(side,dx).addScaledVector(dir,dz).add(V3(0,dy,0));
+    const h={g,p,yaw:hd,yr,sp,t:0,L:2*L+300,ang:Math.random()*6,tang:0,bob:Math.random()*6,lead:!lag,snd:heliSound(null)};h.g.position.copy(p);HELI.list.push(h);return h;};
+  mk(0,0,0,false);if(pair)mk(-38,-60,9,true);HELI.n++;HELI.next=200+Math.random()*220;}
+function heliRemove(h){heliSoundStop(h.snd);scene.remove(h.g);const i=HELI.list.indexOf(h);if(i>=0)HELI.list.splice(i,1);}
+const _hlv=V3(),_hlf=new T.Frustum(),_hlm=new T.Matrix4();
+function heliTick(dt){const cover=heliCover(),ride=heliRide();
+  /* pauses freeze it (and quiet it); plain play moves it on */
+  if(HELI.bus&&AC)HELI.bus.gain.setTargetAtTime(S.state==='play'&&cover<.5?1:0,AC.currentTime,.15);
+  if(!HELI.list.length){if(S.state!=='play'||ride||cover>.04){HELI.calm=0;return;}HELI.calm+=dt;if(!heliOK())return;
+    /* the guaranteed pass over the forest on the way west: a pair, low, heading on west */
+    if(HELI.calm>12&&S.chapter===3&&!HELI.forest&&player.pos.x<-345&&player.pos.x>-450&&typeof CH3!=='undefined'&&CH3.stage>=1&&CH3.stage<=3){HELI.forest=true;
+      heliSpawn({hd:-Math.PI/2+(Math.random()-.5)*.5,off:(Math.random()<.5?-1:1)*(25+Math.random()*40),alt:42,pair:true,sp:58,yr:0});
+      HELI.say=S.t+9;return;}
+    if(HELI.calm<60)return;HELI.next-=dt;if(HELI.next<=0)heliSpawn();return;}
+  /* the screen covered (a fade, a card, death, the menu): gone, unseen. In a pause or the inventory: held where it is */
+  if(cover>.6){for(const h of HELI.list.slice())heliRemove(h);return;}
+  if(S.state!=='play'&&S.state!=='ride')return;
+  if(HELI.say&&S.t>HELI.say&&typeof CH3!=='undefined'){HELI.say=0;if(CH3.q.length<2)ch3Say([['CAPTAIN MOROZOV','Ours. Going west, low under the cloud.',2.8],['CAPTAIN MOROZOV','Whatever they are going to, we will hear it.',3]]);}
+  _hlm.multiplyMatrices(camera.projectionMatrix,camera.matrixWorldInverse);_hlf.setFromProjectionMatrix(_hlm);
+  const cp=camera.position;
+  for(const h of HELI.list.slice()){
+    /* a ride or a cutscene began: it goes as soon as it is off the screen */
+    if(ride||cover>.04){h.gone=(h.gone||0)+dt;_hlv.copy(h.p);if(!_hlf.containsPoint(_hlv)||h.gone>8){heliRemove(h);continue;}}
+    h.t+=dt;h.yaw+=h.yr*dt;const dir=V3(Math.sin(h.yaw),0,Math.cos(h.yaw));const v=dir.clone().multiplyScalar(h.sp);h.p.addScaledVector(v,dt);
+    h.bob+=dt;const bank=Math.atan(h.sp*h.yr/9.8)+Math.sin(h.bob*.6)*.025,pitch=.1+Math.sin(h.bob*.45+1)*.015;
+    h.g.position.set(h.p.x,h.p.y+Math.sin(h.bob*.5)*.6,h.p.z);h.g.rotation.set(pitch,h.yaw,bank,'YXZ');
+    h.ang+=dt*25.1;h.tang+=dt*115;HIND.spin(h.g,h.ang,h.tang,1);
+    /* the sound follows it, Doppler-shifted, darker with distance; the turbines only close in */
+    const d=h.p.distanceTo(cp);
+    if(h.snd){const S_=h.snd,tA=AC.currentTime;if(S_.pn.positionX){S_.pn.positionX.setTargetAtTime(h.p.x,tA,.03);S_.pn.positionY.setTargetAtTime(h.p.y,tA,.03);S_.pn.positionZ.setTargetAtTime(h.p.z,tA,.03);}else S_.pn.setPosition(h.p.x,h.p.y,h.p.z);
+      const rv=v.dot(_hlv.copy(h.p).sub(cp).normalize()),dop=343/(343+rv);S_.rot.s.playbackRate.setTargetAtTime(dop,tA,.05);S_.tur.s.playbackRate.setTargetAtTime(dop,tA,.05);
+      const edge=Math.min(1,h.t/6,(h.L-h.t*h.sp)/250);const fadeIn=clamp(edge,0,1);
+      S_.rot.g.gain.setTargetAtTime(S_.rot.g0*fadeIn,tA,.2);S_.tur.g.gain.setTargetAtTime(S_.tur.g0*fadeIn*Math.pow(clamp(1-d/650,0,1),1.6),tA,.2);
+      S_.lp.frequency.setTargetAtTime(lerp(9000,700,Math.pow(clamp(d/1300,0,1),.6)),tA,.1);if(d<400)AUD.lastGun=Math.max(AUD.lastGun,S.t-30);}
+    if(h.t*h.sp>h.L)heliRemove(h);}}
+/* built at boot: its materials compiled now (with the weather terms), not the first time one comes over */
+{const g=HIND.make();g.traverse(o=>{if(o.isMesh)(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>{if(typeof wetWrap==='function')wetWrap(m);});});
+ HIND.air.traverse(o=>{if(o.isMesh&&typeof wetWrap==='function')wetWrap(o.material);});
+ g.position.copy(camera.position).add(V3(0,-30,0));scene.add(g);try{renderer.compile(scene,camera);}catch(_){}scene.remove(g);}
+/* for the renders: put one where it is wanted, sharp blades or blurred */
+window.__hind={HIND,HELI,spawn:heliSpawn,remove:heliRemove,place(x,y,z,yaw=0,pitch=0,bank=0,blur=0,ang=0){const g=HIND.make();g.position.set(x,y,z);g.rotation.set(pitch,yaw,bank,'YXZ');HIND.spin(g,ang,ang*4,blur);scene.add(g);return g;}};
+
+/* ---------- the walk west through the forest: what is in these woods. The old exclusion fence, fallen in where you
+   cross it; a stand of red pines that took the fallout in '86 and still tick on the dosimeter; trees the wind tore out
+   by the roots; ant hills and fly agarics; ferns; a war memorial from '41 in its own small clearing, the fence round it
+   unpainted for decades. Shafts of sun through the canopy; crows that go up from a dead tree as you come; a cuckoo, a
+   woodpecker, and the artillery somewhere past the river. Morozov has a word for some of it. ---------- */
+const FW={shafts:[],crows:null,t:{cuckoo:14,wood:30,art:55,crk:20},said:{},art0:false};
+(function forestWalk(){const r_=rng(6060),rr=(a,b)=>a+(b-a)*r_();const bk=bucket();
+  /* room for what is put down: the trees the forest planted there are taken out (and their trunks' collision) */
+  const clearVeg=(x,z,r)=>{for(const t of VEG.types){const P=t.P,M=t.M,Cc=t.C;const keep=[];for(let i=0;i<P.length/2;i++)if(Math.hypot(P[i*2]-x,P[i*2+1]-z)>=r)keep.push(i);
+      if(keep.length===P.length/2)continue;const nP=[],nM=[],nC=[];keep.forEach(i=>{nP.push(P[i*2],P[i*2+1]);for(let k=0;k<16;k++)nM.push(M[i*16+k]);nC.push(Cc[i*3],Cc[i*3+1],Cc[i*3+2]);});
+      t.P.length=0;t.P.push(...nP);t.M.length=0;t.M.push(...nM);t.C.length=0;t.C.push(...nC);}
+    for(let i=solids.length-1;i>=0;i--){const s=solids[i];if(s.r!==undefined&&s.r<1&&Math.hypot(s.cx-x,s.cz-z)<r)solids.splice(i,1);}};
+  const pathZ=x=>{const P=ROUTE3;for(let i=0;i<P.length-1;i++){const a=P[i],b=P[i+1];if(x<=a[0]&&x>=b[0]){const t=(x-a[0])/(b[0]-a[0]);return lerp(a[1],b[1],t);}}return -392;};
+  const inClear=(x,z)=>Math.hypot(x-W3.clear.x,z-W3.clear.z)<W3.clear.r+1;
+
+  /* ===== the exclusion fence: concrete posts, three strands of barbed wire, fallen flat where the path crosses ===== */
+  {const X0=-331,posts=[],wires=[];const pz=pathZ(X0);const cm=std({map:PB.precast.a,normalMap:PB.precast.n,color:C(0x8a867c),roughness:1,envMapIntensity:.25});
+   for(let z=pz-40;z<=pz+40;z+=3.2){const x=X0+Math.sin(z*.13)*.8+rr(-.15,.15);const down=Math.abs(z-pz)<5.5;const lean=down?rr(.9,1.35)*(r_()<.5?-1:1):rr(-.12,.12);
+     const y=H(x,z);clearVeg(x,z,.9);const M4=TRS(x,y-.25,z,lean*.7,rr(-.2,.2),lean*.3);const g=rbox(.12,1.85,.12,.015);g.translate(0,.92,0);bk.add(g,cm,M4);
+     posts.push({x,z,y,lean,down,M4});if(!down)solids.push({cx:x,cz:z,r:.12});}
+   const wire=[];for(let i=0;i<posts.length-1;i++){const a=posts[i],b=posts[i+1];if(a.down||b.down)continue;if(r_()<.12)continue;
+     [.5,.95,1.4].forEach((hh,k)=>{if(r_()<.1)return;const A=V3(0,hh,0).applyMatrix4(a.M4),B=V3(0,hh,0).applyMatrix4(b.M4);const n=8;let prev=A;
+       for(let s=1;s<=n;s++){const u=s/n,q=A.clone().lerp(B,u);q.y-=Math.sin(u*Math.PI)*(.08+k*.03);wire.push(prev.x,prev.y,prev.z,q.x,q.y,q.z);
+         const m_=prev.clone().lerp(q,.5);wire.push(m_.x-.03,m_.y-.025,m_.z,m_.x+.03,m_.y+.025,m_.z,m_.x,m_.y-.025,m_.z-.03,m_.x,m_.y+.025,m_.z+.03);prev=q;}});}
+   /* by the gap: a coil of wire lying in the grass where someone dragged it aside */
+   for(let k=0;k<3;k++){const cx=X0+rr(-1.5,1.5),cz=pz+(k-1)*2.2+rr(-.5,.5);let prev=null;for(let i=0;i<=60;i++){const a=i/60*Math.PI*2*3,q=V3(cx+Math.cos(a)*.38+i*.012,H(cx,cz)+.32+Math.sin(a)*.3,cz+Math.sin(a*.5)*.1);if(prev)wire.push(prev.x,prev.y,prev.z,q.x,q.y,q.z);prev=q;}}
+   const wg=new T.BufferGeometry();wg.setAttribute('position',new T.Float32BufferAttribute(wire,3));scene.add(new T.LineSegments(wg,new T.LineBasicMaterial({color:C(0x3a2f26)})));
+   /* the sign on the last post standing before the gap, hanging off one bolt */
+   const sp=posts.filter(p=>!p.down&&p.z<pz).pop()||posts[0];
+   const st=tex(512,320,(c,w,h)=>{c.fillStyle='#d6b42a';c.fillRect(0,0,w,h);c.strokeStyle='#14120c';c.lineWidth=12;c.strokeRect(9,9,w-18,h-18);c.fillStyle='#14120c';const cx=95,cy=110,R0=70;
+     c.beginPath();c.arc(cx,cy,R0*.2,0,7);c.fill();for(let k=0;k<3;k++){const a=-Math.PI/2+k*2.094;c.beginPath();c.arc(cx,cy,R0,a-.52,a+.52);c.arc(cx,cy,R0*.3,a+.52,a-.52,true);c.fill();}
+     c.textAlign='center';c.fillStyle='#14120c';fitLine(c,'ЗОНА',340,90,280,56,'bold');fitLine(c,'ОТЧУЖДЕНИЯ',340,150,290,44,'bold');c.fillStyle='#a8160f';fitLine(c,'ПРОХОД ЗАПРЕЩЁН',w/2,232,470,38,'bold');
+     c.fillStyle='#14120c';fitLine(c,'Министерство здравоохранения СССР · 1987',w/2,288,460,18,'');
+     const q=rng(71);for(let i=0;i<16;i++){const x0=q()*w,y0=q()*h;const gr=c.createLinearGradient(x0,y0,x0,y0+80+q()*120);gr.addColorStop(0,'rgba(110,52,18,.65)');gr.addColorStop(1,'rgba(110,52,18,0)');c.fillStyle=gr;c.fillRect(x0,y0,3+q()*6,200);}
+     for(let i=0;i<260;i++){c.fillStyle=`rgba(${q()<.5?'84,74,54':'60,38,20'},${.25+q()*.5})`;c.beginPath();c.arc(q()*w,q()*h,q()*5+1,0,7);c.fill();}});
+   const sg=new T.Group();sg.position.copy(V3(0,1.5,0).applyMatrix4(sp.M4));sg.rotation.set(.04,Math.PI/2+.06,.24);scene.add(sg);
+   mesh(rbox(.82,.52,.012,.006),WM.rust,-.37,-.23,.075,sg);mesh(new T.PlaneGeometry(.8,.5),std({map:st,roughness:.75,metalness:.2,polygonOffset:true,polygonOffsetFactor:-2}),-.37,-.23,.0825,sg,false);
+   mesh(new T.CylinderGeometry(.014,.014,.1,10),WM.rust,0,0,.06,sg).rotation.x=Math.PI/2;sg.traverse(q=>{if(q.isMesh){q.castShadow=true;shootables.push(q);}});
+   FW.fence=X0;}
+
+  /* ===== the red pines: a stand of Scots pine south of the path that died standing; needles rust-red, bark black ===== */
+  {const cx=REDPINE.x,cz=REDPINE.z,R0=REDPINE.r;FW.red=REDPINE;hotspots.push({x:cx,z:cz,r:R0+6,uSv:6.5});
+   clearVeg(cx,cz,R0*.8);const L=speciesTypes(scotsGeo,woodMat.bark,MS,TX.tuft),Ld=speciesTypes(deadGeo,woodMat.dead,null,null);
+   const col=new T.Color();
+   for(let i=0;i<26;i++){const a=rr(0,6.28),d=Math.sqrt(r_())*R0,x=cx+Math.cos(a)*d,z=cz+Math.sin(a)*d;if(Math.abs(z-pathZ(x))<3.5)continue;
+     if(r_()<.28){const t=Ld[r_()*Ld.length|0],s=rr(.9,1.3);vegPut(t,x,H(x,z)-.15,z,rr(0,6.28),s,s*rr(.9,1.1),null,null);solids.push({cx:x,cz:z,r:.2*s});continue;}
+     const t=L[r_()*L.length|0],s=rr(.75,1.1);col.setRGB(rr(4.2,5),rr(1.1,1.4),rr(.34,.46));vegPut(t,x,H(x,z)-.15,z,rr(0,6.28),s,s*rr(.9,1.1),col,[rr(-.03,.03),rr(-.03,.03)]);solids.push({cx:x,cz:z,r:.3*s});}
+   /* their needles, fallen thick and rust-coloured on the ground under them */
+   const nt=tex(256,256,(c,w,h)=>{c.clearRect(0,0,w,h);const q=rng(5);for(let i=0;i<2600;i++){const x=q()*w,y=q()*h,a=q()*6.28,l=4+q()*9;const d=Math.hypot(x-w/2,y-h/2)/(w/2);if(q()>1.15-d)continue;
+       c.strokeStyle=`rgba(${120+q()*50|0},${52+q()*30|0},${22+q()*16|0},${.55+q()*.4})`;c.lineWidth=1.2;c.beginPath();c.moveTo(x,y);c.lineTo(x+Math.cos(a)*l,y+Math.sin(a)*l);c.stroke();}},{clamp:true});
+   const nm=std({map:nt,transparent:true,depthWrite:false,roughness:1,polygonOffset:true,polygonOffsetFactor:-3,envMapIntensity:.15});
+   for(let k=0;k<9;k++){const x=cx+rr(-R0,R0)*.8,z=cz+rr(-R0,R0)*.8,R=rr(4,7);const g=new T.PlaneGeometry(R*2,R*2,10,10);g.rotateX(-Math.PI/2);const p=g.attributes.position;
+     for(let i=0;i<p.count;i++){const X=x+p.getX(i),Z=z+p.getZ(i);p.setXYZ(i,X,H(X,Z)+.025,Z);}g.computeVertexNormals();const m=new T.Mesh(g,nm);m.receiveShadow=true;m.renderOrder=2;scene.add(m);}}
+
+  /* the dead pine the crows sit in, by the path */
+  {const x=-372,z=-382;clearVeg(x,z,2.5);const t=speciesTypes(deadGeo,woodMat.dead,null,null)[0];vegPut(t,x,H(x,z)-.15,z,1.1,1.35,1.4,null,null);solids.push({cx:x,cz:z,r:.3});}
+  /* ===== windthrow: two trees the wind tore out by the roots - the trunk down, the root plate stood on edge with
+     the earth still in it, the pit it came out of ===== */
+  const soil=std({map:PB.mud.a,normalMap:PB.mud.n,color:C(0xa08a70),roughness:1,envMapIntensity:.2}),rootM=std({map:TX.bark,color:C(0x5a4a3a),roughness:1});
+  [[-347,-376,.5],[-429,-384.5,2.6]].forEach(([x,z,yaw])=>{clearVeg(x,z,5);const y=H(x,z);const dx=Math.sin(yaw),dz=Math.cos(yaw);
+    /* the root plate */
+    const rp=new T.CylinderGeometry(1.45,1.3,.42,26,2);{const q=rp.attributes.position;for(let i=0;i<q.count;i++){const a=Math.atan2(q.getZ(i),q.getX(i)),rad=Math.hypot(q.getX(i),q.getZ(i));const k=1+.18*Math.sin(a*3+1)+.1*Math.sin(a*7);q.setX(i,q.getX(i)*k);q.setZ(i,q.getZ(i)*k);q.setY(i,q.getY(i)+(n3(q.getX(i)*2,q.getY(i)*2,q.getZ(i)*2)-.5)*.25*(rad>.5?1:0));}rp.computeVertexNormals();}
+    const RM=TRS(x,y+1.15,z,Math.PI/2-.12,yaw,0);bk.add(rp,soil,RM);
+    for(let i=0;i<16;i++){const a=rr(0,6.28),ln=rr(.6,1.6);const st_=V3(Math.cos(a)*rr(.9,1.4),rr(-.2,.25),Math.sin(a)*rr(.9,1.4));const en=st_.clone().multiplyScalar(1+ln).add(V3(0,rr(-.4,.4),0));
+      const pts=[st_,st_.clone().lerp(en,.5).add(V3(rr(-.15,.15),rr(-.15,.15),rr(-.15,.15))),en].map(v=>v.applyMatrix4(RM));bk.add(new T.TubeGeometry(new T.CatmullRomCurve3(pts),8,rr(.02,.06),6,false),rootM);}
+    /* the trunk, lying away from the plate */
+    const A=V3(x+dx*.25,y+1.0,z+dz*.25),B=V3(x+dx*13,H(x+dx*13,z+dz*13)+.3,z+dz*13);putLogAB(bk,.3,A,B,WM.bark);
+    for(let k=0;k<5;k++){const t=rr(.35,.95),bl=rr(.6,1.8);const p0=A.clone().lerp(B,t);const br=new T.CylinderGeometry(.02,.06,bl,8);br.translate(0,bl/2,0);bk.add(br,WM.bark,TRS(p0.x,p0.y,p0.z,rr(.6,1.5),rr(0,6.28),0));}
+    for(let k=0;k<=8;k++){const p0=A.clone().lerp(B,k/8);solids.push({cx:p0.x,cz:p0.z,r:.38});}solids.push({cx:x,cz:z,r:1.4});
+    /* the pit */
+    {const g=new T.CircleGeometry(1.5,24);g.rotateX(-Math.PI/2);const q=g.attributes.position;for(let i=0;i<q.count;i++){const X=x-dx*1.2+q.getX(i),Z=z-dz*1.2+q.getZ(i),rad=Math.hypot(q.getX(i),q.getZ(i));q.setXYZ(i,X,H(X,Z)+.02-.35*Math.max(0,1-rad/1.5),Z);}g.computeVertexNormals();bk.add(g,soil);}});
+
+  /* ===== ant hills: domes of needles and twigs at the foot of the pines ===== */
+  const needleT=tex(256,256,(c,w,h)=>{c.fillStyle='#6e5640';c.fillRect(0,0,w,h);const q=rng(33);for(let i=0;i<3200;i++){const x=q()*w,y=q()*h,a=q()*6.28,l=3+q()*7;const k=q();
+      c.strokeStyle=k<.45?`rgba(${150+q()*40|0},${112+q()*30|0},${70+q()*20|0},.9)`:k<.8?`rgba(${70+q()*20|0},${52+q()*14|0},${36+q()*10|0},.9)`:`rgba(${120+q()*30|0},${84+q()*20|0},${40+q()*14|0},.9)`;
+      c.lineWidth=1.3;c.beginPath();c.moveTo(x,y);c.lineTo(x+Math.cos(a)*l,y+Math.sin(a)*l);c.stroke();}},{rep:[3,2]});
+  const needle=std({map:needleT,roughness:1,envMapIntensity:.25});
+  [[-364,-383],[-341,-399],[-456,-380],[-452,-404],[-318,-404]].forEach(([x,z],k)=>{const s=rr(.6,1),y=H(x,z);
+    const g=lathe([[.95,0],[.86,.08],[.72,.28],[.5,.52],[.25,.68],[0,.72]],28);const q=g.attributes.position;for(let i=0;i<q.count;i++){const X=q.getX(i),Y=q.getY(i),Z=q.getZ(i);const n=n3(X*9+k,Y*9,Z*9);q.setXYZ(i,X*(1+(n-.5)*.12),Y*(1+(n-.5)*.2),Z*(1+(n-.5)*.12));}g.computeVertexNormals();
+    bk.add(g,needle,TRS(x,y-.05,z,0,rr(0,6),0,s));for(let i=0;i<14;i++){const a=rr(0,6.28),d=rr(.1,.8)*s;bk.add(new T.CylinderGeometry(.006,.008,rr(.1,.25),4),WM.bark,TRS(x+Math.cos(a)*d,y+.7*s*(1-d/s/.95)*.95,z+Math.sin(a)*d,rr(.8,1.6),rr(0,6),0));}
+    solids.push({cx:x,cz:z,r:.8*s});});
+
+  /* ===== fly agarics in rings under the birches ===== */
+  {const capT=tex(128,128,(c,w,h)=>{c.fillStyle='#b8261a';c.fillRect(0,0,w,h);const q=rng(9);const g=c.createRadialGradient(w/2,h/2,4,w/2,h/2,w/2);g.addColorStop(0,'rgba(120,20,10,.5)');g.addColorStop(1,'rgba(240,120,40,.35)');c.fillStyle=g;c.fillRect(0,0,w,h);
+      for(let i=0;i<40;i++){c.fillStyle=`rgba(240,236,220,${.7+q()*.3})`;c.beginPath();c.arc(q()*w,q()*h,2+q()*4,0,7);c.fill();}});
+   const capM=std({map:capT,roughness:.45,envMapIntensity:.4}),stemM=std({color:C(0xe6e0cc),roughness:.7});
+   const capG=lathe([[0,.012],[.06,.01],[.07,.012],[.068,.025],[.055,.045],[.03,.058],[0,.06]],20),stemG=lathe([[0,0],[.016,0],[.014,.02],[.012,.05],[.014,.06],[0,.06]],12);
+   {const q=capG.attributes.position,uv=capG.attributes.uv;for(let i=0;i<q.count;i++)uv.setXY(i,q.getX(i)*6+.5,q.getZ(i)*6+.5);}
+   [[-345,-386,7],[-379,-401,5],[-424,-397,6],[-463,-389,4]].forEach(([x,z,n])=>{for(let i=0;i<n;i++){const a=i/n*6.28+rr(-.3,.3),d=rr(.4,1.3),X=x+Math.cos(a)*d,Z=z+Math.sin(a)*d,s=rr(.8,1.6),y=H(X,Z);
+      bk.add(stemG,stemM,TRS(X,y-.005,Z,rr(-.1,.1),0,rr(-.1,.1),s));bk.add(capG,capM,TRS(X,y+.05*s,Z,rr(-.15,.15),rr(0,6),rr(-.15,.15),s));}});}
+
+  /* ===== the memorial: a mass grave from 1941 in a little clearing off the path - a stepped plinth, the obelisk with
+     its star, the plaque, a low iron fence once painted blue, a faded wreath ===== */
+  {const x=-447,z=-405,yaw=-.25;clearVeg(x,z,6.5);const y=Math.min(H(x,z),H(x+1.5,z),H(x-1.5,z),H(x,z+1.5),H(x,z-1.5));const g=new T.Group();g.position.set(x,y,z);g.rotation.y=yaw;scene.add(g);
+   const pc=std({map:PB.precast.a,normalMap:PB.precast.n,color:C(0xc8c2b4),roughness:1,envMapIntensity:.3}),pc2=std({map:PB.precast.a,normalMap:PB.precast.n,color:C(0x9d988c),roughness:1,envMapIntensity:.3});
+   mesh(rbox(2.4,.25,2.4,.03),pc2,0,.08,0,g);mesh(rbox(1.7,.3,1.7,.03),pc,0,.35,0,g);
+   const ob=rbox(.62,3.1,.62,.02);{const q=ob.attributes.position;for(let i=0;i<q.count;i++){const t=(q.getY(i)+1.55)/3.1,k=lerp(1,.55,t);q.setX(i,q.getX(i)*k);q.setZ(i,q.getZ(i)*k);}ob.computeVertexNormals();}
+   mesh(ob,pc,0,2.05,0,g);
+   const star=new T.Shape();for(let i=0;i<10;i++){const a=Math.PI/2+i*Math.PI/5,r=i%2?.075:.19;if(i)star.lineTo(Math.cos(a)*r,Math.sin(a)*r);else star.moveTo(Math.cos(a)*r,Math.sin(a)*r);}
+   const sg=new T.ExtrudeGeometry(star,{depth:.04,bevelEnabled:true,bevelThickness:.012,bevelSize:.01,bevelSegments:2});sg.translate(0,0,-.02);
+   mesh(sg,std({color:C(0x7a1a14),roughness:.55,metalness:.3}),0,3.82,0,g);
+   const pl=tex(512,384,(c,w,h)=>{c.fillStyle='#3a3a36';c.fillRect(0,0,w,h);c.strokeStyle='#b8a56a';c.lineWidth=6;c.strokeRect(14,14,w-28,h-28);c.fillStyle='#d2c08a';c.textAlign='center';
+     fitLine(c,'ВЕЧНАЯ СЛАВА',w/2,92,440,48,'bold');fitLine(c,'ГЕРОЯМ, ПАВШИМ',w/2,150,440,34,'bold');fitLine(c,'В БОЯХ ЗА РОДИНУ',w/2,196,440,34,'bold');fitLine(c,'1941 — 1945',w/2,276,440,46,'bold');
+     fitLine(c,'Здесь похоронены 37 бойцов 141-й стрелковой дивизии',w/2,334,450,17,'');const q=rng(8);for(let i=0;i<160;i++){c.fillStyle=`rgba(${q()<.5?'90,96,70':'40,40,36'},${q()*.4})`;c.beginPath();c.arc(q()*w,q()*h,q()*6+1,0,7);c.fill();}});
+   const pm=mesh(new T.PlaneGeometry(.5,.38),std({map:pl,roughness:.5,metalness:.4,polygonOffset:true,polygonOffsetFactor:-2}),0,1.25,.296,g,false);pm.rotation.x=-.06;
+   /* the fence: pickets with pointed tops on two rails, faded blue paint flaking to rust; the gate hanging */
+   const blue=std({map:PB.rust.a,color:C(0x8aa4b4),roughness:.7,metalness:.35}),pk=new T.CylinderGeometry(.012,.012,.62,8);pk.translate(0,.31,0);const tip=new T.ConeGeometry(.022,.07,4);tip.translate(0,.655,0);
+   const S=1.85,G0=.36,G1=.62;for(const [ax,az,lx,lz] of [[-1,-1,1,0],[1,-1,0,1],[1,1,-1,0],[-1,1,0,-1]]){const front=az===1&&lx===-1,n=12;for(let i=0;i<n;i++){const t=i/n;const px=ax*S+lx*t*2*S,pz=az*S+lz*t*2*S;if(front&&t>G0&&t<G1)continue;
+       const lean=rr(-.06,.06);const M4=TRS(px,0,pz,lean,0,rr(-.05,.05));mesh(pk.clone().applyMatrix4(M4),blue,0,0,0,g);mesh(tip.clone().applyMatrix4(M4),blue,0,0,0,g);}
+     (front?[[0,G0],[G1,1]]:[[0,1]]).forEach(([t0,t1])=>[.18,.5].forEach(hh=>{const L=2*S*(t1-t0),tm=(t0+t1)/2,m=mesh(new T.BoxGeometry(L,.03,.012),blue,ax*S+lx*tm*2*S,hh,az*S+lz*tm*2*S,g);m.rotation.y=lx?0:Math.PI/2;}));}
+   /* the gate, hinged at the post by the gap and standing open */
+   {const gw=2*S*(G1-G0)-.06,hx=S-2*S*G0,gt=new T.Group();gt.position.set(hx,0,S);gt.rotation.y=1.25;g.add(gt);
+    for(let i=0;i<4;i++){const x=-(.04+i*(gw-.08)/3);mesh(pk.clone(),blue,x,.02,0,gt);mesh(tip.clone(),blue,x,.02,0,gt);}
+    [.2,.52].forEach(hh=>mesh(new T.BoxGeometry(gw,.03,.012),blue,-gw/2,hh,0,gt));}
+   /* the wreath of faded plastic flowers against the plinth */
+   {const wg=new T.TorusGeometry(.19,.05,10,28);const wm=std({color:C(0x4a5a3a),roughness:.85});const w=mesh(wg,wm,.25,.205+.235,.93,g);w.rotation.set(-.12,.1,0);
+    const fl=std({color:C(0xa86a6a),roughness:.7});for(let i=0;i<9;i++){const a=i/9*6.28+.3;mesh(new T.SphereGeometry(.036,10,8),fl,Math.cos(a)*.19,Math.sin(a)*.19,.035,w);}
+    const rb=mesh(new T.PlaneGeometry(.05,.24),std({color:C(0x8a3a30),roughness:.8,side:T.DoubleSide}),.04,-.27,.02,w);rb.rotation.z=.2;
+    /* two carnations laid on the top step */
+    for(let k=0;k<2;k++){const st_=mesh(new T.CylinderGeometry(.004,.004,.32,6),std({color:C(0x4a5a30),roughness:.8}),-.3+k*.09,.505,.62,g);st_.rotation.set(Math.PI/2,0,.3-k*.5);
+     const hd=mesh(new T.SphereGeometry(.03,10,8),fl,-.3+k*.09+Math.sin(.3-k*.5)*-.16,.52,.62+.16,g);hd.scale.set(1,.8,1);}}
+   g.traverse(q=>{if(q.isMesh){q.castShadow=true;q.receiveShadow=true;shootables.push(q);}});solids.push({cx:x,cz:z,r:1.05});FW.mem=V3(x,y,z);}
+
+  /* ===== ferns over the forest floor either side of the path ===== */
+  {const fr=[];for(let k=0;k<7;k++){const g=new T.PlaneGeometry(.2,.7,1,5);g.translate(0,.35,0);const p=g.attributes.position;for(let i=0;i<p.count;i++){const y=p.getY(i);p.setZ(i,y*y*.5);}
+      g.rotateX(-.55-.25*r_());g.rotateY(k/7*6.283+r_()*.4);g.computeVertexNormals();fr.push(g);}
+   const fg=merge(fr);const list=[];
+   for(let i=0;i<900&&list.length<420;i++){const x=rr(-468,-306),z=pathZ(x)+(r_()<.5?-1:1)*rr(2.4,26);if(inClear(x,z)||forestF(x,z)<=0)continue;if(FW.red&&Math.hypot(x-FW.red.x,z-FW.red.z)<FW.red.r*.7)continue;
+     if(n3(x*.08,0,z*.08)<.42)continue;list.push([x,z]);}
+   const m=new T.InstancedMesh(fg,leafMat(TX.fern,'f2'),list.length);m.customDepthMaterial=depthMat(TX.fern);m.castShadow=m.receiveShadow=true;const o=new T.Object3D(),c=new T.Color();
+   list.forEach(([x,z],k)=>{const s=rr(.8,1.5);o.position.set(x,H(x,z)-.04,z);o.rotation.set(0,rr(0,6.28),0);o.scale.set(s,s*rr(.85,1.2),s);o.updateMatrix();m.setMatrixAt(k,o.matrix);c.setRGB(1,1,1).offsetHSL(rr(-.03,.04),rr(-.15,.05),rr(-.08,.05));m.setColorAt(k,c);});
+   fitInstBounds(m,list,2);scene.add(m);FW.ferns=list.length;}
+
+  /* ===== deadfall: old trunks lying where they fell, grey and mossed; snapped branches; stumps ===== */
+  {const moss=std({map:TX.bark,color:C(0x7d826a),roughness:1,envMapIntensity:.2}),grey=std({map:TX.bark,color:C(0x8a847a),roughness:1,envMapIntensity:.2});
+   let logs=0,tries=0;while(logs<16&&tries<400){tries++;const x=rr(-466,-334),z=pathZ(x)+(r_()<.5?-1:1)*rr(4,30);if(inClear(x,z)||forestF(x,z)<=0)continue;
+     if(Math.hypot(x-REDPINE.x,z-REDPINE.z)<REDPINE.r*.8||(FW.mem&&Math.hypot(x-FW.mem.x,z-FW.mem.z)<9))continue;const yaw=rr(0,6.28),L=rr(4,9),r=rr(.14,.26);
+     const dx=Math.sin(yaw)*L/2,dz=Math.cos(yaw)*L/2;let bad=false;for(let k=-1;k<=1;k++){const px=x+dx*k,pz=z+dz*k;if(Math.abs(pz-pathZ(px))<2.6||inClear(px,pz))bad=true;}if(bad)continue;
+     const A=V3(x-dx,H(x-dx,z-dz)+r*.6,z-dz),B=V3(x+dx,H(x+dx,z+dz)+r*.6,z+dz);const mid=A.clone().lerp(B,.5),gm=H(mid.x,mid.z)+r*.6;if(mid.y<gm)A.y+=gm-mid.y,B.y+=gm-mid.y;
+     putLogAB(bk,r,A,B,r_()<.6?moss:grey);for(let k=0;k<=4;k++){const p0=A.clone().lerp(B,k/4);solids.push({cx:p0.x,cz:p0.z,r:r+.08});}
+     for(let k=0;k<3;k++){const p0=A.clone().lerp(B,rr(.15,.85)),bl=rr(.4,1.1);const br=new T.CylinderGeometry(.012,.035,bl,8);br.translate(0,bl/2,0);bk.add(br,grey,TRS(p0.x,p0.y,p0.z,rr(-1.2,1.2),yaw,rr(-1.2,1.2)));}
+     logs++;}
+   for(let i=0;i<70;i++){const x=rr(-468,-332),z=pathZ(x)+rr(-28,28);if(inClear(x,z))continue;const bl=rr(.6,1.8),yaw=rr(0,6.28),y=H(x,z)+.03;
+     const br=new T.CylinderGeometry(.012,.03,bl,8);br.rotateZ(Math.PI/2);bk.add(br,grey,TRS(x,y,z,0,yaw,rr(-.08,.08)));
+     if(r_()<.6){const tw=new T.CylinderGeometry(.006,.012,bl*.4,6);tw.translate(0,bl*.2,0);bk.add(tw,grey,TRS(x+Math.cos(yaw)*bl*.15,y,z-Math.sin(yaw)*bl*.15,rr(.4,1.2),yaw+rr(-1,1),0));}}
+   for(let i=0;i<9;i++){const x=rr(-466,-336),z=pathZ(x)+(r_()<.5?-1:1)*rr(3.5,22);if(inClear(x,z))continue;const r=rr(.2,.38),h=rr(.25,.7),y=H(x,z);
+     const st=new T.CylinderGeometry(r*.92,r*1.12,h,22,1,true);st.translate(0,h/2-.05,0);bk.add(st,moss,TRS(x,y,z,0,rr(0,6),0));
+     const top=new T.CircleGeometry(r*.9,22);top.rotateX(-Math.PI/2);{const q=top.attributes.position;for(let k=0;k<q.count;k++)q.setY(k,(n3(q.getX(k)*9+i,0,q.getZ(k)*9)-.5)*.06);}top.computeVertexNormals();
+     bk.add(top,WM.end,TRS(x,y+h-.05,z,rr(-.12,.12),0,rr(-.12,.12)));solids.push({cx:x,cz:z,r:r+.05});}}
+
+  bk.flush(scene,true);
+
+  /* ===== shafts of sun through the canopy: soft additive beams along the sun's direction, turned to face you ===== */
+  {const t=tex(64,256,(c,w,h)=>{const im=c.createImageData(w,h),d=im.data;for(let y=0;y<h;y++)for(let x=0;x<w;x++){const u=x/(w-1)*2-1,v=y/(h-1);const a=Math.pow(Math.max(0,1-u*u),1.6)*Math.sin(Math.PI*v)*(.75+.25*Math.sin(v*9+u*2));
+      const i=(y*w+x)*4;d[i]=255;d[i+1]=236;d[i+2]=190;d[i+3]=clamp(a,0,1)*255;}c.putImageData(im,0,0);},{clamp:true});
+   const g=new T.PlaneGeometry(1,1);const ax=SUN.clone().negate();
+   for(let i=0;i<18;i++){const x=rr(-462,-308),z=pathZ(x)+rr(-14,14);if(inClear(x,z))continue;const m=new T.MeshBasicMaterial({map:t,transparent:true,depthWrite:false,blending:T.AdditiveBlending,opacity:0,fog:false,side:T.DoubleSide});
+     const me=new T.Mesh(g,m);const L=rr(26,40),W=rr(.9,2.6);const base=V3(x,H(x,z)+.2,z);const mid=base.clone().addScaledVector(ax,-L*.5);me.position.copy(mid);me.scale.set(W,L,1);me.renderOrder=9;me.frustumCulled=false;
+     me.userData={mid,ax:ax.clone(),k:rr(.5,1),ph:rr(0,6)};scene.add(me);FW.shafts.push(me);}}})();
+/* ---- flight of crows: up from the dead tree as you come, scattering, cawing ---- */
+function crowFlock(at){const mat=std({color:C(0x111111),roughness:.6,envMapIntensity:.3});const list=[];
+  for(let i=0;i<8;i++){const g=new T.Group();const body=new T.Mesh(new T.SphereGeometry(.09,10,8),mat);body.scale.set(.7,.7,1.8);g.add(body);const head=new T.Mesh(new T.SphereGeometry(.055,8,6),mat);head.position.set(0,.03,.17);g.add(head);
+    const beak=new T.Mesh(new T.ConeGeometry(.018,.07,6),mat);beak.rotation.x=Math.PI/2;beak.position.set(0,.025,.24);g.add(beak);const tail=new T.Mesh(new T.PlaneGeometry(.12,.16),mat);tail.rotation.x=-Math.PI/2;tail.position.set(0,0,-.22);g.add(tail);
+    const wings=[-1,1].map(s=>{const p=new T.Group();p.position.set(s*.05,.02,0);const w=new T.Mesh(new T.PlaneGeometry(.42,.2),mat);w.material.side=T.DoubleSide;w.position.x=s*.21;w.rotation.x=-Math.PI/2;p.add(w);g.add(p);return p;});
+    g.position.copy(at).add(V3((Math.random()-.5)*3,Math.random()*2,(Math.random()-.5)*3));const v=V3((Math.random()-.5)*6,3+Math.random()*3,(Math.random()-.5)*6).add(V3(-4,0,0));scene.add(g);list.push({g,v,wings,ph:Math.random()*6,t:0});}
+  FW.crows={list,t:0};for(let k=0;k<3;k++)setTimeout(()=>{if(sfx.caw)sfx.caw();},k*500+Math.random()*300);}
+function forestTick(dt){if(S.chapter!==3)return;const px=player.pos.x,pz=player.pos.z,cp=camera.position;const inF=px<-300&&px>-470;
+  /* sun shafts: only in the woods, only with the sun out, never when you stand in one */
+  /* (haze is what makes them show: more of it, stronger beams - as long as the sun still gets through) */
+  const sunK=(1-clamp((WEATHER.cov||0)*1.4,0,1))*(1-.6*(WEATHER.dim||0))*(1+clamp(((WEATHER.fogX||1)-1)*2,0,.8));
+  for(const m of FW.shafts){const u=m.userData;const d=Math.hypot(u.mid.x-cp.x,u.mid.z-cp.z);const want=inF?sunK*u.k*.2*(1-sstep(55,80,d))*sstep(2.5,6,d)*(.8+.2*Math.sin(S.t*.4+u.ph)):0;
+    m.material.opacity=damp(m.material.opacity,want,1.2,dt);m.visible=m.material.opacity>.003;if(!m.visible)continue;
+    /* turn about the beam's own axis to face the camera */
+    const to=cp.clone().sub(u.mid);to.addScaledVector(u.ax,-to.dot(u.ax)).normalize();const xA=u.ax.clone().cross(to).normalize();m.matrix.makeBasis(xA.multiplyScalar(m.scale.x),u.ax.clone().multiplyScalar(-m.scale.y),to);m.matrix.setPosition(u.mid);m.matrixAutoUpdate=false;m.matrixWorldNeedsUpdate=true;}
+  /* crows */
+  if(!FW.crows&&!FW.said.crows&&px<-360&&px>-380&&S.state==='play'){FW.said.crows=1;crowFlock(V3(-372,H(-372,-381)+7,-381));}
+  if(FW.crows){const C_=FW.crows;C_.t+=dt;for(const c of C_.list){c.t+=dt;c.v.y+=dt*.6;c.g.position.addScaledVector(c.v,dt);c.g.lookAt(c.g.position.clone().add(c.v));c.ph+=dt*(c.t<2?16:9);const f=Math.sin(c.ph)*.9;c.wings[0].rotation.z=f;c.wings[1].rotation.z=-f;}
+    if(C_.t>10){C_.list.forEach(c=>scene.remove(c.g));FW.crows=null;}}
+  if(!inF||S.state!=='play'||typeof CH3==='undefined'||CH3.stage<1||CH3.stage>2)return;
+  /* sounds of the woods */
+  const T_=FW.t,A=AUD;if(!A||!A.pan||!AC)return;const calm=S.t-AUD.lastGun>30;
+  T_.cuckoo-=dt;if(T_.cuckoo<=0){T_.cuckoo=22+Math.random()*30;if(calm){const a=Math.random()*6.28,r=40+Math.random()*50;const out=A.pan(V3(cp.x+Math.cos(a)*r,cp.y+10,cp.z+Math.sin(a)*r),14,1,false,.8);const n=3+Math.floor(Math.random()*4);
+      for(let i=0;i<n;i++){A.tone(690,680,.16,.12,i*.62,out,'sine',.03);A.tone(560,548,.24,.11,i*.62+.2,out,'sine',.03);}}}
+  T_.wood-=dt;if(T_.wood<=0){T_.wood=28+Math.random()*40;if(calm){const a=Math.random()*6.28,r=25+Math.random()*35;const out=A.pan(V3(cp.x+Math.cos(a)*r,cp.y+7,cp.z+Math.sin(a)*r),10,1,false,.7);const n=14+Math.floor(Math.random()*8);
+      for(let i=0;i<n;i++)A.burst(.022,.5*(1-i/n*.5),1800,700,'bandpass',3,i*(.058-i*.0008),out,.0008);}}
+  T_.art-=dt;if(T_.art<=0){T_.art=60+Math.random()*60;const a=Math.random()*6.28;const out=A.pan(V3(cp.x+Math.cos(a)*900,cp.y,cp.z+Math.sin(a)*900),200,.4,false,.9);const nn=1+Math.floor(Math.random()*3);
+    const lp=AC.createBiquadFilter();lp.type='lowpass';lp.frequency.value=280;lp.Q.value=.4;lp.connect(out);
+    for(let i=0;i<nn;i++){const dl=i*(.8+Math.random()*1.4);if(!(A.play&&A.play('boom',lp,.9,.62+Math.random()*.12,dl)))A.burst(1.8,.9,260,40,'lowpass',.6,dl,lp,.02);A.tone(40,22,1.6,.45,dl,lp,'sine',.05);}
+    if(!FW.said.art&&CH3.q.length===0){FW.said.art=1;setTimeout(()=>{if(S.state==='play'&&CH3.q.length<2)ch3Say([['CAPTAIN MOROZOV','Hear that? Guns, far off. Past the river… ours, by the sound.',3.6]]);},2600);}}
+  T_.crk-=dt;if(T_.crk<=0){T_.crk=14+Math.random()*24;const a=Math.random()*6.28,r=8+Math.random()*14;const out=A.pan(V3(cp.x+Math.cos(a)*r,cp.y-1,cp.z+Math.sin(a)*r),4,1,true,.4);A.burst(.04,.35,1600,700,'bandpass',2,0,out,.001);A.burst(.06,.2,900,300,'bandpass',1.5,.03,out,.002);}
+  /* Morozov, now and then */
+  const say=(k,L,cond)=>{if(FW.said[k]||!cond||CH3.q.length)return;FW.said[k]=1;ch3Say(L);};
+  say('fence',[['CAPTAIN MOROZOV','The old exclusion fence. Nobody has mended it in thirty years… nobody needed to.',4.4]],px<-326);
+  say('red',[['CAPTAIN MOROZOV','Red pines. They took the dose in eighty-six and they still hold it. Don\'t touch the bark — and don\'t stop here.',5.2]],FW.red&&Math.hypot(px-FW.red.x,pz-FW.red.z)<FW.red.r+12);
+  say('mem',[['CAPTAIN MOROZOV','Forty-one. Somebody held a line in these woods then, too.',3.4],['CAPTAIN MOROZOV','Nobody comes to paint the fence any more. Keep moving, Sergeant.',3.6]],FW.mem&&Math.hypot(px-FW.mem.x,pz-FW.mem.z)<15);}
+window.__fw=FW;window.__wx=WEATHER;
 
 /* ---------- render batching (no visual change): every large instanced mesh is split into spatial chunks so the frustum
    test (camera and shadow camera) can skip what is off screen, then static meshes that share a material inside a 40 m
