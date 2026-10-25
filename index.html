@@ -3545,13 +3545,22 @@ const _bo=new T.Object3D(),_bm=new T.Matrix4();
 /* lay a wall of bags in running bond. par: optional parent (its world matrix is applied); lines: bags across the depth */
 function bagWall(par,x,y0,z,len,ry,h,lines=2,seed=1){const rows=Math.max(1,Math.round(h/.115)),n=Math.ceil(len/.55)+1;
   if(par)par.updateMatrixWorld(true);
-  for(let r=0;r<rows;r++){const off=(r%2)*.275,inset=r*.012;
+  /* a wall standing on the ground (not one on a roof or a wall stub) settles into the dips along its length, every course
+     going down with the ground under it */
+  const onGround=!par&&Math.abs(H(x,z)-y0)<.3;const sink=xl=>onGround?Math.min(0,H(x+Math.cos(ry)*xl,z-Math.sin(ry)*xl)-.03-y0):0;
+  /* the courses are laid in running bond; where an offset course would hang half a bag past the end of the course under
+     it, the end is finished with a half bag instead, flush with the bags below - so the wall ends stand square and every
+     bag sits on something */
+  const xs=[];for(let i=0;i<n;i++){const xl=-len/2+.27+i*.55;if(xl>=-len/2+.2&&xl<=len/2-.2)xs.push(xl);}const loE=xs[0],hiE=xs[xs.length-1];
+  for(let r=0;r<rows;r++){const odd=r%2===1,inset=r*.012;const P=[];
+    if(!odd)xs.forEach((xl,i)=>P.push([xl,1,i]));
+    else{for(let i=0;i<n;i++){const xl=-len/2+.27+i*.55-.275;if(xl>loE-.01&&xl<hiE+.01)P.push([xl,1,i]);}if(xs.length>1){P.push([loE-.1375,.5,-1]);P.push([hiE+.1375,.5,n]);}else P.push([loE,1,0]);}
     for(let l=0;l<lines;l++){const zl=(l-(lines-1)/2)*(.31-inset*.3);
-      for(let i=0;i<n;i++){const xl=-len/2+.27+i*.55-off;if(xl<-len/2+.2||xl>len/2-.2)continue;
+      for(const [xl,hk,i] of P){
         const hh=hash(seed*7.1+i*3.3+r*1.7,l*5.3+seed);
-        _bo.position.set(x+(Math.cos(ry)*xl+Math.sin(ry)*zl),y0+r*.112+(hh-.5)*.012,z+(-Math.sin(ry)*xl+Math.cos(ry)*zl));
+        _bo.position.set(x+(Math.cos(ry)*xl+Math.sin(ry)*zl),y0+sink(xl)+r*.112+(hh-.5)*.012,z+(-Math.sin(ry)*xl+Math.cos(ry)*zl));
         _bo.rotation.set((hash(i,r+9)-.5)*.06,ry+(hh-.5)*.09+(hh>.5?Math.PI:0),(hash(r,i+3)-.5)*.05);
-        const s=.95+hash(i+seed,r*3)*.1;_bo.scale.set(s,.95+hh*.1,.97+hash(r,i)*.06);_bo.updateMatrix();
+        const s=.95+hash(i+seed,r*3)*.1;_bo.scale.set(s*hk,.95+hh*.1,.97+hash(r,i)*.06);_bo.updateMatrix();
         _bm.copy(_bo.matrix);if(par)_bm.premultiply(par.matrixWorld);BAGS.push([_bm.clone(),BCOL[Math.floor(hash(i*1.3+seed,r+l*7)*BCOL.length)]]);}}}
   /* collision */
   const hw=len/2,hd=lines*.17;if(!par){const c=Math.abs(Math.cos(ry)),s=Math.abs(Math.sin(ry));const ex=hw*c+hd*s,ez=hw*s+hd*c;solidAABB(x-ex,x+ex,z-ez,z+ez);}}
