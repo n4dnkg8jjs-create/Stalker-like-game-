@@ -5481,7 +5481,7 @@ function busStop(){const B=BUS,G=new T.Group();G.position.set(B.x,B.y,B.z);G.rot
   bagWall(null,SH.x+W2,y0+.12+5*LS+LS/2+LR-.03,SH.z+1.75,3.3,Math.PI/2,.45,1,31);
   bagWall(null,SH.x+1.45,y0+.12+6*LS+LR-.03,SH.z+D2,1.8,0,.34,1,32);
   {const x=-865.7,z=-336.4,yy=H(x,z)-.03;bagWall(null,x,yy,z,7.2,Math.PI/2,1.15,2,33);addCover(x,yy,yy+1.12,z,.34,3.6,0,'bagsE');WEST.spots.e2=V3(x-.75,yy,z-.4);
-   const x2=-866.9,z2=-340.9,y2=H(x2,z2)-.03;bagWall(null,x2,y2,z2,2.4,Math.PI/2+.7,1.0,2,34);addCover(x2,y2,y2+1,z2,.34,1.2,.7,'bagsS');}
+   /* (its north end butts into the foot of the long wall, no gap at the corner) */const x2=-866.68,z2=-340.75,y2=H(x2,z2)-.03;bagWall(null,x2,y2,z2,2.4,Math.PI/2+.7,1.0,2,34);addCover(x2,y2,y2+1,z2,.34,1.2,.7,'bagsS');}
   /* log piles held with stakes; their ends show the rings */
   const pile=(cx,cz,ry,len,n,tag)=>{const rad=.19;const yy=Math.min(H(cx,cz),H(cx+Math.cos(ry)*len*.45,cz-Math.sin(ry)*len*.45),H(cx-Math.cos(ry)*len*.45,cz+Math.sin(ry)*len*.45))+.02;const cr=Math.cos(ry),sr=Math.sin(ry);
     for(let j=0;j<n;j++)for(let i=0;i<n-j;i++){const off=(i-(n-j-1)/2)*rad*2.02,hh=rad+j*rad*1.72,ln=len*rr(.92,1.04),sl=rr(-.18,.18);
@@ -5647,10 +5647,13 @@ function busStop(){const B=BUS,G=new T.Group();G.position.set(B.x,B.y,B.z);G.rot
    bleedAlpha(netTex,8);const netMat=std({map:netTex,alphaTest:.45,side:T.DoubleSide,roughness:1,envMapIntensity:.35,color:new T.Color(1.45,1.45,1.4)});
    const cx=-868.6,cz=-337.6,W=7.4,D=6.4,yref=H(cx,cz);
    const props=[[-2.2,-1.6,2.45],[1.9,.4,2.3],[-1.2,2.0,2.4]];
+   /* a way in on the side toward the shack: the edge held up on two poles at head height, so the men go under it */
+   const DZ=1.0,DH=1.85,door=(x,z)=>sstep(.45,.92,-x/(W/2))*(1-sstep(1.15,1.6,Math.abs(z-DZ)));
+   [[-W/2+.12,DZ-1.4],[-W/2+.12,DZ+1.4]].forEach(p=>props.push([p[0],p[1],DH+.05]));
    const lift=(x,z)=>{let best=-9;for(const p of props){const d=Math.hypot(x-p[0],z-p[1]);best=Math.max(best,p[2]-d*d*.07-d*.04);}return best;};
    const gN=new T.PlaneGeometry(W,D,48,42);gN.rotateX(-Math.PI/2);const np=gN.attributes.position;
    for(let i=0;i<np.count;i++){const x=np.getX(i),z=np.getZ(i);const e=Math.max(Math.abs(x)/(W/2),Math.abs(z)/(D/2));const X=cx+x,Z=cz+z,gy=H(X,Z);
-     let y=gy+Math.max(.15,lift(x,z));y=lerp(y,gy+.12,sstep(.72,1,e));y+=(fbm(x*.7,z*.7,2)-.5)*.18;np.setXYZ(i,X+(fbm(x*.5,z*.5+9,2)-.5)*.15,y,Z);}
+     let y=gy+Math.max(.15,lift(x,z));const dr=door(x,z);y=lerp(y,gy+.12,sstep(.72,1,e)*(1-dr));y=lerp(y,Math.max(y,gy+DH-(1-sstep(.85,1,-x/(W/2)))*.25),dr);y+=(fbm(x*.7,z*.7,2)-.5)*.18;np.setXYZ(i,X+(fbm(x*.5,z*.5+9,2)-.5)*.15,y,Z);}
    gN.computeVertexNormals();const nm=new T.Mesh(gN,netMat);nm.castShadow=nm.receiveShadow=true;nm.customDepthMaterial=depthMat(netTex);scene.add(nm);
    props.forEach(p=>{const X=cx+p[0],Z=cz+p[1],gy=H(X,Z);bk.add(new T.CylinderGeometry(.035,.045,p[2],10).translate(0,p[2]/2,0),WM.bark,TRS(X,gy,Z));solids.push({cx:X,cz:Z,r:.06});});
    /* cut boughs */
