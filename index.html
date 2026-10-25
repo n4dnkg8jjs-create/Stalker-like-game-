@@ -786,15 +786,18 @@ function turfTex(n,dry,seed){const c=document.createElement('canvas');c.width=c.
   const im0=g.getImageData(0,0,n,n);for(let y=0;y<n;y++)for(let x=0;x<n;x++){const v=fbmT(x/n,y/n,6,3),i=(y*n+x)*4;for(let k=0;k<3;k++)im0.data[i+k]=base[k]*(.7+v*.6);}g.putImageData(im0,0,0);
   let s0=seed;const rr=()=>{s0=(s0*16807)%2147483647;return(s0-1)/2147483646;};
   const N=n*n/9;for(let i=0;i<N;i++){const x=rr()*n,y=rr()*n,l=(3+rr()*9)*n/256,a=-Math.PI/2+(rr()-.5)*1.6;const t=rr();
-    const pal=dry?(t<.6?[150+rr()*40,132+rr()*30,80+rr()*20]:t<.9?[110,98,62]:[80,86,48]):(t<.5?[64+rr()*30,84+rr()*36,34+rr()*14]:t<.85?[92+rr()*30,104+rr()*30,48]:[128,118,72]);
-    const sh=.7+rr()*.5;g.strokeStyle=`rgb(${pal[0]*sh|0},${pal[1]*sh|0},${pal[2]*sh|0})`;g.lineWidth=(.8+rr()*.9)*n/256;
+    /* (the strands stay close to the ground's own tone: pale straw strokes in this texture, raised by the bump map that
+       follows its brightness, caught the low sun as bright specks between the grass blades - the white dots at the base
+       of the grass) */
+    const pal=dry?(t<.6?[112+rr()*22,98+rr()*18,62+rr()*12]:t<.9?[98,88,56]:[76,82,46]):(t<.5?[56+rr()*18,72+rr()*22,32+rr()*10]:t<.85?[72+rr()*16,82+rr()*16,40]:[84,80,50]);
+    const sh=.75+rr()*.35;g.strokeStyle=`rgb(${pal[0]*sh|0},${pal[1]*sh|0},${pal[2]*sh|0})`;g.lineWidth=(.8+rr()*.9)*n/256;
     for(const ox of [0,-n,n])for(const oy of [0,-n,n]){if((x+ox<-12||x+ox>n+12)||(y+oy<-12||y+oy>n+12))continue;g.beginPath();g.moveTo(x+ox,y+oy);g.quadraticCurveTo(x+ox+Math.cos(a)*l*.5+(rr()-.5)*2,y+oy+Math.sin(a)*l*.5,x+ox+Math.cos(a)*l,y+oy+Math.sin(a)*l);g.stroke();}}
   return c;}
 function pbrFromCanvas(c,rough,o={}){const n=c.width,g=c.getContext('2d'),d=g.getImageData(0,0,n,n).data;const L=new Float32Array(n*n);
   for(let i=0;i<n*n;i++)L[i]=(d[i*4]*.3+d[i*4+1]*.55+d[i*4+2]*.15)/255;
   return pbr(n,(u,v,x,y)=>{const i=y*n+x;const h=L[i];return[d[i*4],d[i*4+1],d[i*4+2],h,rough(h)];},o);}
-PB.grass=pbrFromCanvas(turfTex(256,false,7),h=>.9-h*.15,{bump:4,pack:true});
-PB.dry=pbrFromCanvas(turfTex(256,true,11),h=>.94-h*.08,{bump:4,pack:true});
+PB.grass=pbrFromCanvas(turfTex(256,false,7),h=>.95-h*.05,{bump:2.2,pack:true});
+PB.dry=pbrFromCanvas(turfTex(256,true,11),h=>.96-h*.04,{bump:2.2,pack:true});
 /* --- mud: lumpy clay with tyre/boot impressions and pooled water (low = glossy) --- */
 PB.mud=pbr(256,(u,v)=>{const a=N2(u,v,4,5),b=N2(u+.2,v,16,3),c=N2(u,v,48,2);const [w1,w2]=wor(u,v,12,5);
   const h=a*.6+b*.3+c*.1-sstep(.06,0,w2)*.08;const low=sstep(.42,.34,h);
@@ -924,7 +927,11 @@ function splatMat(scale=.45){const m=std({color:0xffffff,vertexColors:true,rough
         SPw.rgb*=(1.-.38*SPp)*(1.-.2*rim);SPw.rgb=mix(SPw.rgb,SPw.rgb*vec3(.92,.95,1.),SPp);
         SPr=mix(mix(SPr,.4,rim),mix(.07,.32,smoothstep(8.,45.,dC)),SPp);SPpG=SPp*(1.-smoothstep(10.,40.,dC));SPn=normalize(mix(SPn,vec3(0.,0.,1.),SPp*.96));}
       `+s.fragmentShader.replace('#include <map_fragment>',`splatEval();diffuseColor*=sRGBToLinear(SPw);diffuseColor.rgb*=1.0-vWet*.38;`)
-      .replace('#include <roughnessmap_fragment>',`float roughnessFactor=mix(SPr,0.48,vWet*.75);{vec3 dnx=dFdx(vWNt),dny=dFdy(vWNt);float var_=.25*(dot(dnx,dnx)+dot(dny,dny));roughnessFactor=max(roughnessFactor,clamp(sqrt(var_)*6.+.18,0.,1.)*(1.-SPp*.85));}`)
+      .replace('#include <roughnessmap_fragment>',`float roughnessFactor=mix(SPr,0.48,vWet*.75);{vec3 dnx=dFdx(vWNt),dny=dFdy(vWNt);float var_=.25*(dot(dnx,dnx)+dot(dny,dny));roughnessFactor=max(roughnessFactor,clamp(sqrt(var_)*6.+.18,0.,1.)*(1.-SPp*.85));
+        /* grass, leaf litter and soil are matte: the texture's roughness channel let little facets in the normal map catch
+           the sun at grazing angles, which showed as bright specks scattered over the ground - right where the grass grows.
+           Only the standing water keeps its gloss */
+        roughnessFactor=max(roughnessFactor,mix(.86,0.,SPp));}`)
       .replace('#include <aomap_fragment>','#include <aomap_fragment>\nreflectedLight.indirectSpecular*=1.+SPpG*2.2;')
       .replace('#include <normal_fragment_maps>',`{vec3 Nw=normalize(vWNt);vec3 Tw=normalize(vec3(1.,0.,0.)-Nw*Nw.x);vec3 Bw=normalize(cross(Tw,Nw));
         vec3 tn=SPn;tn.xy*=1.0-vWet*.6;vec3 nw=normalize(Tw*tn.x+Bw*tn.y+Nw*tn.z);normal=normalize((viewMatrix*vec4(nw,0.0)).xyz);}`);};
@@ -5506,8 +5513,8 @@ function busStop(){const B=BUS,G=new T.Group();G.position.set(B.x,B.y,B.z);G.rot
    addCover(X,y0+top,y0+ridge,Z-1.3,W2+.4,2.4,0,'roofS');}
   /* sandbags: the parapet on the east wall stub and along the north stub, the wall across the top of the bank and its
      dog-leg at the south end */
-  bagWall(null,SH.x+W2,y0+.12+5*LS+LS/2+LR-.03,SH.z+1.75,3.3,Math.PI/2,.45,1,31);
-  bagWall(null,SH.x+1.45,y0+.12+6*LS+LR-.03,SH.z+D2,1.8,0,.34,1,32);
+  /* (one course only: a single bag high, so the gap above it stays open to shoot through) */bagWall(null,SH.x+W2,y0+.12+5*LS+LS/2+LR-.03,SH.z+1.75,3.3,Math.PI/2,.11,1,31);
+  bagWall(null,SH.x+1.45,y0+.12+6*LS+LR-.03,SH.z+D2,1.8,0,.11,1,32);
   {const x=-865.7,z=-336.4,yy=H(x,z)-.03;bagWall(null,x,yy,z,7.2,Math.PI/2,1.15,2,33);addCover(x,yy,yy+1.12,z,.34,3.6,0,'bagsE');WEST.spots.e2=V3(x-.75,yy,z-.4);
    /* (its north end butts into the foot of the long wall, no gap at the corner) */const x2=-866.68,z2=-340.75,y2=H(x2,z2)-.03;bagWall(null,x2,y2,z2,2.4,Math.PI/2+.7,1.0,2,34);addCover(x2,y2,y2+1,z2,.34,1.2,.7,'bagsS');}
   /* log piles held with stakes; their ends show the rings */
@@ -9058,7 +9065,12 @@ window.__fields=FIELDS;FIELDS.tick=fieldsTick;
     RU=std({map:mT,color:C(0x8c8c8c),roughness:.95,envMapIntensity:.15,side:T.DoubleSide}),
     SE=std({map:mL,color:C(0x8a8a8a),roughness:.75,envMapIntensity:.3}),
     LENS=std({color:C(0xb8bcc0),roughness:.08,metalness:.2,envMapIntensity:1.1}),RED=std({color:C(0x6a0e0c),roughness:.2,emissive:C(0x200000),envMapIntensity:.8});
-  [PL,PH,FR,AL,RU,SE].forEach(m=>{m.defines=m.defines||{};m.defines.NO_PUDDLE='';});[PL,PH,RU,SE].forEach(m=>{m.defines.DRY_MATTE='';});
+  /* caked mud: packed in the tread and the wheel wells, dried pale on top, still dark and damp underneath */
+  const mudT=tex(256,256,(c,w,h)=>{c.fillStyle='#6e5c44';c.fillRect(0,0,w,h);const q=rng(2899);for(let i=0;i<5200;i++){const k=q();c.fillStyle=k<.4?`rgba(${96+q()*30|0},${80+q()*24|0},${58+q()*16|0},.8)`:k<.75?`rgba(${54+q()*16|0},${42+q()*12|0},${30+q()*8|0},.85)`:`rgba(${130+q()*30|0},${114+q()*24|0},${86+q()*16|0},.6)`;
+    c.beginPath();c.arc(q()*w,q()*h,1+q()*4,0,7);c.fill();}
+    c.strokeStyle='rgba(30,24,18,.6)';c.lineWidth=1;for(let i=0;i<70;i++){let x=q()*w,y=q()*h;c.beginPath();c.moveTo(x,y);for(let k=0;k<4;k++){x+=(q()-.5)*24;y+=(q()-.5)*24;c.lineTo(x,y);}c.stroke();}});
+  const MUD=std({map:mudT,color:C(0xd8ccb8),roughness:1,envMapIntensity:.1});
+  [PL,PH,FR,AL,RU,SE,MUD].forEach(m=>{m.defines=m.defines||{};m.defines.NO_PUDDLE='';});MUD.defines.DRY_MATTE='';[PL,PH,RU,SE].forEach(m=>{m.defines.DRY_MATTE='';});
   /* (texture laid on by world scale, each face projected along its own axis) */
   const uvW=(g,s=2.2)=>{g=g.index?g.toNonIndexed():g;if(!g.attributes.normal)g.computeVertexNormals();const p=g.attributes.position,n=g.attributes.normal,uv=new Float32Array(p.count*2);
     for(let i=0;i<p.count;i+=3){const nx=Math.abs(n.getX(i)+n.getX(i+1)+n.getX(i+2)),ny=Math.abs(n.getY(i)+n.getY(i+1)+n.getY(i+2)),nz=Math.abs(n.getZ(i)+n.getZ(i+1)+n.getZ(i+2));
@@ -9085,7 +9097,23 @@ window.__fields=FIELDS;FIELDS.tick=fieldsTick;
     for(let i=0;i<36;i++){const sd=i%2?1:-1,a=i/36*6.283,a2=a+(i%4<2?.5:-.5);const h=V3(c.x+Math.cos(a)*.04,c.y+Math.sin(a)*.04,sd*.05),e=V3(c.x+Math.cos(a2)*(rim-.008),c.y+Math.sin(a2)*(rim-.008),sd*.012);tube(h,e,.0019,FR,4);}
     /* brake disc: front on the left, rear on the right; the rear sprocket on the left */
     {const g=new T.CylinderGeometry(front?.135:.11,front?.135:.11,.005,40);g.rotateX(Math.PI/2);g.translate(0,0,front?-.075:.075);add(g,CH,new T.Matrix4().setPosition(c));}
-    if(!front){const g=new T.CylinderGeometry(.105,.105,.007,46);g.rotateX(Math.PI/2);g.translate(0,0,-.078);add(g,FR,new T.Matrix4().setPosition(c));}};
+    if(!front){const g=new T.CylinderGeometry(.105,.105,.007,46);g.rotateX(Math.PI/2);g.translate(0,0,-.078);add(g,FR,new T.Matrix4().setPosition(c));
+      /* sprocket teeth */for(let i=0;i<46;i++){const a=i/46*6.283;const t_=new T.BoxGeometry(.012,.012,.007);t_.translate(0,.109,0);t_.rotateZ(a);t_.translate(0,0,-.078);add(t_,FR,new T.Matrix4().setPosition(c));}}
+    /* the disc's drilled holes and its carrier bolts; hub flanges; spoke nipples; the axle nut */
+    {const dz=front?-.078:.078,dr=front?.135:.11;for(let i=0;i<18;i++){const a=i/18*6.283,rr_=dr*.78;const hg=new T.CylinderGeometry(.006,.006,.008,8);hg.rotateX(Math.PI/2);hg.translate(c.x+Math.cos(a)*rr_,c.y+Math.sin(a)*rr_,dz);add(hg,PH);}
+     for(let i=0;i<6;i++){const a=i/6*6.283;const b=new T.CylinderGeometry(.007,.007,.012,6);b.rotateX(Math.PI/2);b.translate(c.x+Math.cos(a)*.055,c.y+Math.sin(a)*.055,dz);add(b,AL);}}
+    for(const sd of [-1,1]){const f=new T.CylinderGeometry(.062,.062,.008,24);f.rotateX(Math.PI/2);f.translate(c.x,c.y,sd*.05);add(f,AL);
+      const nut=new T.CylinderGeometry(.016,.016,.014,6);nut.rotateX(Math.PI/2);nut.translate(c.x,c.y,sd*.072);add(nut,CH);}
+    for(let i=0;i<36;i++){const a=i/36*6.283+(i%4<2?.5:-.5);const n_=new T.CylinderGeometry(.004,.004,.012,6);n_.translate(0,rim-.012,0);n_.rotateZ(a-Math.PI/2);n_.translate(c.x,c.y,(i%2?1:-1)*.012);add(n_,CH);}
+    {const v=new T.CylinderGeometry(.004,.004,.03,6);v.translate(0,rim-.02,0);v.rotateZ(.4);v.translate(c.x,c.y,0);add(v,AL);}
+    /* raised lettering band on the sidewall */for(const sd of [-1,1]){const g=new T.TorusGeometry(rim+(R-rim)*.45,.0035,4,64);g.translate(c.x,c.y,sd*wd*.43);add(g,RU);}
+    /* mud: packed between the knobs all round, thickest at the bottom where the bike stood in it, and clods on the rim and
+       the lower spokes */
+    {const mr=lathe([[rim+.004,-wd*.4],[R-.012,-wd*.5],[R-.002,-wd*.2],[R-.002,wd*.2],[R-.012,wd*.5],[rim+.004,wd*.4]],56);const q=mr.attributes.position;
+     for(let i=0;i<q.count;i++){const x=q.getX(i),z=q.getZ(i),y=q.getY(i);const a=Math.atan2(z,x);const n=n3(x*40+c.x*7,y*40,z*40);const k=1+(n-.5)*.035+.012*Math.max(0,Math.sin(a+.6));q.setXYZ(i,x*k,y*(1+(n-.5)*.4),z*k);}
+     mr.computeVertexNormals();add(mr,MUD,M);}
+    for(let i=0;i<70;i++){const a=rr(0,6.283),bot=Math.sin(a)<-.1;if(!bot&&r_()<.5)continue;const rad=bot?rr(rim-.06,R-.005):rr(rim-.02,rim+.01);const cl=new T.DodecahedronGeometry(rr(.008,bot?.024:.014),0);
+      cl.scale(1,rr(.6,1),rr(.8,1.4));cl.translate(c.x+Math.cos(a)*rad,c.y+Math.sin(a)*rad,rr(-wd*.45,wd*.45));add(cl,MUD);}};
   wheel(FA,.35,.268,.085,true);wheel(RA,.33,.228,.105,false);
   /* ---- forks: black stanchions in the clamps, alloy sliders, plastic guards; the clamps; the bars ---- */
   const top=V3(1.19,1.09,0),bot=V3(1.285,.865,0);
@@ -9138,6 +9166,22 @@ window.__fields=FIELDS;FIELDS.tick=fieldsTick;
   for(const sd of [-1,1]){const g=rbox(.09,.022,.055,.006);g.translate(.62,.42,sd*.17);add(g,FR);}
   tube(V3(.7,.44,-.1),V3(.82,.47,-.16),.007,FR,6);tube(V3(.58,.44,.1),V3(.72,.43,.16),.008,FR,6);
   tube(V3(.58,.36,-.1),V3(.3,.36,-.14),.012,FR,8);
+  /* ---- brake calipers on the discs, the hoses up to the bar and the rear master; throttle and clutch cables ---- */
+  {const cf=rbox(.05,.075,.04,.012);cf.translate(FA.x-.07,FA.y+.1,-.1);add(cf,PH);const cr=rbox(.05,.065,.035,.01);cr.translate(RA.x+.075,RA.y+.07,.1);add(cr,PH);
+   curve([[FA.x-.07,FA.y+.15,-.11],[1.33,.75,-.13],[1.27,1.0,-.14],[1.2,1.17,-.2]],.004,PH,20,5);
+   curve([[1.2,1.17,.26],[1.25,1.06,.2],[1.15,.93,.12],[.9,.78,.06]],.0035,PH,24,5);
+   curve([[1.2,1.17,-.27],[1.26,1.05,-.2],[1.14,.95,-.1],[.95,.62,-.11]],.0035,PH,24,5);
+   curve([[RA.x+.08,RA.y+.1,.1],[.3,.42,.11],[.58,.44,.12]],.004,PH,14,5);}
+  /* ---- bash plate under the engine, the tank's filler cap, the chain guide, the rear mud flap ---- */
+  prof([[.66,.27],[1.06,.27],[1.14,.36],[1.12,.42],[1.05,.33],[.7,.33]],.2,AL,0,.008);
+  {const g=new T.CylinderGeometry(.032,.034,.018,16);g.translate(.96,1.085,0);add(g,AL);}
+  {const g=rbox(.12,.035,.02,.008);g.translate(.2,.27,-.09);add(g,PH);}
+  {const g=rbox(.004,.13,.12,.003);g.rotateZ(.25);g.translate(-.31,.86,0);add(g,PH);}
+  /* ---- mud thrown up: under the front fender, along the swingarm, the lower forks, the frame rails, the engine cases ---- */
+  for(let i=0;i<70;i++){const z=rr(-.12,.12);let p;const u=r_();
+    if(u<.2)p=V3(rr(1.38,1.86),rr(.86,.91),z*.5);else if(u<.42)p=V3(rr(.15,.62),rr(.36,.48),r_()<.5?-.095:.095);else if(u<.6)p=V3(rr(1.44,1.54),rr(.4,.62),r_()<.5?-.1:.1);
+    else if(u<.78)p=V3(rr(.72,1.1),rr(.28,.4),rr(-.12,.12));else p=V3(rr(.7,1.05),rr(.33,.5),r_()<.5?-.14:.14);
+    const cl=new T.DodecahedronGeometry(rr(.007,.02),0);cl.scale(rr(1,1.8),rr(.5,.9),rr(.8,1.4));cl.translate(p.x,p.y,p.z);add(cl,MUD);}
   /* ---- merge it into one bike's geometry per material ---- */
   const BY=new Map();P.forEach(([g,m])=>{if(!BY.has(m))BY.set(m,[]);BY.get(m).push(g);});
   /* two of them on the cabin's east wall, facing south, clear of the door: the first leant on the logs, the second
