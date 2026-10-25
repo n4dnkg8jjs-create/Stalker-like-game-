@@ -82,7 +82,7 @@ button.go:hover,button.go:focus-visible{background:#e2b935;outline:2px solid #ff
 #note .nb{display:flex;flex-direction:column;align-items:center;gap:12px;width:min(520px,100%)}
 #note .pg{width:100%;aspect-ratio:.8;max-height:82vh;transform:rotate(-1.2deg);padding:56px 34px 30px 64px;box-sizing:border-box;border-radius:2px;
   background:linear-gradient(90deg,transparent 47px,rgba(196,72,72,.55) 47px,rgba(196,72,72,.55) 49px,transparent 49px),repeating-linear-gradient(180deg,transparent 0 31px,rgba(92,120,170,.38) 31px 32px),radial-gradient(ellipse at 85% 95%,rgba(120,96,50,.28),transparent 55%),#e9e3d0;
-  background-position:0 0,0 22px,0 0,0 0;box-shadow:0 18px 50px rgba(0,0,0,.6),inset 0 0 40px rgba(110,90,50,.18);font:500 25px/32px Caveat,'Segoe Script','Bradley Hand',cursive;color:#23305e;overflow:auto}
+  background-position:0 0,0 22px,0 0,0 0;box-shadow:0 18px 50px rgba(0,0,0,.6),inset 0 0 40px rgba(110,90,50,.18);font:500 25px/32px Caveat,'Segoe Script','Bradley Hand',cursive;color:rgba(62,62,66,.86);text-shadow:0 0 .6px rgba(70,70,75,.5),.4px .3px 0 rgba(90,90,95,.18);overflow:auto}
 #note .pg p{margin:0 0 32px}
 #note small{font:600 12px 'IBM Plex Mono',monospace;letter-spacing:.08em;color:#b9c2ad;opacity:.8}
 #inv.on{display:block;animation:invin .18s ease-out}
@@ -5471,7 +5471,7 @@ function busStop(){const B=BUS,G=new T.Group();G.position.set(B.x,B.y,B.z);G.rot
   bk.add(rbox(.8,.05,1.9,.01),WM.plank,TRS(...L2W(-1.75,.42,.5)));[[-.7],[.7]].forEach(([a])=>putLog(bk,.16,.8,TRS(...L2W(-1.75,.16,.5+a),0,0,Math.PI/2),WM.bark));
   const crate=std({map:PB.boards.a,normalMap:PB.boards.n,roughness:.9,color:C(0x5c6a48)});
   [[-1.5,-2.6,0],[-1.5,-2.6,.46],[-.8,-2.85,0]].forEach(([a,b,y])=>{const m=mesh(rbox(.75,.44,.45,.02),crate,...L2W(a,y+.22,b),scene);m.rotation.y=rr(-.1,.1);shootables.push(m);});
-  /* on the cot: a school exercise book gone soft with damp, a stub of pencil beside it - one of them was writing home */
+  /* on the cot: a school exercise book gone soft with damp, a stub of pencil lying on its cover - one of them was writing home */
   {const [x,yy,z]=L2W(-1.62,.447,1.0);const nb=new T.Group();nb.position.set(x,yy,z);nb.rotation.y=.42;scene.add(nb);
    const cov=tex(256,320,(g,w,h)=>{g.fillStyle='#7d8a6e';g.fillRect(0,0,w,h);const q=rng(77);for(let i=0;i<2600;i++){g.fillStyle=`rgba(${q()<.5?40:150},${q()<.5?46:150},${q()<.5?30:130},${.04+q()*.05})`;g.fillRect(q()*w,q()*h,1+q()*2,1+q()*2);}
      g.strokeStyle='rgba(30,34,24,.75)';g.lineWidth=3;g.strokeRect(46,52,164,96);g.fillStyle='rgba(30,34,24,.85)';g.font='bold 30px serif';g.textAlign='center';g.fillText('ТЕТРАДЬ',128,92);
@@ -5483,7 +5483,7 @@ function busStop(){const B=BUS,G=new T.Group();G.position.set(B.x,B.y,B.z);G.rot
    const top=mesh(new T.PlaneGeometry(.17,.207),std({map:cov,roughness:.9,envMapIntensity:.2}),0,.0074,0,nb);top.rotation.x=-Math.PI/2;
    const bot=mesh(new T.PlaneGeometry(.17,.207),std({color:C(0x6f7b62),roughness:.9}),0,.0002,0,nb);bot.rotation.x=Math.PI/2;
    [-.06,.06].forEach(zz=>mesh(rbox(.004,.0012,.012,.0004),M.gun,-.085,.0068,zz,nb));
-   const pen=new T.Group();pen.position.set(.11,.004,.02);pen.rotation.set(0,.6,Math.PI/2);nb.add(pen);
+   /* (the pencil it is written in, left lying across the cover) */const pen=new T.Group();pen.position.set(.012,.0112,.018);pen.rotation.set(0,.55,Math.PI/2);nb.add(pen);
    mesh(new T.CylinderGeometry(.0036,.0036,.085,6),std({color:C(0x7a4a24),roughness:.7}),0,0,0,pen);mesh(new T.ConeGeometry(.0036,.014,6),std({color:C(0xc8a37a),roughness:.8}),0,.0495,0,pen);
    mesh(new T.ConeGeometry(.0012,.005,6),M.black,0,.0565,0,pen);
    nb.traverse(q=>{if(q.isMesh){q.castShadow=q.receiveShadow=true;}});
