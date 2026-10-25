@@ -5639,11 +5639,15 @@ function busStop(){const B=BUS,G=new T.Group();G.position.set(B.x,B.y,B.z);G.rot
      lifted on three poles and tied down at the edges - and cut spruce boughs laid along the tops of the sandbag walls and
      against the boat, so nothing in the yard shows a straight line or a bare face to the sky */
   {const netTex=tex(512,512,(g,w,h)=>{g.clearRect(0,0,w,h);const q=rng(515);const pal=[[62,70,42],[80,86,54],[94,84,58],[50,54,36],[104,98,70],[68,60,44],[58,66,40]];
-     for(let i=0;i<950;i++){const x=q()*w,y=q()*h,an=q()*Math.PI,l=12+q()*26,wd=5+q()*8,c=pal[(q()*pal.length)|0],k=.8+q()*.4;g.fillStyle=`rgb(${c[0]*k|0},${c[1]*k|0},${c[2]*k|0})`;
+     for(let i=0;i<1300;i++){const x=q()*w,y=q()*h,an=q()*Math.PI,l=12+q()*26,wd=5+q()*8,c=pal[(q()*pal.length)|0],k=.8+q()*.4;g.fillStyle=`rgb(${c[0]*k|0},${c[1]*k|0},${c[2]*k|0})`;
        for(const ox of [0,-w,w])for(const oy of [0,-h,h]){g.save();g.translate(x+ox,y+oy);g.rotate(an);g.beginPath();g.moveTo(-l/2,0);for(let t=0;t<=8;t++){const u=t/8;g.lineTo(-l/2+u*l,-wd/2*Math.sin(u*Math.PI)*(1+.35*Math.sin(u*17)));}
          for(let t=8;t>=0;t--){const u=t/8;g.lineTo(-l/2+u*l,wd/2*Math.sin(u*Math.PI)*(1+.35*Math.cos(u*13)));}g.closePath();g.fill();g.restore();}}
-     g.globalCompositeOperation='destination-out';for(let i=0;i<150;i++){g.beginPath();g.arc(q()*w,q()*h,4+q()*9,0,7);g.fill();}g.globalCompositeOperation='source-over';
-     g.strokeStyle='rgba(70,66,48,.55)';g.lineWidth=1;for(let k=0;k<=w;k+=32){g.beginPath();g.moveTo(k,0);g.lineTo(k,h);g.stroke();g.beginPath();g.moveTo(0,k);g.lineTo(w,k);g.stroke();}},{rep:[2.2,1.8]});
+     g.globalCompositeOperation='destination-out';for(let i=0;i<210;i++){g.beginPath();g.arc(q()*w,q()*h,4+q()*9,0,7);g.fill();}g.globalCompositeOperation='source-over';
+     /* the net the garnish is tied to: a diamond mesh of tarred cord with a knot at every crossing, showing through the gaps
+        and over the strips where they are tied on */
+     g.lineCap='round';for(const [c,lw] of [['rgba(28,27,20,.95)',2.2],['rgba(74,70,50,.9)',1.0]]){g.strokeStyle=c;g.lineWidth=lw;
+       for(let k=-h;k<=w+h;k+=16){g.beginPath();g.moveTo(k,0);g.lineTo(k+h,h);g.stroke();g.beginPath();g.moveTo(k+h,0);g.lineTo(k,h);g.stroke();}}
+     for(let x=0;x<=w;x+=8)for(let y=0;y<=h;y+=8){if(((x+y)/8)%2)continue;g.fillStyle='rgba(30,28,20,.95)';g.beginPath();g.arc(x,y,1.8,0,7);g.fill();g.fillStyle='rgba(84,78,56,.9)';g.beginPath();g.arc(x-.5,y-.5,.9,0,7);g.fill();}},{rep:[2.2,1.8]});
    bleedAlpha(netTex,8);const netMat=std({map:netTex,alphaTest:.45,side:T.DoubleSide,roughness:1,envMapIntensity:.35,color:new T.Color(1.45,1.45,1.4)});
    const cx=-868.6,cz=-337.6,W=7.4,D=6.4,yref=H(cx,cz);
    const props=[[-2.2,-1.6,2.45],[1.9,.4,2.3],[-1.2,2.0,2.4]];
