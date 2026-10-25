@@ -5648,7 +5648,6 @@ function busStop(){const B=BUS,G=new T.Group();G.position.set(B.x,B.y,B.z);G.rot
    const bough=(x,y,z,yaw,tilt,s)=>{const g=new T.PlaneGeometry(.95*s,.5*s,4,2);const p=g.attributes.position;for(let i=0;i<p.count;i++){const u=p.getX(i)/(.95*s);p.setZ(i,-Math.abs(u)*.12*s+Math.sin(p.getY(i)*6)*.02);}
      g.rotateX(-Math.PI/2+tilt);g.rotateY(yaw);g.translate(x,y,z);return g;};
    const bl=[];const wallTop=(x0,z0,len,ry,h,n)=>{for(let i=0;i<n;i++){const t=(i+.5)/n-.5,x=x0+Math.cos(ry)*t*len,z=z0-Math.sin(ry)*t*len;bl.push(bough(x+rr(-.15,.15),H(x0,z0)-.03+h+.02,z+rr(-.15,.15),ry+rr(-.6,.6)+(r()<.5?Math.PI:0),rr(-.15,.2),rr(.9,1.3)));}};
-   wallTop(-865.7,-336.4,7.2,Math.PI/2,1.12,11);wallTop(-866.9,-340.9,2.4,Math.PI/2+.7,.98,4);
    for(let i=0;i<5;i++){const x=-863.6+rr(-1.4,1.4),z=-344.4+rr(-.6,.6);bl.push(bough(x,H(x,z)+.55+rr(0,.2),z,rr(0,6),rr(-.5,.5),rr(1,1.4)));}
    const bg=merge(bl);/* (cut boughs lie face-up to the sky and wilt: darker and duller than the living sprays) */const bM=std({map:TX.spray,alphaTest:.5,side:T.DoubleSide,roughness:.9,envMapIntensity:.2,color:C(0x5f6650)});const bm=new T.Mesh(bg,bM);bm.customDepthMaterial=depthMat(TX.spray);bm.castShadow=bm.receiveShadow=true;scene.add(bm);}
   /* places to fall back to, deeper in the yard: a log stack by the north fence, a dog-leg of bags by the south one and a
