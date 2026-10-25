@@ -5143,7 +5143,7 @@ FX.water=new PSys(360,PTEX.soft,false,{order:3});
   /* one clump: a fan of long blades and a few bulrush heads, coloured from a dark wet base to pale tips */
   const clump=(seed)=>{const r=rng(seed),pos=[],col=[],nor=[],idx=[];let vi=0;const nb=13+Math.floor(r()*6);
     for(let b=0;b<nb;b++){const a=r()*6.28,h=.9+r()*1.2,w=.012+r()*.01,lean=.1+r()*.32,ox=(r()-.5)*.22,oz=(r()-.5)*.22,dx=Math.cos(a),dz=Math.sin(a),px=-dz,pz=dx,Sg=5;
-      const tip=r();for(let k=0;k<=Sg;k++){const t=k/Sg,ww=w*(1-Math.pow(t,1.4)*.9),cx=ox+dx*lean*t*t*h,cz=oz+dz*lean*t*t*h,cy=h*t*(1-.12*t*t*lean);
+      const tip=r();for(let k=0;k<=Sg;k++){const t=k/Sg,ww=w*(1-Math.pow(t,1.4)*.62),cx=ox+dx*lean*t*t*h,cz=oz+dz*lean*t*t*h,cy=h*t*(1-.12*t*t*lean);
         pos.push(cx-px*ww,cy,cz-pz*ww,cx+px*ww,cy,cz+pz*ww);const c=t<.15?[.12,.13,.07]:tip<.55?[lerp(.22,.42,t),lerp(.26,.4,t),lerp(.1,.2,t)]:[lerp(.2,.52,t),lerp(.22,.46,t),lerp(.09,.26,t)];col.push(...c,...c);
         nor.push(px*.3,.95,pz*.3,px*.3,.95,pz*.3);if(k<Sg)idx.push(vi,vi+2,vi+1,vi+1,vi+2,vi+3);vi+=2;}}
     const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(pos,3));g.setAttribute('color',new T.Float32BufferAttribute(col,3));g.setAttribute('normal',new T.Float32BufferAttribute(nor,3));g.setIndex(idx);
@@ -5153,7 +5153,9 @@ FX.water=new PSys(360,PTEX.soft,false,{order:3});
       [st,sp].forEach((q,j)=>{const n=q.attributes.position.count,cc=new Float32Array(n*3);for(let k=0;k<n;k++){cc[k*3]=j?.24:.3;cc[k*3+1]=j?.14:.32;cc[k*3+2]=j?.08:.14;}q.setAttribute('color',new T.BufferAttribute(cc,3));heads.push(q.toNonIndexed());});}
     if(!heads.length)return g;const g2=g.toNonIndexed();return mergeColor([g2,...heads]);};
   function mergeColor(gs){let n=0;gs.forEach(q=>n+=q.attributes.position.count);const out=new T.BufferGeometry();[['position',3],['normal',3],['color',3]].forEach(([a,sz])=>{const arr=new Float32Array(n*sz);let o=0;gs.forEach(q=>{arr.set(q.attributes[a].array.subarray(0,q.attributes.position.count*sz),o*sz);o+=q.attributes.position.count;});out.setAttribute(a,new T.BufferAttribute(arr,sz));});return out;}
-  const mat=std({vertexColors:true,side:T.DoubleSide,roughness:.82,envMapIntensity:.3});mat.defines.NO_PUDDLE='';
+  /* (matte even when wet, and the tips never narrower than a third of the blade - sub-pixel glossy tips were what
+     flickered as white dots along the reed beds) */
+  const mat=std({vertexColors:true,side:T.DoubleSide,roughness:.9,envMapIntensity:.12});mat.defines.NO_PUDDLE='';mat.defines.DRY_MATTE='';
   mat.onBeforeCompile=s=>{s.uniforms.uTime=GRASS.uni.uTime;s.vertexShader='uniform float uTime;\n'+s.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
     {vec4 wq=instanceMatrix*vec4(0.,0.,0.,1.);float hh=max(position.y,0.);float sw=sin(uTime*1.3+wq.x*.21+wq.z*.17)*.6+sin(uTime*2.9+wq.x*.7)*.25;transformed.x+=sw*.06*hh*hh;transformed.z+=sw*.03*hh*hh;}`);
     s.fragmentShader=s.fragmentShader.replace('#include <normal_fragment_begin>',NOFLIP);};
@@ -8599,6 +8601,13 @@ const FW={shafts:[],crows:null,t:{cuckoo:14,wood:30,art:55,crk:20},said:{},art0:
   /* ===== windthrow: two trees the wind tore out by the roots - the trunk down, the root plate stood on edge with
      the earth still in it, the pit it came out of ===== */
   const soil=std({map:PB.mud.a,normalMap:PB.mud.n,color:C(0xa08a70),roughness:1,envMapIntensity:.2}),rootM=std({map:TX.bark,color:C(0x5a4a3a),roughness:1});
+  const pitT=tex(256,256,(c,w,h)=>{c.clearRect(0,0,w,h);const q=rng(919);
+    /* torn earth: dark loam with lighter sandy subsoil turned up, root threads, a ragged edge that breaks into clumps */
+    for(let i=0;i<5200;i++){const a=q()*6.283,rd=Math.sqrt(q())*w*.5*(1+.12*Math.sin(a*5+1)+.08*Math.sin(a*11));const x=w/2+Math.cos(a)*rd,y=h/2+Math.sin(a)*rd;const e=rd/(w*.5);if(e>.93&&q()<.6)continue;
+      const k=q();c.fillStyle=k<.55?`rgba(${46+q()*20|0},${36+q()*14|0},${26+q()*10|0},1)`:k<.85?`rgba(${70+q()*24|0},${56+q()*18|0},${38+q()*12|0},1)`:`rgba(${120+q()*30|0},${100+q()*24|0},${66+q()*16|0},1)`;
+      c.beginPath();c.arc(x,y,2+q()*4.5*(1-e*.5),0,7);c.fill();}
+    c.strokeStyle='rgba(70,50,34,.9)';c.lineWidth=1.2;for(let i=0;i<40;i++){const a=q()*6.283,r0=q()*w*.3;c.beginPath();c.moveTo(w/2+Math.cos(a)*r0,h/2+Math.sin(a)*r0);c.quadraticCurveTo(w/2+Math.cos(a+.3)*(r0+20),h/2+Math.sin(a+.3)*(r0+20),w/2+Math.cos(a)*(r0+30+q()*30),h/2+Math.sin(a)*(r0+30+q()*30));c.stroke();}},{clamp:true});
+  const PITM=std({map:pitT,alphaTest:.5,roughness:1,envMapIntensity:.15,polygonOffset:true,polygonOffsetFactor:-2});PITM.defines.DRY_MATTE='';
   [[-347,-376,.5],[-429,-384.5,2.6]].forEach(([x,z,yaw])=>{clearVeg(x,z,5);const y=H(x,z);const dx=Math.sin(yaw),dz=Math.cos(yaw);
     /* the root plate */
     const rp=new T.CylinderGeometry(1.45,1.3,.42,26,2);{const q=rp.attributes.position;for(let i=0;i<q.count;i++){const a=Math.atan2(q.getZ(i),q.getX(i)),rad=Math.hypot(q.getX(i),q.getZ(i));const k=1+.18*Math.sin(a*3+1)+.1*Math.sin(a*7);q.setX(i,q.getX(i)*k);q.setZ(i,q.getZ(i)*k);q.setY(i,q.getY(i)+(n3(q.getX(i)*2,q.getY(i)*2,q.getZ(i)*2)-.5)*.25*(rad>.5?1:0));}rp.computeVertexNormals();}
@@ -8610,7 +8619,11 @@ const FW={shafts:[],crows:null,t:{cuckoo:14,wood:30,art:55,crk:20},said:{},art0:
     for(let k=0;k<5;k++){const t=rr(.35,.95),bl=rr(.6,1.8);const p0=A.clone().lerp(B,t);const br=new T.CylinderGeometry(.02,.06,bl,8);br.translate(0,bl/2,0);bk.add(br,WM.bark,TRS(p0.x,p0.y,p0.z,rr(.6,1.5),rr(0,6.28),0));}
     for(let k=0;k<=8;k++){const p0=A.clone().lerp(B,k/8);solids.push({cx:p0.x,cz:p0.z,r:.38});}solids.push({cx:x,cz:z,r:1.4});
     /* the pit */
-    {const g=new T.CircleGeometry(1.5,24);g.rotateX(-Math.PI/2);const q=g.attributes.position;for(let i=0;i<q.count;i++){const X=x-dx*1.2+q.getX(i),Z=z-dz*1.2+q.getZ(i),rad=Math.hypot(q.getX(i),q.getZ(i));q.setXYZ(i,X,H(X,Z)+.02-.35*Math.max(0,1-rad/1.5),Z);}g.computeVertexNormals();bk.add(g,soil);}});
+    /* (the pit can't be dug into the ground mesh, which is built before this; instead a patch of torn-up earth lies over the
+       grass where the plate came out, its edge ragged, with clods thrown round it) */
+    {const g=new T.CircleGeometry(1.75,40,0,6.2832);g.rotateX(-Math.PI/2);const q=g.attributes.position,uv=g.attributes.uv;for(let i=0;i<q.count;i++){const X=x-dx*1.1+q.getX(i),Z=z-dz*1.1+q.getZ(i);q.setXYZ(i,X,H(X,Z)+.035,Z);}g.computeVertexNormals();
+     const m=new T.Mesh(g,PITM);m.receiveShadow=true;m.renderOrder=1;scene.add(m);
+     for(let k=0;k<14;k++){const a=rr(0,6.28),d=rr(.6,2.1);const X=x-dx*1.1+Math.cos(a)*d,Z=z-dz*1.1+Math.sin(a)*d;const c=new T.DodecahedronGeometry(rr(.05,.13),0);bk.add(c,soil,TRS(X,H(X,Z)+.03,Z,rr(0,3),rr(0,3),0));}}});
 
   /* ===== ant hills: domes of needles and twigs at the foot of the pines ===== */
   const needleT=tex(256,256,(c,w,h)=>{c.fillStyle='#6e5640';c.fillRect(0,0,w,h);const q=rng(33);for(let i=0;i<3200;i++){const x=q()*w,y=q()*h,a=q()*6.28,l=3+q()*7;const k=q();
@@ -9023,6 +9036,118 @@ function fieldsTick(dt){if(!FIELDS.plume)return;FIELDS.plume.mat.uniforms.uScale
       FIELDS.plume.spawn(p,V3(1.6+wr(-.4,.4),wr(3.2,4.6),.6+wr(-.3,.3)),wr(30,42),wr(12,18)*pl.k,wr(50,80)*pl.k,[.075,.07,.065,.95],[.24,.24,.23,0],{drag:.02,up:.05,spin:wr(-.05,.05),fi:.06});}}
 }
 window.__fields=FIELDS;FIELDS.tick=fieldsTick;
+
+/* ---------- two enduro bikes (Sharmax 280-style: 21/18-inch spoked wheels, air-cooled single, high front fender,
+   number-plate headlight, slim seat, silver can), black plastics caked in dried mud, leaning on the south wall of the
+   lumber-yard cabin - the second one leant against the first ---------- */
+(function motos(){const r_=rng(2808),rr=(a,b)=>a+(b-a)*r_();
+  /* mud: dried grey-brown crust thrown up from the wheels - a light coat on the upper plastics, a heavy one low down */
+  const mudTex=(seed,base,amt)=>tex(512,512,(c,w,h)=>{c.fillStyle=base;c.fillRect(0,0,w,h);const q=rng(seed);
+    /* fine dust */for(let i=0;i<9000*amt;i++){c.fillStyle=`rgba(${120+q()*40|0},${104+q()*30|0},${80+q()*20|0},${.05+q()*.12})`;c.fillRect(q()*w,q()*h,1+q()*2,1+q()*2);}
+    /* splashes: a blob with satellite droplets, darker where still damp, paler cracked crust where dry */
+    for(let i=0;i<180*amt;i++){const x=q()*w,y=q()*h,r=3+q()*16*amt,dry=q()<.6;
+      for(const ox of [0,-w,w])for(const oy of [0,-h,h]){c.fillStyle=dry?`rgba(${118+q()*30|0},${100+q()*24|0},${74+q()*16|0},${.55+q()*.35})`:`rgba(${62+q()*20|0},${50+q()*14|0},${36+q()*10|0},${.6+q()*.3})`;
+        c.beginPath();for(let k=0;k<=14;k++){const a=k/14*6.283,rk=r*(.7+.5*Math.sin(a*3+i)*Math.sin(a*5+i*2));c.lineTo(x+ox+Math.cos(a)*rk,y+oy+Math.sin(a)*rk);}c.fill();
+        for(let k=0;k<6;k++){const a=q()*6.283,d=r*(1.2+q()*1.6);c.beginPath();c.arc(x+ox+Math.cos(a)*d,y+oy+Math.sin(a)*d,.8+q()*2.4,0,7);c.fill();}}}
+    /* streaks where water ran down through it */c.strokeStyle='rgba(20,18,16,.35)';for(let i=0;i<60*amt;i++){const x=q()*w,y=q()*h;c.lineWidth=1+q()*2;c.beginPath();c.moveTo(x,y);c.lineTo(x+(q()-.5)*6,y+20+q()*60);c.stroke();}});
+  const mL=mudTex(281,'#141414',.7),mH=mudTex(282,'#1a1816',1.6),mT=mudTex(283,'#141210',.9);
+  /* (a film of dried dust over all of it: matte, no plastic sheen against the light) */const PL=std({map:mL,roughness:.9,metalness:0,envMapIntensity:.22}),PH=std({map:mH,roughness:.85,envMapIntensity:.3}),
+    FR=std({map:mH,color:C(0x8a8a8a),roughness:.55,metalness:.6,envMapIntensity:.45}),
+    AL=std({map:mL,color:C(0xb8b8b4),roughness:.42,metalness:.85,envMapIntensity:.6}),
+    CH=std({color:C(0x9a9c9e),roughness:.18,metalness:1,envMapIntensity:.9}),
+    RU=std({map:mT,color:C(0x8c8c8c),roughness:.95,envMapIntensity:.15,side:T.DoubleSide}),
+    SE=std({map:mL,color:C(0x8a8a8a),roughness:.75,envMapIntensity:.3}),
+    LENS=std({color:C(0xb8bcc0),roughness:.08,metalness:.2,envMapIntensity:1.1}),RED=std({color:C(0x6a0e0c),roughness:.2,emissive:C(0x200000),envMapIntensity:.8});
+  [PL,PH,FR,AL,RU,SE].forEach(m=>{m.defines=m.defines||{};m.defines.NO_PUDDLE='';});[PL,PH,RU,SE].forEach(m=>{m.defines.DRY_MATTE='';});
+  /* (texture laid on by world scale, each face projected along its own axis) */
+  const uvW=(g,s=2.2)=>{g=g.index?g.toNonIndexed():g;if(!g.attributes.normal)g.computeVertexNormals();const p=g.attributes.position,n=g.attributes.normal,uv=new Float32Array(p.count*2);
+    for(let i=0;i<p.count;i+=3){const nx=Math.abs(n.getX(i)+n.getX(i+1)+n.getX(i+2)),ny=Math.abs(n.getY(i)+n.getY(i+1)+n.getY(i+2)),nz=Math.abs(n.getZ(i)+n.getZ(i+1)+n.getZ(i+2));
+      for(let k=i;k<i+3;k++){const x=p.getX(k),y=p.getY(k),z=p.getZ(k);let u,v;if(nx>=ny&&nx>=nz){u=z;v=y;}else if(ny>=nz){u=x;v=z;}else{u=x;v=y;}uv[k*2]=u*s;uv[k*2+1]=v*s;}}
+    g.setAttribute('uv',new T.BufferAttribute(uv,2));return g;};
+  const P=[];const add=(g,m,M)=>{if(M)g.applyMatrix4(M);P.push([uvW(g),m]);};
+  const tube=(a,b,r,m,seg=10)=>{const d=b.clone().sub(a),L=d.length();const g=new T.CylinderGeometry(r,r,L,seg);g.translate(0,L/2,0);
+    const q=new T.Quaternion().setFromUnitVectors(V3(0,1,0),d.normalize());g.applyMatrix4(new T.Matrix4().compose(a,q,V3(1,1,1)));add(g,m);};
+  const curve=(pts,r,m,n=24,rs=8)=>add(new T.TubeGeometry(new T.CatmullRomCurve3(pts.map(p=>V3(...p))),n,r,rs,false),m);
+  /* side-profile part: an outline in x,y extruded across z */
+  const prof=(pts,w,m,z=0,bev=.012)=>{const g=ext(pts,w,{bevel:bev,bsize:.9,bseg:3,cseg:8});g.translate(0,0,z);add(g,m);};
+  const RA=V3(.1,.33,0),FA=V3(1.56,.355,0),SP=V3(.66,.5,0);
+  const rake=Math.atan2(.25,.49);/* fork axis: up and back */const fk=V3(-Math.sin(rake),Math.cos(rake),0);
+  /* ---- wheels: knobbly tyre, rim, hub, 36 spokes, disc ---- */
+  const wheel=(c,R,rim,wd,front)=>{const M=new T.Matrix4().makeRotationX(Math.PI/2).setPosition(c);
+    const prof_=[];for(let k=0;k<=16;k++){const a=-Math.PI/2+k/16*Math.PI,rad=rim+(R-.012-rim)*(.55+.45*Math.cos(a*.9));prof_.push([rad+(k===0||k===16?0:.0),Math.sin(a)*wd/2]);}
+    {const g=lathe([[rim,-wd*.42],...prof_.map(p=>[Math.max(rim,p[0]),p[1]]),[rim,wd*.42]],56);add(g,RU,M);}
+    /* knobs: staggered blocks in three rows round the tread */
+    const nk=front?44:40;for(let i=0;i<nk;i++){const a=i/nk*6.283;for(const [zz,off] of [[0,0],[-wd*.36,.5],[wd*.36,.5]]){const aa=a+off/nk*6.283;
+      const g=new T.BoxGeometry(.026,.02,zz?.022:.03);g.translate(0,R-.006,0);g.rotateZ(aa);g.translate(0,0,zz);add(g,RU,new T.Matrix4().setPosition(c));}}
+    {const g=new T.TorusGeometry(rim,.011,6,48);add(g,FR,new T.Matrix4().setPosition(c));
+     const g2=new T.CylinderGeometry(rim+.008,rim+.008,wd*.42,48,1,true);g2.rotateX(Math.PI/2);add(g2,FR,new T.Matrix4().setPosition(c));}
+    {const g=new T.CylinderGeometry(.045,.045,.13,16);g.rotateX(Math.PI/2);add(g,AL,new T.Matrix4().setPosition(c));}
+    for(let i=0;i<36;i++){const sd=i%2?1:-1,a=i/36*6.283,a2=a+(i%4<2?.5:-.5);const h=V3(c.x+Math.cos(a)*.04,c.y+Math.sin(a)*.04,sd*.05),e=V3(c.x+Math.cos(a2)*(rim-.008),c.y+Math.sin(a2)*(rim-.008),sd*.012);tube(h,e,.0019,FR,4);}
+    /* brake disc: front on the left, rear on the right; the rear sprocket on the left */
+    {const g=new T.CylinderGeometry(front?.135:.11,front?.135:.11,.005,40);g.rotateX(Math.PI/2);g.translate(0,0,front?-.075:.075);add(g,CH,new T.Matrix4().setPosition(c));}
+    if(!front){const g=new T.CylinderGeometry(.105,.105,.007,46);g.rotateX(Math.PI/2);g.translate(0,0,-.078);add(g,FR,new T.Matrix4().setPosition(c));}};
+  wheel(FA,.35,.268,.085,true);wheel(RA,.33,.228,.105,false);
+  /* ---- forks: black stanchions in the clamps, alloy sliders, plastic guards; the clamps; the bars ---- */
+  const top=V3(1.19,1.09,0),bot=V3(1.285,.865,0);
+  for(const sd of [-1,1]){const zf=sd*.088;const a=V3(top.x+fk.x*.04,top.y+fk.y*.04,zf),m_=V3(FA.x-fk.x*.29,FA.y+fk.y*.29,zf),b=V3(FA.x+fk.x*.03,FA.y-.02,zf);
+    tube(m_,a,.024,FR,14);tube(V3(b.x,b.y,zf),m_.clone().addScaledVector(fk,.05),.03,AL,14);
+    {const g=rbox(.05,.26,.03,.01);g.translate(0,.13,0);const q=new T.Quaternion().setFromUnitVectors(V3(0,1,0),fk);const p=V3(FA.x-fk.x*.05+.02,FA.y+.05,zf+sd*.006);g.applyMatrix4(new T.Matrix4().compose(p,q,V3(1,1,1)));add(g,PH);}}
+  for(const [p,w] of [[top,.03],[bot,.035]]){const g=rbox(.09,w,.25,.008);const q=new T.Quaternion().setFromUnitVectors(V3(0,1,0),fk);g.applyMatrix4(new T.Matrix4().compose(p,q,V3(1,1,1)));add(g,AL);}
+  tube(bot,top.clone().addScaledVector(fk,.02),.03,FR,12);
+  curve([[1.15,1.17,-.4],[1.17,1.19,-.28],[1.2,1.15,-.1],[1.2,1.15,.1],[1.17,1.19,.28],[1.15,1.17,.4]],.012,FR,30,8);
+  for(const sd of [-1,1]){tube(V3(1.165,1.18,sd*.3),V3(1.15,1.172,sd*.43),.017,SE,10);
+    /* handguard: a curved plastic shell round the grip */curve([[1.2,1.16,sd*.24],[1.3,1.16,sd*.34],[1.27,1.18,sd*.45],[1.16,1.18,sd*.46]],.02,PL,16,6);
+    tube(V3(1.19,1.17,sd*.26),V3(1.24,1.15,sd*.38),.005,AL,6);}
+  {const g=rbox(.05,.04,.18,.015);g.translate(1.2,1.2,0);add(g,SE);}
+  /* ---- number-plate headlight and the high front fender ---- */
+  {const g=ext([[-.105,.0],[.105,.0],[.11,.2],[.07,.31],[-.07,.31],[-.11,.2]],.03,{bevel:.008,bsize:.9,bseg:2});
+   g.rotateY(Math.PI/2);g.rotateZ(rake);g.translate(1.36,.86,0);add(g,PL);
+   const L_=rbox(.03,.08,.11,.012);L_.rotateZ(rake);L_.translate(1.375,1.0,0);add(L_,LENS);}
+  prof([[1.33,.88],[1.5,.93],[1.7,.95],[1.88,.92],[1.9,.9],[1.7,.915],[1.5,.905],[1.36,.86]],.12,PH);
+  /* ---- frame: steel, black, a cradle under the engine ---- */
+  for(const sd of [-1,1]){const z=sd*.055;curve([[1.22,.99,z*.4],[1.0,.93,z],[.76,.86,z*1.2],[.68,.72,z*1.3],[.66,.52,z*1.3]],.016,FR,24,8);
+    curve([[1.27,.87,z*.4],[1.17,.6,z],[1.08,.34,z],[.9,.27,z],[.72,.3,z],[.66,.46,z*1.3]],.014,FR,24,8);
+    curve([[.76,.86,z*1.6],[.4,.93,z*1.7],[-.1,1.0,z*1.6]],.011,FR,18,6);tube(V3(.68,.66,z*1.4),V3(.25,.93,z*1.7),.01,FR,6);}
+  /* ---- engine: crankcase, finned barrel tipped forward, head, the side covers, carb ---- */
+  {const g=rbox(.38,.27,.25,.05);g.translate(.86,.45,0);add(g,AL);
+   const ax=V3(Math.sin(.28),Math.cos(.28),0);for(let i=0;i<9;i++){const g2=rbox(.17,.012,.17,.004);g2.rotateZ(-.28);const p=V3(.95,.6,0).addScaledVector(ax,.015+i*.024);g2.translate(p.x,p.y,p.z);add(g2,i%2?AL:PH);}
+   const cyl=new T.CylinderGeometry(.055,.055,.22,16);cyl.rotateZ(-.28);cyl.translate(.98,.69,0);add(cyl,FR);
+   const hd=rbox(.17,.07,.18,.02);hd.rotateZ(-.28);hd.translate(1.03,.84,0);add(hd,AL);
+   const cv=new T.CylinderGeometry(.11,.115,.03,28);cv.rotateX(Math.PI/2);cv.translate(.8,.44,-.135);add(cv,AL);
+   const cv2=new T.CylinderGeometry(.12,.12,.035,28);cv2.rotateX(Math.PI/2);cv2.translate(.88,.47,.135);add(cv2,AL);
+   const cb=new T.CylinderGeometry(.03,.03,.1,10);cb.rotateZ(Math.PI/2);cb.translate(.86,.76,0);add(cb,AL);tube(V3(.81,.76,0),V3(.66,.84,0),.03,SE,10);}
+  /* ---- exhaust: the header out of the front of the head, down, round to the left, back up to the silver can ---- */
+  curve([[1.07,.79,0],[1.15,.66,-.02],[1.12,.46,-.09],[.95,.4,-.15],[.66,.45,-.16],[.46,.62,-.17],[.36,.72,-.17]],.019,FR,40,10);
+  {const g=new T.CylinderGeometry(.055,.055,.46,20);const a=V3(.38,.71,-.17),b=V3(-.06,.88,-.17);const q=new T.Quaternion().setFromUnitVectors(V3(0,1,0),b.clone().sub(a).normalize());g.translate(0,.23,0);g.applyMatrix4(new T.Matrix4().compose(a,q,V3(1,1,1)));add(g,AL);
+   tube(b,b.clone().add(V3(-.04,.015,0)),.02,FR,10);}
+  /* ---- tank, shrouds, seat, side panels, tail ---- */
+  prof([[.7,.9],[.72,1.0],[.95,1.075],[1.12,1.05],[1.16,.96],[1.1,.88]],.27,PL,0,.03);
+  for(const sd of [-1,1])prof([[1.19,1.05],[1.0,1.05],[.8,.97],[.77,.84],[.95,.76],[1.17,.79]],.02,PL,sd*.15,.008);
+  prof([[.18,.92],[.2,.985],[.6,.995],[.95,1.03],[1.03,1.0],[.98,.95],[.3,.9]],.21,SE,0,.03);
+  for(const sd of [-1,1])prof([[.12,.89],[.55,.91],[.63,.73],[.42,.62],[.14,.72]],.018,PL,sd*.125,.006);
+  prof([[.22,.91],[-.1,.97],[-.36,1.02],[-.42,1.01],[-.3,.97],[.2,.875]],.17,PH,0,.012);
+  {const g=rbox(.03,.035,.09,.008);g.translate(-.41,1.0,0);add(g,RED);}
+  {const g=rbox(.006,.12,.16,.004);g.rotateZ(-.4);g.translate(-.4,.93,0);add(g,PH);}
+  /* ---- swingarm, chain, shock, pegs, levers, stand ---- */
+  for(const sd of [-1,1]){const g=rbox(.58,.05,.03,.01);g.rotateZ(Math.atan2(SP.y-RA.y,SP.x-RA.x));g.translate((SP.x+RA.x)/2,(SP.y+RA.y)/2,sd*.085);add(g,PH);}
+  tube(V3(.44,.43,-.09),V3(.44,.43,.09),.018,PH,8);
+  {const fs=V3(.72,.45,-.085),rs=V3(RA.x,RA.y,-.085);for(const [dy1,dy2] of [[.04,.104],[-.04,-.104]])tube(V3(fs.x,fs.y+dy1,fs.z),V3(rs.x,rs.y+dy2,rs.z),.006,FR,4);}
+  {const a=V3(.4,.46,0),b=V3(.6,.88,0);tube(a,b,.024,FR,12);const d=b.clone().sub(a),L=d.length();d.normalize();const pts=[];const n0=V3(0,0,1),n1=d.clone().cross(n0).normalize();
+   for(let i=0;i<=120;i++){const t=i/120,an=t*6.283*8;pts.push(a.clone().addScaledVector(d,.04+t*(L-.1)).addScaledVector(n0,Math.cos(an)*.036).addScaledVector(n1,Math.sin(an)*.036));}
+   add(new T.TubeGeometry(new T.CatmullRomCurve3(pts),240,.0055,5,false),AL);}
+  for(const sd of [-1,1]){const g=rbox(.09,.022,.055,.006);g.translate(.62,.42,sd*.17);add(g,FR);}
+  tube(V3(.7,.44,-.1),V3(.82,.47,-.16),.007,FR,6);tube(V3(.58,.44,.1),V3(.72,.43,.16),.008,FR,6);
+  tube(V3(.58,.36,-.1),V3(.3,.36,-.14),.012,FR,8);
+  /* ---- merge it into one bike's geometry per material ---- */
+  const BY=new Map();P.forEach(([g,m])=>{if(!BY.has(m))BY.set(m,[]);BY.get(m).push(g);});
+  /* two of them on the cabin's east wall, facing south, clear of the door: the first leant on the logs, the second
+     leant on the first */
+  const wallX=-876.45;const bk=bucket();
+  const place=(xc,zc,lean)=>{const fx=xc,fz=zc-1.56,rx=xc,rz=zc-.1;const yR=Math.min(H(fx,fz),H(rx,rz))-.01;
+    const M=new T.Matrix4().compose(V3(xc,yR,zc),new T.Quaternion().setFromEuler(new T.Euler(lean,Math.PI/2,0,'YXZ')),V3(1,1,1));BY.forEach((gs,m)=>gs.forEach(g=>bk.add(g,m,M)));};
+  place(wallX+.6,-335.4,-.18);place(wallX+1.22,-335.15,-.3);
+  const outM=bk.flush(scene,true);window.__motoM=outM;solidAABB(wallX,wallX+1.75,-337.4,-334.5);
+  window.__moto={n:P.length};})();
 
 /* ---------- render batching (no visual change): every large instanced mesh is split into spatial chunks so the frustum
    test (camera and shadow camera) can skip what is off screen, then static meshes that share a material inside a 40 m
