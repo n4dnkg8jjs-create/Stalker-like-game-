@@ -7037,6 +7037,11 @@ function movePlayer(dt){if(ACT.move(dt))return;
   /* in a crayfish's claw: you go where it takes you */
   if(S.held){player.pos.x=damp(player.pos.x,S.held.x,9,dt);player.pos.z=damp(player.pos.z,S.held.z,9,dt);player.vel.multiplyScalar(.2);}
   /* (the country west of the yard opens once the yard is taken) */const wOpen=S.chapter===3&&CH3.stage>=8;
+  /* before the reinforcement ride the world is only where the orders are: inside the F.O.B.'s walls (the BTR takes you
+     out), and in Sector 1 the village and its fields round the drop point - walk to the edge and you are turned back */
+  if(S.chapter<2&&!RIDE.on){const Z=S.where==='sector'?[[-30,214,-472,-236]]:[[-40.2,40.2,-31.6,31.6]];let inside=false,bx=0,bz=0,bd=1e9;
+    for(const [x0,x1,z0,z1] of Z){if(player.pos.x>=x0&&player.pos.x<=x1&&player.pos.z>=z0&&player.pos.z<=z1){inside=true;break;}const cx=clamp(player.pos.x,x0,x1),cz=clamp(player.pos.z,z0,z1),d=Math.hypot(cx-player.pos.x,cz-player.pos.z);if(d<bd){bd=d;bx=cx;bz=cz;}}
+    if(!inside){player.pos.x=bx;player.pos.z=bz;player.vel.multiplyScalar(.3);if(S.t-(S.borderT||-99)>5){S.borderT=S.t;toast(S.where==='sector'?'No further - your orders are the village and the house.':'The gate stays shut. The BTR takes you out.');}}}
   player.pos.x=clamp(player.pos.x,wOpen?WX.end:-893,S.xMax||340);if(player.pos.x<-905)player.pos.z=clamp(player.pos.z,WX.box.z0+30,WX.box.z1-30);else player.pos.z=clamp(player.pos.z,player.pos.x<-330?-600:-560,player.pos.x<-330?-150:280);
   /* wading: the water drags at the legs, more the deeper it gets; deeper than the chest it will not let you through */
   {const dp=inDET(player.pos.x,player.pos.z)?W3.wl-groundY(player.pos.x,player.pos.z):-1;if(dp>0){S.wade=Math.min(dp,1.3);}else S.wade=0;S.deepW=dp>1.3;}
@@ -8060,7 +8065,7 @@ function frame(now){requestAnimationFrame(frame);
   const P=postMat.uniforms;P.uT.value=S.t;P.uSan.value=clamp((45-S.sanity)/45,0,1);P.uDmg.value=S.sinceDmg<.6?1-S.sinceDmg/.6:clamp((25-S.hp)/25,0,.7);P.uRad.value=clamp((S.rate-3)/40,0,1)*(S.state==='play'?1:0);P.uHP.value=S.hp/100;P.uDrunk.value=S.drunk>0?.6:0;
   if(S.state==='play'||S.state==='view')updateHUD();objMarker(dt);
   if(window.__camOv){const c=window.__camOv(),q=camera;q.position.copy(c[0]);q.up.set(0,1,0);q.lookAt(c[1]);vmRoot.visible=false;}
-  distanceCull();regionOffload();humanLOD(camera.position);
+  streamTick();distanceCull();regionOffload();humanLOD(camera.position);
   renderer.setRenderTarget(rt);renderer.clear();renderer.render(scene,camera);
   if((S.state==='play'||S.state==='view'||S.state==='paused')&&vmRoot.visible&&VM.gun){renderer.clearDepth();renderer.render(vmScene,vmCam);}
   /* bloom / sun shafts (off on Low) */
@@ -8659,7 +8664,7 @@ function ch2Trail(P0,f){btr.updateMatrixWorld(true);
 function ch2CheckDone(){if(CH2.checked.Morozov&&!CH2.done2){CH2.done2=1;setTimeout(()=>{say('RADIO · R-187','…static. Nobody answers on the battalion net.',4.5);
   setObj('Get off the road before whoever fired comes back. Head south on foot to the Lesnoye crossroads, 4 km — bring help for Morozov.');setTimeout(()=>{if(typeof saveGame==='function')saveGame(false);},800);},2500);}}
 /* ---------- chapter entry ---------- */
-function rideReinforce(o={}){S.chapter=2;S.btrHere=false;setBoard(null);if(SHADOW.on){SHADOW.on=false;if(SHADOW.m)SHADOW.m.visible=false;}
+function rideReinforce(o={}){S.chapter=2;if(typeof unparkRegion==='function')['west','fob','sector'].forEach(unparkRegion);S.btrHere=false;setBoard(null);if(SHADOW.on){SHADOW.on=false;if(SHADOW.m)SHADOW.m.visible=false;}
   CH2.path=CH2.path||ch2Path();const P=CH2.path;
   const legs=[];if(!o.skip)legs.push(ch2Mount());CH2.drive=o.s!==undefined?{s:o.s,v:Math.min(P.V[Math.floor(o.s)],12)}:{s:0,v:0};
   const [LA,LB]=ch2Lines(P,P.sCard,P.sJump);
@@ -11196,8 +11201,37 @@ function buildRegionOffload(){const ex=new Set(),mark=o=>{if(o)o.traverse(c=>ex.
 const _rhM=new T.Matrix4();
 function roffHeal(n=120){const F=ROFF.F;if(!F.length)return;for(let k=0;k<n;k++){ROFF.h=(ROFF.h+1)%F.length;const o=F[ROFF.h];if(o.matrixAutoUpdate)continue;_rhM.compose(o.position,o.quaternion,o.scale);const a=_rhM.elements,b=o.matrix.elements;
   for(let i=0;i<16;i++)if(Math.abs(a[i]-b[i])>1e-5){o.matrixAutoUpdate=true;o.matrixWorldNeedsUpdate=true;ROFF.moved.push(o.name||o.type);break;}}}
+/* ---------- chapter streaming: the parts of the map the story has not reached yet are taken out of the scene at boot
+   (not drawn, not shadowed, not culled, not shot at, not reached for - and never uploaded to the GPU until needed) and
+   put back, behind a black loading card, when the chapter that uses them begins:
+     'west'  - everything west of x -250 and north of z -600: the highway, the forest, the field, the basin, the lumber
+               yard and the road beyond (parked through the F.O.B. and Sector 1; back when the reinforcement ride starts)
+     'far'   - the road west of the yard, x < -905 (back once the yard is taken) ---------- */
+const PARK={L:{}};
+function parkRegion(name,inR,instR=inR){const keep=new Set([sky,camera,GRASS.mesh,FLOWERS.mesh,playerBody.root,btr,flagMesh]);const rm=[],v=V3();scene.updateMatrixWorld(true);
+  for(const o of scene.children){if(keep.has(o)||o.isLight||o.isCamera||o.frustumCulled===false||o.userData.keep||o.userData.noCull||o===WFX.ash)continue;
+    if(o.isInstancedMesh){const b=o.geometry.boundingSphere;if(!b)continue;v.copy(b.center).applyMatrix4(o.matrixWorld);if(instR(v.x,v.z))rm.push(o);continue;}
+    if(o.isMesh||o.isPoints||o.isLine){const g=o.geometry;if(!g.boundingSphere)g.computeBoundingSphere();if(g.boundingSphere.radius>90)continue;v.copy(g.boundingSphere.center).applyMatrix4(o.matrixWorld);if(inR(v.x,v.z))rm.push(o);continue;}
+    {const bb=new T.Box3().setFromObject(o);if(bb.isEmpty())o.getWorldPosition(v);else bb.getCenter(v);}if(inR(v.x,v.z))rm.push(o);}
+  const gone=new Set();rm.forEach(o=>o.traverse(c=>gone.add(c)));let lit=false;rm.forEach(o=>o.traverse(c=>{if(c.isLight)lit=true;}));
+  const P={rm,shoot:shootables.filter(x=>gone.has(x)),inter:interact.filter(e=>e.obj&&gone.has(e.obj)),items:worldItems.filter(w=>gone.has(w.mesh)),lit};
+  rm.forEach(o=>{if(o.parent)o.parent.remove(o);});
+  for(let i=shootables.length-1;i>=0;i--)if(gone.has(shootables[i]))shootables.splice(i,1);
+  for(let i=interact.length-1;i>=0;i--)if(interact[i].obj&&gone.has(interact[i].obj))interact.splice(i,1);
+  for(let i=worldItems.length-1;i>=0;i--)if(gone.has(worldItems[i].mesh))worldItems.splice(i,1);
+  for(const e of ROFF.L)if(gone.has(e.o))e.park=name;PARK.L[name]=P;return rm.length;}
+function unparkRegion(name){const P=PARK.L[name];if(!P)return 0;delete PARK.L[name];P.rm.forEach(o=>{if(!o.parent)scene.add(o);});
+  shootables.push(...P.shoot);interact.push(...P.inter);worldItems.push(...P.items);for(const e of ROFF.L)if(e.park===name){e.park=null;e.out=false;if(!e.o.parent)scene.add(e.o);}
+  /* (compile what came back now, behind the card, rather than on the first frame it shows) */try{renderer.compile(scene,camera);}catch(_){}return P.rm.length;}
+/* and before chapter 2 the two halves of it swap: at the F.O.B. the village and the sector are put away, in the sector the
+   F.O.B. is - each comes back behind the ride's black card on the way there */
+const PREG={sector:(x,z)=>x>-60&&x<260&&z<-200&&z>-600,fob:(x,z)=>Math.abs(x)<85&&z>-110&&z<110};
+function streamTick(){if(S.chapter>=2){for(const k of ['west','fob','sector'])if(PARK.L[k])unparkRegion(k);}if(PARK.L.far&&S.chapter===3&&typeof CH3!=='undefined'&&CH3.stage>=7)unparkRegion('far');
+  if(DBG||S.chapter>=2)return;const atS=S.where==='sector',ride=RIDE.on;
+  if(atS){if(PARK.L.sector)unparkRegion('sector');if(!PARK.L.fob&&(!ride||RIDE.li>=2))parkRegion('fob',PREG.fob);}
+  else{if(PARK.L.fob)unparkRegion('fob');if(!PARK.L.sector&&(!ride||RIDE.li>0))parkRegion('sector',PREG.sector);}}
 function regionOffload(){roffHeal();const p=camera.position;const jump=Math.hypot(p.x-ROFF.lp.x,p.z-ROFF.lp.z)>20;if(!jump&&++ROFF.k%10)return;ROFF.lp.copy(p);const D=DCULL.d+25;
-  for(const e of ROFF.L){const d=Math.hypot(e.c.x-p.x,e.c.z-p.z)-e.r;if(!e.out&&d>D){scene.remove(e.o);e.out=true;}else if(e.out&&d<D-15){scene.add(e.o);e.out=false;}}}
+  for(const e of ROFF.L){if(e.park)continue;const d=Math.hypot(e.c.x-p.x,e.c.z-p.z)-e.r;if(!e.out&&d>D){scene.remove(e.o);e.out=true;}else if(e.out&&d<D-15){scene.add(e.o);e.out=false;}}}
 function roffRestore(){for(const e of ROFF.L)if(e.out){scene.add(e.o);e.out=false;}}
 /* inside moving or animated things (the BTR, its turret, each character's bones, a gun, an eye pivot, a door) rigid
    sibling parts that share a material are merged in their parent's own frame - they still move with it */
@@ -11214,10 +11248,11 @@ function mergeLocal(){const ex=new Set();btr.userData.wheels.forEach(w=>w.traver
     mm.castShadow=o0.castShadow;mm.receiveShadow=o0.receiveShadow;mm.renderOrder=o0.renderOrder;mm.visible=o0.visible;mm.userData.merged=L.length;par.add(mm);merged++;
     let sh=false;for(const o of L){const k=shootables.indexOf(o);if(k>=0){shootables.splice(k,1);sh=true;}par.remove(o);removed++;}if(sh)shootables.push(mm);}
   return [merged,removed];}
-{const t0=performance.now();villageYards();vegBuild();vegLOD(true);const c=chunkInstanced();const [mg,rm]=mergeStatic();const [ml,rl]=mergeLocal();buildDistanceCull();buildRegionOffload();window.__roff=ROFF;window.__batchL=[ml,rl];window.__batch={chunks:c,merged:mg,removed:rm,dcull:DCULL.list.length,roff:ROFF.L.length,ms:Math.round(performance.now()-t0)};}
+{const t0=performance.now();villageYards();vegBuild();vegLOD(true);const c=chunkInstanced();const [mg,rm]=mergeStatic();const [ml,rl]=mergeLocal();buildDistanceCull();buildRegionOffload();
+ /* (a debug view of any place shows it all; otherwise the story's later country waits) */if(!DBG){window.__park={far:parkRegion('far',(x,z)=>x<-905),west:parkRegion('west',(x,z)=>x<-250||z<-600)};}window.__roff=ROFF;window.__batchL=[ml,rl];window.__batch={chunks:c,merged:mg,removed:rm,dcull:DCULL.list.length,roff:ROFF.L.length,ms:Math.round(performance.now()-t0)};}
 /* ---------- start (after every module, including chapter 2, has initialised) ---------- */
 boot();
-window.__z={initAudio,warTick,get AUD(){return AUD;},shadow2Tick,Ragdoll,RAGS,buildHuman,floorAt,groundSeen,terrMeshY,warGun,warMG,warDrone,warClose,warGrad,WAR,CD,poseHand,handsVM,RLFIX,inGun,gunColliders,AP,cmdr,riders,VEG,FLOWERS,GRASS_:GRASS,get VM(){return VM;},playerBody,gait,GAIT,ANIMS,SHADOW,spawnShadow,FX,begin,rideToSector,rideToFOB,interact,doInteract,findInteract,toggleInv,RIDE,btr,scene,renderer,camera,sun,hemi,S,M,postMat,vmScene,GRASS,Q,QUAL,applyQuality,player,debugView,tentSmoke,gloveMat,VMG,WEAP,HANDS,mountWeapon,vmCam,vmRoot,tickVM,buildPM,buildAK,fireFlash,RL,vmAction,placeArm2,HANDS,WALKERS,buildHuman,animate,woundDress,saveGame,loadGame,saveData,ch2Lids,fpShoulder};
+window.__z={PARK,parkRegion,unparkRegion,streamTick,initAudio,warTick,get AUD(){return AUD;},shadow2Tick,Ragdoll,RAGS,buildHuman,floorAt,groundSeen,terrMeshY,warGun,warMG,warDrone,warClose,warGrad,WAR,CD,poseHand,handsVM,RLFIX,inGun,gunColliders,AP,cmdr,riders,VEG,FLOWERS,GRASS_:GRASS,get VM(){return VM;},playerBody,gait,GAIT,ANIMS,SHADOW,spawnShadow,FX,begin,rideToSector,rideToFOB,interact,doInteract,findInteract,toggleInv,RIDE,btr,scene,renderer,camera,sun,hemi,S,M,postMat,vmScene,GRASS,Q,QUAL,applyQuality,player,debugView,tentSmoke,gloveMat,VMG,WEAP,HANDS,mountWeapon,vmCam,vmRoot,tickVM,buildPM,buildAK,fireFlash,RL,vmAction,placeArm2,HANDS,WALKERS,buildHuman,animate,woundDress,saveGame,loadGame,saveData,ch2Lids,fpShoulder};
 
 }catch(e){const p=document.createElement('pre');p.style.cssText='position:fixed;left:8px;bottom:8px;right:8px;z-index:99;color:#f88;background:#000c;font:12px monospace;white-space:pre-wrap;padding:8px';p.textContent='Zone 12 failed to start: '+(e&&e.stack||e);document.body.appendChild(p);}},30));
 window.addEventListener('error',e=>{const p=document.createElement('pre');p.style.cssText='position:fixed;left:8px;top:8px;right:8px;z-index:99;color:#f88;background:#000c;font:12px monospace;white-space:pre-wrap;padding:8px';p.textContent='Error: '+e.message+' @'+e.lineno;document.body.appendChild(p);});
