@@ -186,7 +186,7 @@ kbd{font:600 10px var(--mono);background:#1b2018;border:1px solid var(--line);bo
 <div id="menu" class="screen">
   <div class="menu">
     <h1><span>Войска РХБЗ · Zone 12 Detachment</span>Zone 12</h1>
-    <p style="margin:-6px 0 10px;font-size:11px;letter-spacing:.12em;opacity:.6;text-transform:uppercase">Build 29 Oct 2026 · war-zone pass</p>
+    <p style="margin:-6px 0 10px;font-size:11px;letter-spacing:.12em;opacity:.6;text-transform:uppercase">Build 29 Oct 2026 · village rebuild</p>
     <p>You are a contract soldier of the Russian CBRN defence troops, assigned to the exclusion perimeter of Zone 12. A patrol of three went into Sector 1 in the spring and never came back. Your Makarov has one magazine. Everything else, you find out there.</p>
     <div class="keys">
       <div><b>WASD</b>Move</div><div><b>Shift</b>Sprint</div><div><b>C</b>Crouch</div><div><b>Mouse</b>Look / fire</div>
@@ -390,9 +390,10 @@ const hemi=new T.HemisphereLight(C(0xb4c2d0),C(0x5a5638),0.8);scene.add(hemi);
 
 /* ---------- post-processing ---------- */
 const postMat=new T.ShaderMaterial({depthTest:false,depthWrite:false,
-  uniforms:{tD:{value:null},tB:{value:null},uDrops:{value:0},uBloom:{value:.9},uSharp:{value:.35},uSunUV:{value:new T.Vector2(.5,.5)},uRays:{value:0},uT:{value:0},uExp:{value:1.12},uSan:{value:0},uDmg:{value:0},uRad:{value:0},uHP:{value:1},uDrunk:{value:0},uRes:{value:new T.Vector2(1,1)},uFade:{value:0},uBlur:{value:0},uDbl:{value:0},uDesat:{value:0},uFlash:{value:0}},
+  uniforms:{tD:{value:null},tB:{value:null},uDrops:{value:0},uBloom:{value:.9},uSharp:{value:.35},uSunUV:{value:new T.Vector2(.5,.5)},uRays:{value:0},uT:{value:0},uExp:{value:1.12},uSan:{value:0},uDmg:{value:0},uRad:{value:0},uHP:{value:1},uDrunk:{value:0},uRes:{value:new T.Vector2(1,1)},uFade:{value:0},uBlur:{value:0},uDbl:{value:0},uDesat:{value:0},uFlash:{value:0},uAA:{value:0}},
   vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=vec4(position.xy,0.,1.);}',
-  fragmentShader:`uniform sampler2D tD,tB;uniform float uT,uExp,uSan,uDmg,uRad,uHP,uDrunk,uFade,uBloom,uSharp,uRays,uDrops,uBlur,uDbl,uDesat,uFlash;uniform vec2 uRes,uSunUV;varying vec2 vUv;
+  fragmentShader:`uniform sampler2D tD,tB;uniform float uT,uExp,uSan,uDmg,uRad,uHP,uDrunk,uFade,uBloom,uSharp,uRays,uDrops,uBlur,uDbl,uDesat,uFlash,uAA;
+  float lu(vec3 v){v=v/(1.0+v);return dot(v,vec3(.299,.587,.114));}uniform vec2 uRes,uSunUV;varying vec2 vUv;
   vec3 aces(vec3 x){return clamp((x*(2.51*x+0.03))/(x*(2.43*x+0.59)+0.14),0.,1.);}
   float h(vec2 p){return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453);}
   bool ok3(vec3 v){return v.r<6e4&&v.g<6e4&&v.b<6e4&&v.r>=0.&&v.g>=0.&&v.b>=0.;}
@@ -412,6 +413,19 @@ const postMat=new T.ShaderMaterial({depthTest:false,depthWrite:false,
     vec2 px1=1.0/uRes;vec3 nA=sn(texture2D(tD,uv+vec2(px1.x,0.)).rgb),nB=sn(texture2D(tD,uv-vec2(px1.x,0.)).rgb),nC=sn(texture2D(tD,uv+vec2(0.,px1.y)).rgb),nD=sn(texture2D(tD,uv-vec2(0.,px1.y)).rgb);
     if(!ok3(c)){vec4 acc=vec4(0.);if(ok3(nA))acc+=vec4(nA,1.);if(ok3(nB))acc+=vec4(nB,1.);if(ok3(nC))acc+=vec4(nC,1.);if(ok3(nD))acc+=vec4(nD,1.);c=acc.w>0.?acc.rgb/acc.w:vec3(0.);}
     if(!ok3(nA))nA=c;if(!ok3(nB))nB=c;if(!ok3(nC))nC=c;if(!ok3(nD))nD=c;
+    /* edge anti-aliasing (FXAA): when the scene is drawn without multisampling, or below the screen's resolution, the
+       stair-steps along every silhouette - roof edges, fence rails, wires, grass - are found from the luma of the pixel
+       and its eight neighbours and blended along the edge's own direction */
+    float aaEdge=0.;
+    if(uAA>0.0){vec2 p=px1;vec3 cNW=sn(texture2D(tD,uv+vec2(-p.x,p.y)).rgb),cNE=sn(texture2D(tD,uv+p).rgb),cSW=sn(texture2D(tD,uv-p).rgb),cSE=sn(texture2D(tD,uv+vec2(p.x,-p.y)).rgb);
+      if(!ok3(cNW))cNW=c;if(!ok3(cNE))cNE=c;if(!ok3(cSW))cSW=c;if(!ok3(cSE))cSE=c;
+      float lM=lu(c),lN=lu(nC),lS=lu(nD),lE=lu(nA),lW=lu(nB),lNW=lu(cNW),lNE=lu(cNE),lSW=lu(cSW),lSE=lu(cSE);
+      float mn=min(lM,min(min(min(lN,lS),min(lE,lW)),min(min(lNW,lNE),min(lSW,lSE)))),mx=max(lM,max(max(max(lN,lS),max(lE,lW)),max(max(lNW,lNE),max(lSW,lSE))));
+      if(mx-mn>max(.035,mx*.12)){vec2 d=vec2(-((lNW+lNE)-(lSW+lSE)),(lNW+lSW)-(lNE+lSE));
+        float red=max((lNW+lNE+lSW+lSE)*.03125,1./128.);float rc=1./(min(abs(d.x),abs(d.y))+red);d=clamp(d*rc,-8.,8.)*p;
+        vec3 rA=.5*(sn(texture2D(tD,uv+d*(1./3.-.5)).rgb)+sn(texture2D(tD,uv+d*(2./3.-.5)).rgb));
+        vec3 rB=rA*.5+.25*(sn(texture2D(tD,uv-d*.5).rgb)+sn(texture2D(tD,uv+d*.5).rgb));
+        if(ok3(rA)){float lB=lu(rB);c=(!ok3(rB)||lB<mn||lB>mx)?rA:rB;aaEdge=1.;}}}
     /* concussion: soft blur (two rings of taps) and a drifting double image */
     if(uBlur>0.001||uDbl>0.001){vec2 px=1.0/uRes;vec3 acc=c;float r=uBlur*9.0;
       for(int k=0;k<12;k++){float a=float(k)*0.5236+0.26*float(k/6);vec2 o=vec2(cos(a),sin(a))*px*r*(k<6?1.0:2.1);acc+=texture2D(tD,uv+o).rgb;}
@@ -424,7 +438,7 @@ const postMat=new T.ShaderMaterial({depthTest:false,depthWrite:false,
      vec2 p2=2.0/uRes;vec3 m2=max(max(sn(texture2D(tD,uv+vec2(p2.x,0.)).rgb),sn(texture2D(tD,uv-vec2(p2.x,0.)).rgb)),max(sn(texture2D(tD,uv+vec2(0.,p2.y)).rgb),sn(texture2D(tD,uv-vec2(0.,p2.y)).rgb)));
      if(ok3(m2))c=min(c,m2*2.2+0.06);}
     /* contrast-adaptive sharpen: recovers texture detail lost to MSAA / dynamic resolution */
-    if(uSharp>0.0){vec3 nb=nA+nB+nC+nD;
+    if(uSharp>0.0&&aaEdge<.5){vec3 nb=nA+nB+nC+nD;
       vec3 c0=c;vec3 d4=c*4.0-nb;float lc=dot(c,vec3(.3,.59,.11));c+=d4*uSharp*0.25/(1.0+lc*1.5);c=clamp(c,min(c0,nb*.25)*.9,max(c0,nb*.25)*1.1);}
     /* bloom and sun shafts from the quarter-res bright pass */
     vec3 bl=texture2D(tB,uv).rgb;c+=bl*uBloom;
@@ -887,6 +901,24 @@ PB.paint=pbr(512,(u,v)=>{const n=N2(u,v,4,5),m=N2(u,v,24,3),s=N2(u*.2,v*2,6,3);c
   let c=[72+(n-.5)*12,82+(n-.5)*12,56+(n-.5)*9];const dust=sstep(.6,.78,s)*.4;c=mixc(c,[104,96,70],dust);
   const chip=sstep(.2,.12,w1)*sstep(.62,.72,N2(u,v,10,3));c=mixc(c,[52,48,40],chip);const rs=sstep(.86,.9,N2(u,v,12,2));c=mixc(c,[100,66,40],rs*.45);
   c=mixc(c,[110,108,80],sstep(.6,.8,m)*.15);return[c[0],c[1],c[2],.6-chip*.35-rs*.15+(n-.5)*.1,.55+dust*.35+chip*.25+rs*.35];},{bump:3});
+/* --- fired clay brick in running bond, lime mortar: four bricks across and fourteen courses up per tile (about a metre
+   each way at 1 unit = 1 m); each brick its own colour - most a dull red-brown, some over-fired dark, a few pale - with
+   a sanded face, chipped arrises and the odd spall; the joints recessed and crumbly --- */
+PB.brick=pbr(512,(u,v,x,y)=>{const R=14,Cn=4;const row=Math.floor(v*R),fv=v*R-row,off=(row%2)*.5,bu=u*Cn+off,col=Math.floor(bu),fu=bu-col,ci=((col%Cn)+Cn)%Cn;
+  const h0=hash(ci*7+1,row*13+3),h1=hash(ci*3+5,row*5+11),n=N2(u,v,24,3),f=N2(u,v,96,2),ch=N2(u*3.1,v*3.1,40,3);
+  const ex=Math.min(fu,1-fu)*128,ey=Math.min(fv,1-fv)*(512/R);const chip=(ch-.5)*4.2+(h1>.85?(N2(u+.3,v,30,2)-.4)*6:0);const e=Math.min(ex,ey)+chip;
+  if(e<2.6){const m=N2(u,v,60,3);const k=.78+m*.3;return[146*k,140*k,128*k,.12+m*.08,.97];}
+  const tone=h0<.62?[128,58,42]:h0<.8?[104,44,34]:h0<.92?[150,82,58]:[82,42,36];const k=.84+n*.24+(f-.5)*.12;const sp=f>.78?.85:1;
+  const face=sstep(2.6,5.5,e);return[tone[0]*k*sp,tone[1]*k*sp,tone[2]*k*sp,.55+face*.35+(f-.5)*.08,.9-f*.06];},{bump:5});
+/* --- lime render over brick, painted: the trowel's soft swirl, hairline cracks, damp blooms low down, and here and
+   there the render fallen away to show the brick behind (height drops there). Neutral pale: tinted by the material --- */
+PB.plaster=pbr(512,(u,v,x,y)=>{const n=N2(u,v,4,5),m=N2(u,v,18,3),f=N2(u,v,80,2),sw=N2(u*1.6+.3,v*1.6,6,4);const [c1,c2]=wor(u,v,7,9);
+  const crack=sstep(.035,0,c2)*sstep(.45,.6,N2(u+.5,v+.2,5,3));const fall=sstep(.66,.72,N2(u*.9+.7,v*.9+.1,3,5));
+  if(fall>.01){const row=Math.floor(v*28),off=(row%2)*.5,bu=u*8+off,fu=bu-Math.floor(bu),fv=v*28-row,mor=Math.min(fu,1-fu)*64<2.4||Math.min(fv,1-fv)*18<1.8;
+    const br=mor?[150,144,134]:[124+f*20,62+f*10,46+f*8];const edge=sstep(.66,.69,N2(u*.9+.7,v*.9+.1,3,5))*(1-sstep(.69,.72,N2(u*.9+.7,v*.9+.1,3,5)));
+    const k=1-fall;return[br[0]*fall+236*k-edge*40,br[1]*fall+232*k-edge*40,br[2]*fall+222*k-edge*40,.15-(mor?.05:0),.95];}
+  const k=.93+(n-.5)*.1+(sw-.5)*.06+(f-.5)*.04-crack*.25;const damp=sstep(.55,.85,N2(u,v*.6+.3,3,4))*.08;
+  return[238*k*(1-damp),234*k*(1-damp),224*k*(1-damp*1.2),.5+(sw-.5)*.12+(f-.5)*.05-crack*.2,.9-f*.05];},{bump:3});
 PB.rust=pbr(256,(u,v)=>{const n=N2(u,v,6,5),m=N2(u,v,20,3),f=N2(u,v,60,2);let c=[112+(n-.5)*60,62+(n-.5)*36,34+(n-.5)*20];const pt=sstep(.55,.7,m);c=mixc(c,[64,68,54],pt*.6);
   const scale=sstep(.7,.8,n);c=mixc(c,[40,26,18],scale*.6);return[c[0],c[1],c[2],.4+n*.4+f*.15+scale*.2,.93-pt*.35];},{bump:6});
 PB.metal=pbr(256,(u,v)=>{const n=N2(u,v,8,4),br=N2(u*.2,v*14,10,2),sc=sstep(.8,.86,N2(u,v,30,2));const k=100+n*30+br*20-sc*30;
@@ -2359,8 +2391,10 @@ function gloveMat(name,BN){if(GLOVEM[name])return GLOVEM[name];const V=()=>new T
     s.fragmentShader=f;};
   const ck=m.customProgramCacheKey();m.customProgramCacheKey=()=>ck+'glove';
   return GLOVEM[name]=m;}
-const texLoad=src=>{const t=new T.TextureLoader().load(src);t.encoding=T.sRGBEncoding;t.anisotropy=8;return t;};
-const texLin=src=>{const t=new T.TextureLoader().load(src);t.anisotropy=8;return t;};
+/* (every character texture is kept in CTEX, so anything that has to draw the people before the first frame - the
+   family photographs - can tell when they have all arrived) */
+const CTEX=[];const texLoad=src=>{const t=new T.TextureLoader().load(src);t.encoding=T.sRGBEncoding;t.anisotropy=8;CTEX.push(t);return t;};
+const texLin=src=>{const t=new T.TextureLoader().load(src);t.anisotropy=8;CTEX.push(t);return t;};
 const SKINTEX={alive:texLoad(CD.tex.skin),decay:texLoad(CD.tex.decay)},SKINDET={alive:texLin(CD.tex.skinD),decay:texLin(CD.tex.decayD)};
 /* skin: albedo + detail map (R = pore/wrinkle height for bump, G = roughness), wrapped red-shifted diffuse */
 const SKM={};function skinMat(kind,tint,who){const k=kind+tint.join()+(who||'');if(SKM[k])return SKM[k];
@@ -3370,7 +3404,7 @@ class PSys{constructor(max,texture,additive,o={}){this.max=max;this.n=0;this.o=o
       uniforms:T.UniformsUtils.merge([T.UniformsLib.fog,{map:{value:texture},uScale:{value:600}}]),
       vertexShader:`attribute vec4 pcol;attribute float psize;attribute float prot;varying vec4 vC;varying float vR;varying float vN;uniform float uScale;
         #include <fog_pars_vertex>
-        void main(){vC=pcol;vR=prot;vec3 transformed=position;vec4 mvPosition=modelViewMatrix*vec4(position,1.0);gl_Position=projectionMatrix*mvPosition;gl_PointSize=psize*uScale/max(-mvPosition.z,.05);vN=smoothstep(.35,1.6,-mvPosition.z);
+        void main(){vC=pcol;vR=prot;vec3 transformed=position;vec4 mvPosition=modelViewMatrix*vec4(position,1.0);gl_Position=projectionMatrix*mvPosition;vN=smoothstep(.35,1.6,-mvPosition.z);/* (a particle in the eye's face is faded out anyway: it is not drawn at all, and none is drawn bigger than a third of the screen - full-screen soft sprites stacked up were what made smoke at the face so slow) */gl_PointSize=vN<.02?0.:min(psize*uScale/max(-mvPosition.z,.05),uScale*.55);
         #include <fog_vertex>
         }`,
       fragmentShader:`uniform sampler2D map;varying vec4 vC;varying float vR;varying float vN;
@@ -4845,11 +4879,20 @@ function washstand(par,x,y,z,ry){const w=new T.Group();w.position.set(x,y,z);w.r
   RF.fin(w);return w;}
 /* ---- pendulum wall clock (khodiki) with weights on chains ---- */
 function wallClock(par,x,y,z,ry){const c=new T.Group();c.position.set(x,y,z);c.rotation.y=ry;par.add(c);
-  const face=memo('clockFace',()=>tex(128,128,(g,w,h)=>{g.fillStyle='#e8e0c8';g.beginPath();g.arc(64,64,62,0,7);g.fill();g.fillStyle='#222';g.font='bold 14px serif';g.textAlign='center';
-    for(let i=1;i<=12;i++){const a=i/12*Math.PI*2;g.fillText(i,64+Math.sin(a)*48,69-Math.cos(a)*48);}g.lineWidth=3;g.strokeStyle='#222';g.beginPath();g.moveTo(64,64);g.lineTo(64+20,64-20);g.moveTo(64,64);g.lineTo(64,24);g.stroke();},{clamp:true}));
-  mesh(rbox(.2,.24,.05,.01),std({color:C(0x7a5a30),roughness:.6}),0,0,0,c);mesh(new T.CircleGeometry(.08,20),std({map:face,roughness:.6}),0,0,.026,c,false);
-  const br=std({color:C(0x9a7a40),metalness:.8,roughness:.35});mesh(new T.CylinderGeometry(.004,.004,.42,4),br,0,-.33,.01,c);mesh(new T.CylinderGeometry(.03,.03,.012,12),br,0,-.55,.01,c).rotation.x=Math.PI/2;
-  [-.05,.05].forEach((dx,i)=>{mesh(new T.CylinderGeometry(.003,.003,.35+i*.12,4),br,dx,-.3-i*.06,.0,c);mesh(new T.CylinderGeometry(.018,.018,.08,8),br,dx,-.5-i*.12,0,c);});
+  /* the "khodiki": a weight-driven wall clock in a little wooden house - a pitched roof with a carved ridge, a painted
+     dial behind its brass bezel, pierced hands, the pendulum swinging below on its rod, and the two weights cast like
+     fir cones hanging on chains of real links */
+  const face=memo('clockFace2',()=>tex(256,256,(g,w,h)=>{const r=w/2;const gr=g.createRadialGradient(r,r,10,r,r,r);gr.addColorStop(0,'#f2ead2');gr.addColorStop(1,'#d8ccaa');g.fillStyle=gr;g.beginPath();g.arc(r,r,r-2,0,7);g.fill();
+    g.strokeStyle='#2a2420';g.lineWidth=2;g.beginPath();g.arc(r,r,r-14,0,7);g.stroke();for(let i=0;i<60;i++){const a=i/60*Math.PI*2,l=i%5?6:12;g.lineWidth=i%5?1.2:2.6;g.beginPath();g.moveTo(r+Math.sin(a)*(r-14),r-Math.cos(a)*(r-14));g.lineTo(r+Math.sin(a)*(r-14-l),r-Math.cos(a)*(r-14-l));g.stroke();}
+    g.fillStyle='#2a2420';g.font='bold 26px serif';g.textAlign='center';g.textBaseline='middle';for(let i=1;i<=12;i++){const a=i/12*Math.PI*2;g.fillText(i,r+Math.sin(a)*(r-46),r-Math.cos(a)*(r-46));}
+    g.fillStyle='#8a2a22';g.beginPath();for(let k=0;k<5;k++){const a=k/5*Math.PI*2-Math.PI/2,b=a+Math.PI/5;g.lineTo(r+Math.cos(a)*18,r+46+Math.sin(a)*18);g.lineTo(r+Math.cos(b)*7,r+46+Math.sin(b)*7);}g.fill();},{clamp:true}));
+  const wood=std({map:RF.W2.map,color:C(0xb08a5a),roughness:.45,envMapIntensity:.5}),br=std({color:C(0xc09a50),metalness:.9,roughness:.3,envMapIntensity:1}),blk=std({color:C(0x161616),roughness:.4,metalness:.4});
+  mesh(rbox(.2,.22,.08,.008),wood,0,0,-.01,c);const rf=new T.Shape();rf.moveTo(-.125,0);rf.lineTo(.125,0);rf.lineTo(0,.08);rf.closePath();const rg=new T.ExtrudeGeometry(rf,{depth:.1,bevelEnabled:true,bevelThickness:.003,bevelSize:.003,bevelSegments:1});rg.translate(0,0,-.06);mesh(rg,wood,0,.11,0,c);
+  mesh(new T.CylinderGeometry(.008,.008,.012,10),br,0,.2,.0,c);mesh(new T.CircleGeometry(.078,48),std({map:face,roughness:.5}),0,0,.031,c,false);mesh(new T.TorusGeometry(.08,.006,8,48),br,0,0,.032,c);
+  const hand=(L,w,a)=>{const s_=new T.Shape();s_.moveTo(-w,-.012);s_.lineTo(w,-.012);s_.lineTo(w*.6,L*.7);s_.lineTo(0,L);s_.lineTo(-w*.6,L*.7);s_.closePath();const hm=mesh(new T.ShapeGeometry(s_),blk,0,0,.036,c,false);hm.rotation.z=-a;};hand(.045,.006,1.1);hand(.065,.004,4.9);
+  /* the pendulum and the weights */const rod=mesh(new T.CylinderGeometry(.0025,.0025,.34,8),br,0,-.28,.0,c);rod.rotation.z=.08;mesh(new T.CylinderGeometry(.032,.032,.008,28).rotateX(Math.PI/2),br,-.036,-.45,.004,c);
+  const link=G('chainLink',()=>new T.TorusGeometry(.005,.0012,4,6));[[-.055,.4],[.055,.52]].forEach(([dx,L])=>{for(let k=0;k*.0086<L;k++){const l=mesh(link,br,dx,-.11-k*.0086,0,c);l.rotation.set(0,k%2?Math.PI/2:0,Math.PI/2);}
+    mesh(lathe([[0,0],[.008,.004],[.016,.02],[.019,.05],[.017,.075],[.01,.09],[.004,.095],[0,.095]],16),br,dx,-.11-L-.095,0,c);});
   return c;}
 
 /* ---------- Russian village furniture, all of it modelled piece by piece at the same scale and finish as the rest of the
@@ -4959,15 +5002,12 @@ function viennaChair(par,x,y,z,ry,fall){const R=RF,g=R.G(par,x,y,z,ry);if(fall){
 /* ---- the round table under its cloth (hem fringed), a lace doily in the middle with the crystal vase ---- */
 function roundTable(par,x,y,z,col){const R=RF,g=R.G(par,x,y,z,0);mesh(new T.CylinderGeometry(.06,.18,.06,16),R.W3,0,.03,0,g);mesh(new T.CylinderGeometry(.04,.05,.68,12),R.W3,0,.38,0,g);
   mesh(new T.CylinderGeometry(.5,.5,.03,40),R.W2,0,.74,0,g);
-  const clothT=memo('rtcloth'+col,()=>tex(256,64,(c,w,h)=>{c.fillStyle=col||'#7a2a26';c.fillRect(0,0,w,h);c.strokeStyle='rgba(230,200,120,.6)';c.lineWidth=2;for(let i=0;i<w;i+=16){c.beginPath();c.moveTo(i,6);c.lineTo(i+8,14);c.lineTo(i+16,6);c.stroke();}
-    c.clearRect(0,h-10,w,10);c.fillStyle=col||'#7a2a26';for(let i=0;i<w;i+=3)c.fillRect(i,h-10,1.4,10);}));clothT.wrapS=T.RepeatWrapping;clothT.repeat.set(4,1);
-  const cm=std({map:clothT,alphaTest:.5,side:T.DoubleSide,roughness:.95,envMapIntensity:.15});
+  const clothT=FAB.tableSkirt(col||'#7a2a26');clothT.repeat.set(4,1);
+  const cm=memo('rtSkirtM'+col,()=>std({map:clothT,alphaTest:.5,side:T.DoubleSide,roughness:.95,envMapIntensity:.15}));
   /* the top of the cloth: the same plush, its woven border running round just inside the edge (no fringe up here) */
-  const topT=memo('rttop'+col,()=>tex(256,256,(c,w,h)=>{c.fillStyle=col||'#7a2a26';c.fillRect(0,0,w,h);c.strokeStyle='rgba(230,200,120,.55)';c.lineWidth=2.5;[118,108].forEach(r=>{c.beginPath();c.arc(w/2,h/2,r,0,7);c.stroke();});
-    for(let i=0;i<64;i++){const a=i/64*Math.PI*2,b=(i+.5)/64*Math.PI*2;c.beginPath();c.moveTo(w/2+Math.cos(a)*112,h/2+Math.sin(a)*112);c.lineTo(w/2+Math.cos(b)*104,h/2+Math.sin(b)*104);c.stroke();}
-    const im=c.getImageData(0,0,w,h),d=im.data;for(let i=0;i<d.length;i+=4){const k=.9+Math.random()*.16;d[i]*=k;d[i+1]*=k;d[i+2]*=k;}c.putImageData(im,0,0);}));
-  mesh(new T.CircleGeometry(.55,40),std({map:topT,roughness:.95,envMapIntensity:.15}),0,.757,0,g,false).rotation.x=-Math.PI/2;
-  const sk=new T.CylinderGeometry(.55,.6,.3,40,4,true);const p=sk.attributes.position;for(let i=0;i<p.count;i++){const a=Math.atan2(p.getZ(i),p.getX(i)),yy=p.getY(i);const k=(.15-yy)/.3;const r=.55+k*.05+Math.sin(a*14)*.012*k;p.setX(i,Math.cos(a)*r);p.setZ(i,Math.sin(a)*r);}sk.computeVertexNormals();
+  const topT=FAB.tableTop(col||'#7a2a26');
+  mesh(new T.CircleGeometry(.55,64),memo('rtTopM'+col,()=>std({map:topT,roughness:.92,envMapIntensity:.15})),0,.757,0,g,false).rotation.x=-Math.PI/2;
+  const sk=new T.CylinderGeometry(.55,.6,.3,72,6,true);const p=sk.attributes.position;for(let i=0;i<p.count;i++){const a=Math.atan2(p.getZ(i),p.getX(i)),yy=p.getY(i);const k=(.15-yy)/.3;const r=.55+k*.05+Math.sin(a*14)*.012*k;p.setX(i,Math.cos(a)*r);p.setZ(i,Math.sin(a)*r);}sk.computeVertexNormals();
   mesh(sk,cm,0,.755-.15,0,g,false);R.doily(g,0,.762,0,.18);R.vase(g,0,.763,0,1.2);
   return R.fin(g);}
 /* ---- the silk lampshade (abazhur) over the table: a cord from the ceiling, the shade ribbed and fringed ---- */
@@ -5021,8 +5061,20 @@ function sewingMachine(par,x,y,z,ry){const R=RF,g=R.G(par,x,y,z,ry);
 /* ---- a made bed's finery: three pillows stacked largest to smallest under a lace cover (nakidka), and the lace valance
    (podzor) hanging along the side of the bed ---- */
 function pillowStack(par,x,y,z,ry,len){const R=RF,g=R.G(par,x,y,z,ry);const pw=R.LINEN;
-  [[.62,.14,.36,0],[.5,.12,.3,.11],[.38,.1,.24,.2]].forEach(([w,h,d,yy])=>{const p=mesh(new T.SphereGeometry(.5,20,12),pw,0,yy+h/2,0,g);p.scale.set(w,h,d);});
-  const nk=mesh(new T.PlaneGeometry(.42,.3),R.LACE,0,.28,.06,g,false);nk.rotation.x=-.9;
+  /* the pillow pyramid at the head of the bed, as every house made it up: three feather pillows in white cases, the
+     biggest at the bottom, each smaller one laid on the one below, the top one stood up on its edge and dented in the
+     middle; a lace cover thrown over the top. Each pillow is a puffed case - full in the middle, pinched thin at the
+     seams, the corners pulled out into ears */
+  const pil=(w,h,t)=>G('pillow'+w+'_'+h,()=>{const nx=22,ny=16,mk=sg=>{const pg=new T.PlaneGeometry(w,h,nx,ny);if(sg<0)pg.rotateY(Math.PI);const P=pg.attributes.position;
+      for(let i=0;i<P.count;i++){const u=P.getX(i)/(w/2),v=P.getY(i)/(h/2);const f=Math.pow(Math.max(0,1-Math.pow(Math.abs(u),2.6)),.55)*Math.pow(Math.max(0,1-Math.pow(Math.abs(v),2.6)),.55);
+        const ear=Math.pow(Math.abs(u*v),3)*.06;const dent=.18*Math.exp(-(u*u+v*v)*3)*(sg>0?1:0);P.setXYZ(i,P.getX(i)*(1+ear),P.getY(i)*(1+ear),sg*t/2*(f-dent*f)+(Math.sin(u*5+v*3)*.004)*f);}
+      pg.computeVertexNormals();return pg;};
+    return merge([mk(1),mk(-1)]);});
+  const st=[[.68,.5,.17,0,0],[.56,.42,.15,.13,-.02],[.44,.34,.13,.24,-.03]];
+  st.forEach(([w,h,t,yy,zz],i)=>{const p=mesh(pil(w,h,t),pw,0,yy+t*.42,zz,g);p.rotation.x=-Math.PI/2+.05*i;if(i===2){p.rotation.x=-.32;p.position.y=yy+h*.42;p.position.z=zz-.03;}});
+  /* the lace cover thrown over the top pillow, falling forward */
+  {const lg=new T.PlaneGeometry(.5,.5,12,12);const P=lg.attributes.position;for(let i=0;i<P.count;i++){const yv=P.getY(i),xv=P.getX(i);P.setZ(i,-Math.max(0,-yv)*Math.max(0,-yv)*.9+Math.cos(xv*6)*.008);}lg.computeVertexNormals();
+   const nk=mesh(lg,R.LACE,0,.24+.44*.42+.09,-.01,g,false);nk.rotation.x=-.32;}
   if(len){const v=mesh(new T.PlaneGeometry(len,.22),R.LEDGE,0,-.2,.47,g,false);v.material=R.LEDGE;}
   return g;}
 /* ---- the icon lamp: a red glass cup in a brass cradle hung on three fine chains under the icon shelf ---- */
@@ -5046,23 +5098,102 @@ const LV=(()=>{const R=RF;const m=(k,f)=>memo('lv_'+k,f);
   /* a cup of tea on its saucer, a teaspoon in it */
   const teacup=(g,x,y,z,ry=0)=>{const c=R.G(g,x,y,z,ry);R.cup(c,0,0,0);mesh(new T.CircleGeometry(.034,18),m('tea',()=>std({color:C(0x4a2a10),roughness:.05,envMapIntensity:1.2})),0,.058,0,c,false).rotation.x=-Math.PI/2;
     const sp=mesh(new T.CylinderGeometry(.003,.004,.12,6),R.TIN,.015,.07,.01,c);sp.rotation.z=.45;return c;};
-  /* the teapot: round belly, spout, handle, lid with its knob, a painted band */
-  const teapot=(g,x,y,z,ry=0)=>{const t=R.G(g,x,y,z,ry);mesh(lathe([[0,0],[.05,0],[.075,.03],[.08,.07],[.07,.1],[.045,.115],[0,.115]],24),R.PORC,0,0,0,t);mesh(lathe([[0,0],[.045,0],[.043,.012],[.012,.02],[.008,.035],[0,.035]],18),R.PORC,0,.112,0,t);
-    const sp=new T.TubeGeometry(new T.CatmullRomCurve3([V3(.07,.035,0),V3(.1,.06,0),V3(.125,.1,0)]),10,.011,8);mesh(sp,R.PORC,0,0,0,t);
-    const hd=new T.TubeGeometry(new T.CatmullRomCurve3([V3(-.07,.09,0),V3(-.11,.085,0),V3(-.115,.05,0),V3(-.075,.025,0)]),12,.008,8);mesh(hd,R.PORC,0,0,0,t);
-    mesh(new T.TorusGeometry(.079,.004,6,32),m('band',()=>std({color:C(0x2a5a9a),roughness:.3})),0,.06,0,t).rotation.x=Math.PI/2;return t;};
-  /* a loaf of black bread on its board, the end cut, the knife beside it */
-  const loaf=(g,x,y,z,ry=0)=>{const b=R.G(g,x,y,z,ry);mesh(rbox(.34,.02,.22,.006),R.W2,0,.01,0,b);const l=mesh(new T.SphereGeometry(.5,24,14),BREAD,-.02,.06,0,b);l.scale.set(.24,.1,.12);
-    mesh(new T.CylinderGeometry(.052,.052,.01,20),CRUMB,.1,.052,0,b).rotation.z=Math.PI/2;mesh(rbox(.2,.003,.025,.001),R.TIN,.03,.025,.08,b).rotation.y=.2;mesh(rbox(.09,.012,.018,.004),R.W3,-.11,.026,.095,b).rotation.y=.2;return b;};
+  /* the teapot: Leningrad porcelain in the cobalt net - a squat belly, the spout drawn out of it and turned up, a loop
+     handle, a domed lid with its knob and steam hole; gilt lines round the rim and the lid. The net is painted on a
+     canvas mapped round the lathe (u round, v up) */
+  const NET=m('cobaltNet',()=>{const t=tex(512,256,(c,w,h)=>{c.fillStyle='#f6f3ec';c.fillRect(0,0,w,h);c.strokeStyle='#1f3c8c';c.lineWidth=2.2;c.lineCap='round';
+      const n=24;for(let i=-n;i<=2*n;i++){const x0=i*w/n;c.beginPath();c.moveTo(x0,h*.18);c.lineTo(x0+h*.64,h*.82);c.stroke();c.beginPath();c.moveTo(x0,h*.82);c.lineTo(x0+h*.64,h*.18);c.stroke();}
+      c.fillStyle='#1f3c8c';for(let i=0;i<n*2;i++)for(let j=0;j<6;j++){const x=(i+.5)*w/(n*2)*1,y=h*.18+(j+.5)*h*.64/6;if((i+j)%2)continue;c.beginPath();c.arc(x,y,1.6,0,7);c.fill();}
+      const gold=(y,lw)=>{c.strokeStyle='#c8a040';c.lineWidth=lw;c.beginPath();c.moveTo(0,y);c.lineTo(w,y);c.stroke();};gold(h*.14,4);gold(h*.86,4);gold(h*.97,6);
+      c.clearRect(0,0,w,h*.1);c.fillStyle='#f6f3ec';c.fillRect(0,0,w,h*.1);c.clearRect(0,h*.88,w,h*.08);c.fillStyle='#f6f3ec';c.fillRect(0,h*.88,w,h*.08);gold(h*.97,6);});
+    return std({map:t,roughness:.12,envMapIntensity:1});});
+  const GILT=m('gilt',()=>std({color:C(0xd0a848),metalness:1,roughness:.25,envMapIntensity:1.2}));
+  const teapot=(g,x,y,z,ry=0)=>{const t=R.G(g,x,y,z,ry);
+    const body=lathe([[0,0],[.042,0],[.046,.004],[.05,.008],[.066,.022],[.078,.045],[.081,.065],[.077,.085],[.066,.1],[.052,.11],[.047,.113],[.047,.118],[.043,.118],[.041,.112],[0,.112]],40);mesh(body,NET,0,0,0,t);
+    const lid=lathe([[0,0],[.044,0],[.045,.004],[.041,.012],[.03,.022],[.016,.028],[.01,.03],[.012,.036],[.014,.044],[.009,.05],[0,.051]],32);mesh(lid,R.PORC,0,.114,0,t);mesh(new T.TorusGeometry(.043,.0018,6,40),GILT,0,.119,0,t).rotation.x=Math.PI/2;
+    /* spout: a tapered tube out of the belly, turning up, its lip cut */
+    {const pts=[V3(.06,.03,0),V3(.09,.045,0),V3(.112,.07,0),V3(.126,.1,0),V3(.132,.118,0)];const cv=new T.CatmullRomCurve3(pts);const sp=new T.TubeGeometry(cv,24,1,14,false);const P=sp.attributes.position;
+      for(let i=0;i<P.count;i++){const k=Math.floor(i/15)/24,c=cv.getPoint(k),r=lerp(.017,.0075,k);const d=V3(P.getX(i),P.getY(i),P.getZ(i));const tg=cv.getTangent(k);const off=d.sub(c);off.sub(tg.multiplyScalar(off.dot(tg))).normalize();P.setXYZ(i,c.x+off.x*r,c.y+off.y*r,c.z+off.z*r);}
+      sp.computeVertexNormals();mesh(sp,R.PORC,0,0,0,t);}
+    {const hc=new T.CatmullRomCurve3([V3(-.07,.095,0),V3(-.1,.1,0),V3(-.118,.075,0),V3(-.108,.04,0),V3(-.076,.028,0)]);mesh(new T.TubeGeometry(hc,24,.0065,10,false),R.PORC,0,0,0,t);}
+    return t;};
+  /* a brick of black rye bread (baked in a tin: straight sides, the top domed and split along the edges, the crust
+     dark and floury) on a breadboard with its handle, the end cut off and two slices lying by it, crumbs, the knife */
+  const CRUST=m('crust',()=>{const t=tex(256,256,(c,w,h)=>{c.fillStyle='#4e301c';c.fillRect(0,0,w,h);const q=rng(51);
+      for(let i=0;i<70;i++){const x=q()*w,y=q()*h,r=8+q()*26,g=c.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,q()<.5?'rgba(92,58,32,.5)':'rgba(20,12,8,.45)');g.addColorStop(1,'rgba(0,0,0,0)');c.fillStyle=g;c.fillRect(x-r,y-r,2*r,2*r);}
+      for(let i=0;i<900;i++){c.fillStyle=`rgba(${190+q()*40|0},${170+q()*30|0},${140+q()*30|0},${q()*.22})`;c.beginPath();c.arc(q()*w,q()*h,.5+q()*1.4,0,7);c.fill();}
+      c.strokeStyle='rgba(16,10,6,.55)';c.lineWidth=1;for(let i=0;i<40;i++){let x=q()*w,y=q()*h;c.beginPath();c.moveTo(x,y);for(let k=0;k<4;k++){x+=(q()-.5)*14;y+=(q()-.5)*14;c.lineTo(x,y);}c.stroke();}});t.wrapS=t.wrapT=T.RepeatWrapping;
+    return std({map:t,bumpMap:t,bumpScale:.004,roughness:.58,envMapIntensity:.45});});
+  const CRUMBT=m('crumbT',()=>{const t=tex(256,256,(c,w,h)=>{c.fillStyle='#5a4030';c.fillRect(0,0,w,h);const q=rng(61);
+      for(let i=0;i<1600;i++){const x=q()*w,y=q()*h,r=.6+Math.pow(q(),3)*4.5;c.fillStyle=`rgba(${28+q()*20|0},${18+q()*12|0},${10+q()*8|0},.75)`;c.beginPath();c.ellipse(x,y,r,r*(.6+q()*.5),q()*3,0,7);c.fill();
+        c.fillStyle='rgba(140,108,80,.35)';c.beginPath();c.ellipse(x-r*.3,y-r*.4,r*.5,r*.3,0,0,7);c.fill();}
+      for(let i=0;i<30;i++){c.fillStyle='rgba(120,90,60,.5)';c.beginPath();c.arc(q()*w,q()*h,1+q()*1.5,0,7);c.fill();}});t.wrapS=t.wrapT=T.RepeatWrapping;
+    return std({map:t,bumpMap:t,bumpScale:.002,roughness:.95,envMapIntensity:.1});});
+  /* the loaf: a box grid pushed out to a rounded brick, the top swelling over the tin's edge */
+  const loafGeo=(L,W_,H_)=>G('loaf'+L,()=>{const g=weldGeo(new T.BoxGeometry(L,H_,W_,18,8,10).toNonIndexed());const P=g.attributes.position,q=rng(8);
+    for(let i=0;i<P.count;i++){let x=P.getX(i)/(L/2),y=P.getY(i)/(H_/2),z=P.getZ(i)/(W_/2);
+      /* rounded edges (a superellipse section), the crown domed and overhanging a little, the base flat */
+      const top=y>0?y:0;const sx=Math.sign(x)*Math.pow(Math.abs(x),1.0),sz=Math.sign(z)*Math.pow(Math.abs(z),1.0);
+      const rr=1-.18*Math.pow(Math.max(Math.abs(x),Math.abs(z)),8)*top;let X=sx*rr,Z=sz*rr*(1+.06*top),Y=y;
+      const cr=Math.max(0,1-Math.pow(Math.abs(z),2.2))*Math.max(0,1-Math.pow(Math.abs(x),6));if(y>0)Y=y*(.86+.28*cr);
+      if(y>.6&&Math.abs(z)>.7&&Math.abs(z)<.9)Y-=.1*y*Math.max(0,1-Math.pow(Math.abs(x),6));
+      Y+=(vnoise(x*4+3,z*4)-.5)*.06*top;P.setXYZ(i,X*L/2,Y*H_/2+H_/2,Z*W_/2);}
+    g.computeVertexNormals();worldUV(g,6);return g;});
+  const loaf=(g,x,y,z,ry=0)=>{const b=R.G(g,x,y,z,ry);
+    const board=new T.Shape();board.moveTo(-.18,-.12);board.lineTo(.14,-.12);board.quadraticCurveTo(.18,-.12,.18,-.08);board.lineTo(.18,-.035);board.lineTo(.26,-.03);board.quadraticCurveTo(.29,0,.26,.03);board.lineTo(.18,.035);board.lineTo(.18,.08);board.quadraticCurveTo(.18,.12,.14,.12);board.lineTo(-.14,.12);board.quadraticCurveTo(-.18,.12,-.18,.08);board.closePath();
+    const hole=new T.Path();hole.absarc(.24,0,.012,0,Math.PI*2,true);board.holes.push(hole);
+    const bg=new T.ExtrudeGeometry(board,{depth:.018,bevelEnabled:true,bevelThickness:.003,bevelSize:.003,bevelSegments:2,curveSegments:12});bg.rotateX(-Math.PI/2);worldUV(bg,1.7);mesh(bg,R.W2,0,.003,0,b);
+    const L=.22,W_=.11,H_=.1;const lf=mesh(loafGeo(L,W_,H_),CRUST,-.03,.024,0,b);
+    /* the cut face, and the slices off it */
+    const face=mesh(new T.PlaneGeometry(W_*.96,H_*.95),CRUMBT,-.03+L/2+.0005,.024+H_*.49,0,b);face.rotation.y=Math.PI/2;
+    [[.1,.035,.2],[.13,.03,-.15]].forEach(([sx,sz,a],k)=>{const sl=R.G(b,sx,.024+.006+k*.008,sz,a);mesh(rbox(W_*.95,.011,H_*.92,.004),CRUMBT,0,0,0,sl).rotation.x=0;const cr=rbox(W_*.97,.0115,.006,.002);mesh(cr,CRUST,0,0,H_*.46,sl);});
+    for(let i=0;i<10;i++){const c=mesh(new T.IcosahedronGeometry(.0035+Math.random()*.003,0),CRUMBT,(Math.random()-.4)*.25,.024,(Math.random()-.5)*.2,b);c.rotation.set(Math.random()*3,Math.random()*3,0);}
+    /* the knife: a worn carbon-steel blade, the wooden handle riveted */
+    {const kn=R.G(b,.02,.03,.085,.18);const bl=new T.Shape();bl.moveTo(0,0);bl.lineTo(.17,0);bl.quadraticCurveTo(.2,.003,.205,.012);bl.lineTo(0,.024);bl.closePath();const bgm=new T.ExtrudeGeometry(bl,{depth:.0015,bevelEnabled:false});bgm.rotateX(-Math.PI/2);
+      mesh(bgm,m('blade',()=>std({color:C(0x8a8c8a),metalness:.9,roughness:.35,envMapIntensity:1})),0,0,0,kn);const hd=rbox(.1,.016,.022,.006);hd.translate(-.05,.002,-.011);mesh(hd,R.W3,0,0,0,kn);
+      [-.025,-.07].forEach(xx=>mesh(new T.CylinderGeometry(.0028,.0028,.018,8),R.BR,xx,.003,-.011,kn));}
+    return b;};
   /* the three-litre jar of pickled cucumbers under its tin lid */
   const pickles=(g,x,y,z)=>{const j=R.G(g,x,y,z,0);const v=mesh(lathe([[0,0],[.075,0],[.08,.02],[.08,.2],[.06,.24],[.045,.25],[.045,.265],[0,.265]],24),R.CRYS,0,0,0,j);v.renderOrder=3;
     for(let i=0;i<6;i++){const c=mesh(new T.CylinderGeometry(.018,.018,.16,10),m('cuc',()=>std({color:C(0x3a5a22),roughness:.5})),Math.cos(i)*.04,.1,Math.sin(i)*.04,j);c.rotation.z=(i%2?.15:-.12);}
     mesh(new T.CylinderGeometry(.05,.05,.015,20),R.TIN,0,.27,0,j);return j;};
-  /* the electric samovar: chrome urn on its foot, the tap, the side handles, the teapot keeping warm on top */
-  const samovar=(g,x,y,z,ry=0)=>{const s=R.G(g,x,y,z,ry);mesh(lathe([[0,0],[.09,0],[.07,.03],[.05,.06],[.11,.1],[.13,.2],[.125,.33],[.1,.38],[.07,.39],[0,.39]],32),CHR,0,0,0,s);
-    const tp=mesh(new T.CylinderGeometry(.012,.014,.07,10),CHR,0,.12,.12,s);tp.rotation.x=Math.PI/2;mesh(rbox(.03,.03,.02,.006),R.W3,0,.13,.165,s);
-    [-1,1].forEach(k=>{const hd=new T.TubeGeometry(new T.CatmullRomCurve3([V3(k*.125,.3,0),V3(k*.16,.31,0),V3(k*.165,.27,0),V3(k*.13,.25,0)]),10,.008,8);mesh(hd,R.W3,0,0,0,s);});
-    teapot(s,0,.39,0,1.2);return s;};
+  /* the samovar on its tray, Tula style: a vase-shaped urn of brass (or nickel-plated) on a square foot with ball feet,
+     a raised band and stamped medals round the shoulder, the lid with its two black knobs, the crown (konforka) that the
+     teapot sits on, two side handles - brass brackets, black turned grips - and the tap low on the front with its
+     filigree key over the slop bowl. Everything turned or tubed, round to the eye at table distance */
+  const BRASS=m('brass',()=>std({color:C(0xd2a95a),metalness:1,roughness:.2,normalMap:PB.metal.n,normalScale:new T.Vector2(.08,.08),envMapIntensity:1.35}));
+  const NICK=m('nickel',()=>std({color:C(0xd6d6d0),metalness:1,roughness:.16,normalMap:PB.metal.n,normalScale:new T.Vector2(.06,.06),envMapIntensity:1.45}));
+  const EBON=m('ebon',()=>std({color:C(0x16110e),roughness:.32,envMapIntensity:.8}));
+  const samovar=(g,x,y,z,seed=0,ry=0)=>{const s=R.G(g,x,y,z,ry);const MT=seed%2?NICK:BRASS;
+    /* the tray */const tr=new T.Shape();const tw=.2,td=.16,tc=.04;tr.moveTo(-tw+tc,-td);tr.lineTo(tw-tc,-td);tr.quadraticCurveTo(tw,-td,tw,-td+tc);tr.lineTo(tw,td-tc);tr.quadraticCurveTo(tw,td,tw-tc,td);tr.lineTo(-tw+tc,td);tr.quadraticCurveTo(-tw,td,-tw,td-tc);tr.lineTo(-tw,-td+tc);tr.quadraticCurveTo(-tw,-td,-tw+tc,-td);
+    const tg=new T.ExtrudeGeometry(tr,{depth:.006,bevelEnabled:true,bevelThickness:.004,bevelSize:.006,bevelSegments:3,curveSegments:10});tg.rotateX(-Math.PI/2);mesh(tg,MT,0,.002,.03,s);
+    /* the foot: a square plinth on four ball feet, necking in to the stem */
+    const F=.012;[[-1,-1],[1,-1],[-1,1],[1,1]].forEach(([a,b])=>mesh(new T.SphereGeometry(.014,14,10),MT,a*.062,F+.004,b*.062,s));
+    mesh(rbox(.15,.016,.15,.006),MT,0,F+.024,0,s);
+    const prof=[[0,F+.03],[.07,F+.03],[.072,F+.036],[.06,F+.044],[.044,F+.055],[.036,F+.07],[.036,F+.08],[.05,F+.084],[.048,F+.09],
+      [.07,F+.1],[.1,F+.115],[.125,F+.14],[.14,F+.17],[.147,F+.2],[.15,F+.235],[.149,F+.265],[.143,F+.295],[.133,F+.318],[.118,F+.337],[.1,F+.35],[.084,F+.357],[.074,F+.36],[0,F+.36]];
+    mesh(lathe(prof,56),MT,0,0,0,s);
+    /* raised bands, and the medals stamped round the shoulder */
+    [[.1465,F+.2],[.143,F+.295],[.105,F+.117]].forEach(([r,yy])=>mesh(new T.TorusGeometry(r+.002,.0032,8,64),MT,0,yy,0,s).rotation.x=Math.PI/2);
+    for(let i=0;i<5;i++){const a=(i-2)*.32,r=.139;const md=mesh(new T.CylinderGeometry(.011,.011,.003,20),MT,Math.sin(a)*r,F+.31,Math.cos(a)*r,s);md.rotation.x=Math.PI/2-.55;md.rotation.order='YXZ';md.rotation.y=a;}
+    /* the lid, its knobs, the crown with its vents */
+    mesh(lathe([[0,0],[.082,0],[.084,.004],[.075,.012],[.058,.018],[.05,.02],[0,.02]],48),MT,0,F+.36,0,s);
+    [-1,1].forEach(k=>{mesh(lathe([[0,0],[.009,0],[.011,.006],[.008,.012],[.01,.016],[0,.02]],14),EBON,k*.062,F+.368,0,s);});
+    const crown=lathe([[.03,0],[.034,0],[.034,.006],[.03,.01],[.03,.036],[.04,.044],[.046,.05],[.044,.052],[.03,.046],[.026,.04],[.026,.004],[.03,0]],40);mesh(crown,MT,0,F+.378,0,s);
+    for(let i=0;i<8;i++){const a=i/8*6.28;const v=mesh(rbox(.008,.014,.004,.002),EBON,Math.sin(a)*.0305,F+.4,Math.cos(a)*.0305,s);v.rotation.y=a;}
+    /* the handles: a brass bracket out of the body at the shoulder, a black grip on a loop, brass ferrules */
+    [-1,1].forEach(k=>{const hc=new T.CatmullRomCurve3([V3(k*.142,F+.31,0),V3(k*.178,F+.318,0),V3(k*.198,F+.3,0),V3(k*.2,F+.26,0),V3(k*.186,F+.235,0),V3(k*.146,F+.228,0)]);
+      mesh(new T.TubeGeometry(hc,32,.0055,10,false),MT,0,0,0,s);const grip=new T.CylinderGeometry(.011,.011,.055,16);mesh(grip,EBON,k*.2,F+.27,0,s);
+      [F+.2425,F+.2975].forEach(yy=>mesh(new T.CylinderGeometry(.0125,.0125,.006,16),MT,k*.2,yy,0,s));});
+    /* the tap: a tapering pipe out of the lower body, the valve on the bend, its pierced key, the spout over the bowl */
+    {const cv=new T.CatmullRomCurve3([V3(0,F+.15,.12),V3(0,F+.155,.165),V3(0,F+.15,.2),V3(0,F+.128,.218),V3(0,F+.108,.222)]);const tb=new T.TubeGeometry(cv,24,1,12,false);const P=tb.attributes.position;
+      for(let i=0;i<P.count;i++){const kk=Math.floor(i/13)/24,c=cv.getPoint(kk),r=lerp(.014,.0075,kk);const d=V3(P.getX(i),P.getY(i),P.getZ(i));const tgn=cv.getTangent(kk);const off=d.sub(c);off.sub(tgn.multiplyScalar(off.dot(tgn))).normalize();P.setXYZ(i,c.x+off.x*r,c.y+off.y*r,c.z+off.z*r);}
+      tb.computeVertexNormals();mesh(tb,MT,0,0,0,s);mesh(new T.SphereGeometry(.016,18,12),MT,0,F+.156,.185,s);mesh(new T.CylinderGeometry(.006,.008,.012,12),MT,0,F+.172,.185,s);
+      const key=new T.Shape();key.moveTo(0,0);key.bezierCurveTo(.012,.004,.024,.018,.016,.03);key.bezierCurveTo(.01,.038,0,.03,0,.03);key.bezierCurveTo(0,.03,-.01,.038,-.016,.03);key.bezierCurveTo(-.024,.018,-.012,.004,0,0);
+      const kh=new T.Path();kh.absarc(0,.019,.0055,0,Math.PI*2,true);key.holes.push(kh);const kg=new T.ExtrudeGeometry(key,{depth:.003,bevelEnabled:true,bevelThickness:.0008,bevelSize:.0008,bevelSegments:1,curveSegments:10});kg.translate(0,0,-.0015);
+      mesh(kg,MT,0,F+.177,.185,s);}
+    /* the slop bowl under the tap */mesh(lathe([[0,0],[.022,0],[.024,.004],[.034,.022],[.036,.03],[.033,.03],[.031,.024],[0,.006]],28),MT,0,.009,.215,s);
+    teapot(s,0,F+.43,0,1.2+seed);return s;};
   /* a zinc bucket, water in it or not, its bail */
   const bucket=(g,x,y,z,water,ry=0)=>{const b=R.G(g,x,y,z,ry);mesh(new T.CylinderGeometry(.15,.11,.28,28,1,true),ZN,0,.14,0,b);mesh(new T.CircleGeometry(.11,24),ZN,0,.003,0,b).rotation.x=-Math.PI/2;
     mesh(new T.TorusGeometry(.15,.006,6,32),ZN,0,.28,0,b).rotation.x=Math.PI/2;const ba=mesh(new T.TorusGeometry(.15,.004,6,24,Math.PI),R.IRON,0,.28,0,b);ba.rotation.y=Math.PI/2;ba.rotation.x=-.5;
@@ -5107,6 +5238,207 @@ const LV=(()=>{const R=RF;const m=(k,f)=>memo('lv_'+k,f);
     mesh(rbox(.2,.04,.1,.02),m('saddle',()=>std({color:C(0x2a1a12),roughness:.6})),-.14,.86,0,b);tube(V3(.42,.86,0),V3(.4,.98,0));tube(V3(.34,1.0,-.24),V3(.34,1.0,.24),.012);
     mesh(new T.CylinderGeometry(.08,.08,.02,24),CHR,-.02,.3,.03,b).rotation.x=Math.PI/2;return b;};
   return{teacup,teapot,loaf,pickles,samovar,bucket,valenki,gasBottle,laundry,chopBlock,wateringCan,milkCan,kennel,bicycle,ENAM,ZN};})();
+
+/* ---------- textiles and papers for the houses, painted at a resolution that holds up at arm's length: the wool wall
+   carpet, the bed covers (patchwork, a woven wool check, crochet over a pink lining), the plush tablecloth and its
+   fringe, the crocheted doily, the wallpapers. Each drawn with the canvas's own anti-aliasing and then given a fine
+   cloth grain - a weave of warp and weft, a soft unevenness of dye, wear - from smooth noise, never per-pixel static
+   (which is what read as blocky pixels up close). ---------- */
+const FAB=(()=>{
+  /* the cloth grain: every pixel lifted or dropped a little by the over-under of the weave, a slow unevenness of dye
+     and, for pile (carpet, plush), a soft nap */
+  const grain=(c,w,h,o={})=>{const im=c.getImageData(0,0,w,h),d=im.data,seed=o.seed||1,wv=o.weave===undefined?.05:o.weave,dy=o.dye===undefined?.08:o.dye,nap=o.nap||0,per=o.per||8;
+    for(let y=0;y<h;y++)for(let x=0;x<w;x++){const i=(y*w+x)*4;if(d[i+3]===0)continue;
+      const weave=((x>>(o.cell||0))+(y>>(o.cell||0)))&1?wv:-wv;const slow=(fbmT(x/w+seed*.13,y/h,per,3)-.5)*2*dy;const fine=nap?(vnP(x*.5+seed,y*.5,w*.5)-.5)*nap:0;
+      const k=1+weave*.5+slow+fine;d[i]=Math.min(255,d[i]*k);d[i+1]=Math.min(255,d[i+1]*k);d[i+2]=Math.min(255,d[i+2]*k);}
+    c.putImageData(im,0,0);};
+  const rep=t=>{t.wrapS=t.wrapT=T.RepeatWrapping;return t;};
+  /* ===== the wall carpet: a wool pile rug of the sort every house hung over the bed - borders of rosettes and guard
+     stripes, a red field strewn with small flowers, a stepped central medallion and corner pieces ===== */
+  const carpet=seed=>memo('fabCarpet'+seed%3,()=>{const pal=[{f:'#7a1f1c',d:'#3e0f10',b:'#1d2a44',g:'#d8c39a',a:'#b5442e',e:'#2f5a4a'},{f:'#5a1e2a',d:'#2a0e16',b:'#2a3a2a',g:'#e0cfa4',a:'#9a3a2a',e:'#3a4a7a'},{f:'#253658',d:'#121a2c',b:'#6e1c1a',g:'#dcc89c',a:'#a8402a',e:'#4a6a4a'}][seed%3];
+    return tex(512,768,(c,w,h)=>{const q=rng(900+seed);c.fillStyle=pal.f;c.fillRect(0,0,w,h);
+      /* outer border: a dark band carrying a chain of rosettes, guard stripes either side */
+      const band=(m,wd,col)=>{c.fillStyle=col;c.fillRect(m,m,w-2*m,wd);c.fillRect(m,h-m-wd,w-2*m,wd);c.fillRect(m,m,wd,h-2*m);c.fillRect(w-m-wd,m,wd,h-2*m);};
+      band(0,10,pal.d);band(10,4,pal.g);band(14,44,pal.b);band(58,4,pal.g);band(62,8,pal.a);band(70,3,pal.g);
+      const rosette=(x,y,r,c1,c2)=>{c.fillStyle=c1;for(let k=0;k<8;k++){const a=k/8*Math.PI*2;c.beginPath();c.ellipse(x+Math.cos(a)*r*.55,y+Math.sin(a)*r*.55,r*.42,r*.2,a,0,7);c.fill();}c.fillStyle=c2;c.beginPath();c.arc(x,y,r*.32,0,7);c.fill();c.fillStyle=c1;c.beginPath();c.arc(x,y,r*.12,0,7);c.fill();};
+      for(let x=36;x<w-20;x+=44){rosette(x,36,17,pal.g,pal.a);rosette(x,h-36,17,pal.g,pal.a);}for(let y=80;y<h-60;y+=44){rosette(36,y,17,pal.g,pal.a);rosette(w-36,y,17,pal.g,pal.a);}
+      /* the guard stripe's little zigzag */c.strokeStyle=pal.g;c.lineWidth=2;c.beginPath();for(let x=70;x<w-70;x+=8){c.lineTo(x,66+(x/8%2?-2:2));}c.stroke();c.beginPath();for(let x=70;x<w-70;x+=8){c.lineTo(x,h-66+(x/8%2?-2:2));}c.stroke();
+      /* the field: small flowers in a half-drop repeat */
+      for(let y=90;y<h-80;y+=36)for(let x=90+((y/36|0)%2)*24;x<w-80;x+=48){const s=4+q()*1.5;c.fillStyle=q()<.5?pal.g:pal.e;for(let k=0;k<4;k++){const a=k/4*Math.PI*2+.4;c.beginPath();c.ellipse(x+Math.cos(a)*s,y+Math.sin(a)*s,s*.8,s*.4,a,0,7);c.fill();}c.fillStyle=pal.a;c.beginPath();c.arc(x,y,s*.45,0,7);c.fill();}
+      /* the central medallion: a stepped lozenge in three layers with hooks on its edges, a star in the middle */
+      const cx=w/2,cy=h/2;const loz=(rx,ry,col,step)=>{c.fillStyle=col;c.beginPath();const n=8;for(let k=0;k<=n;k++){const t=k/n;c.lineTo(cx+rx*t,cy-ry*(1-t)-(k%2?step:0));}for(let k=n;k>=0;k--){const t=k/n;c.lineTo(cx+rx*t,cy+ry*(1-t)+(k%2?step:0));}
+        for(let k=0;k<=n;k++){const t=k/n;c.lineTo(cx-rx*t,cy+ry*(1-t)+(k%2?step:0));}for(let k=n;k>=0;k--){const t=k/n;c.lineTo(cx-rx*t,cy-ry*(1-t)-(k%2?step:0));}c.closePath();c.fill();};
+      loz(170,250,pal.g,8);loz(150,226,pal.b,7);loz(118,180,pal.a,6);loz(80,124,pal.d,5);loz(46,70,pal.g,4);
+      c.fillStyle=pal.b;for(let k=0;k<8;k++){const a=k/8*Math.PI*2;c.beginPath();c.moveTo(cx,cy);c.lineTo(cx+Math.cos(a)*30,cy+Math.sin(a)*42);c.lineTo(cx+Math.cos(a+.39)*12,cy+Math.sin(a+.39)*16);c.closePath();c.fill();}
+      /* hooks along the medallion's edge */c.strokeStyle=pal.g;c.lineWidth=3;for(let k=1;k<8;k++){const t=k/8;[[1,-1],[1,1],[-1,1],[-1,-1]].forEach(([sx,sy])=>{const x=cx+sx*170*t,y=cy+sy*250*(1-t);c.beginPath();c.moveTo(x,y);c.lineTo(x+sx*10,y+sy*6);c.lineTo(x+sx*10,y+sy*14);c.stroke();});}
+      /* corner pieces: quarter medallions */[[86,86],[w-86,86],[86,h-86],[w-86,h-86]].forEach(([x,y])=>{c.save();c.beginPath();c.rect(73,73,w-146,h-146);c.clip();c.fillStyle=pal.b;c.beginPath();c.ellipse(x<w/2?73:w-73,y<h/2?73:h-73,70,90,0,0,7);c.fill();c.fillStyle=pal.a;c.beginPath();c.ellipse(x<w/2?73:w-73,y<h/2?73:h-73,46,60,0,0,7);c.fill();c.restore();});
+      /* wear: the pile flattened and faded in a few places, and the wool's nap */
+      for(let i=0;i<8;i++){const x=q()*w,y=q()*h,r=40+q()*90,g=c.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,'rgba(230,210,180,.08)');g.addColorStop(1,'rgba(230,210,180,0)');c.fillStyle=g;c.fillRect(0,0,w,h);}
+      grain(c,w,h,{seed,weave:.07,dye:.07,nap:.12,per:6});});});
+  /* ===== bed covers ===== */
+  const quilt=k=>memo('fabQuilt'+k%3,()=>{k=k%3;return rep(tex(512,1024,(c,w,h)=>{const q=rng(70+k);
+    if(k===0){/* patchwork: squares of dress cottons, each with its own small print, stitched together; a plain binding */
+      const P=[['#8a3a32','#e8d8b8','dots'],['#c8a46a','#7a4a2a','sprig'],['#3a5a7a','#e8e0d0','check'],['#6a7a4a','#e0d8b0','dots'],['#b8865a','#5a2a1a','stripe'],['#5a3a5a','#d8c0d8','sprig'],['#d8c8a8','#8a3a32','sprig'],['#2a4a5a','#c8a46a','stripe']];
+      const S=64;for(let y=0;y<h;y+=S)for(let x=0;x<w;x+=S){const [bg,fg,kind]=P[(q()*P.length)|0];c.fillStyle=bg;c.fillRect(x,y,S,S);c.save();c.beginPath();c.rect(x,y,S,S);c.clip();c.fillStyle=fg;c.strokeStyle=fg;
+        if(kind==='dots')for(let yy=4;yy<S;yy+=8)for(let xx=4+(yy/8%2)*4;xx<S;xx+=8){c.beginPath();c.arc(x+xx,y+yy,1.4,0,7);c.fill();}
+        else if(kind==='sprig')for(let yy=8;yy<S;yy+=16)for(let xx=8+(yy/16%2)*8;xx<S;xx+=16){for(let a=0;a<5;a++){c.beginPath();c.ellipse(x+xx+Math.cos(a*1.26)*2.4,y+yy+Math.sin(a*1.26)*2.4,1.8,1,a*1.26,0,7);c.fill();}}
+        else if(kind==='check'){c.globalAlpha=.35;for(let t=0;t<S;t+=8){c.fillRect(x+t,y,3,S);c.fillRect(x,y+t,S,3);}c.globalAlpha=1;}
+        else{c.lineWidth=2;for(let t=0;t<S;t+=6){c.beginPath();c.moveTo(x+t,y);c.lineTo(x+t,y+S);c.stroke();}}
+        c.restore();
+        /* the seam and the quilting stitches */c.strokeStyle='rgba(30,20,12,.5)';c.lineWidth=1.2;c.strokeRect(x+.5,y+.5,S-1,S-1);c.setLineDash([3,3]);c.strokeStyle='rgba(240,230,210,.5)';c.strokeRect(x+5,y+5,S-10,S-10);c.setLineDash([]);
+        const g=c.createRadialGradient(x+S/2,y+S/2,S*.1,x+S/2,y+S/2,S*.75);g.addColorStop(0,'rgba(255,255,255,.07)');g.addColorStop(1,'rgba(0,0,0,.12)');c.fillStyle=g;c.fillRect(x,y,S,S);}
+      grain(c,w,h,{seed:k+3,weave:.05,dye:.05});}
+    else if(k===1){/* a woven wool blanket: a check of wide and narrow stripes in two colours over a deep red, twill-woven
+         (the diagonal rib), a plain border band round it */
+      const warp=x=>{const t=x%128;return t<40?'#6a1c18':t<52?'#1e2232':t<60?'#c89a50':t<72?'#1e2232':t<120?'#7a2420':'#1e2232';};
+      const W2=document.createElement('canvas');W2.width=w;W2.height=h;const a=W2.getContext('2d');
+      for(let x=0;x<w;x++){a.fillStyle=warp(x);a.fillRect(x,0,1,h);}const A=a.getImageData(0,0,w,h).data;
+      for(let y=0;y<h;y++){a.fillStyle=warp(y);a.fillRect(0,y,w,1);}const B=a.getImageData(0,0,w,h).data;
+      const im=c.createImageData(w,h),d=im.data;for(let y=0;y<h;y++)for(let x=0;x<w;x++){const i=(y*w+x)*4,tw=((x+y)>>1)%2===0;const s=tw?A:B,o=tw?B:A;for(let ch=0;ch<3;ch++)d[i+ch]=s[i+ch]*.78+o[i+ch]*.22;d[i+3]=255;}c.putImageData(im,0,0);
+      c.strokeStyle='#d8b878';c.lineWidth=3;c.strokeRect(22,22,w-44,h-44);c.strokeStyle='#1e2232';c.lineWidth=14;c.strokeRect(8,8,w-16,h-16);
+      grain(c,w,h,{seed:k+5,weave:.06,dye:.08,nap:.1});}
+    else{/* white crocheted squares (granny motifs) laid over a pink cotton cover that shows through their holes */
+      c.fillStyle='#d4949a';c.fillRect(0,0,w,h);const S=64;for(let y=0;y<h;y+=S)for(let x=0;x<w;x+=S){const cx=x+S/2,cy=y+S/2;c.strokeStyle='#f4f0e6';c.lineCap='round';
+        c.lineWidth=3;c.strokeRect(x+3,y+3,S-6,S-6);c.lineWidth=2.4;c.strokeRect(x+9,y+9,S-18,S-18);
+        for(let k2=0;k2<8;k2++){const a=k2/8*Math.PI*2;c.beginPath();c.moveTo(cx+Math.cos(a)*5,cy+Math.sin(a)*5);c.lineTo(cx+Math.cos(a)*20,cy+Math.sin(a)*20);c.stroke();}
+        c.lineWidth=2;for(let r=6;r<=20;r+=7){c.beginPath();c.arc(cx,cy,r,0,7);c.stroke();}
+        for(let k2=0;k2<12;k2++){const a=k2/12*Math.PI*2;c.beginPath();c.arc(cx+Math.cos(a)*24,cy+Math.sin(a)*24,3,0,7);c.stroke();}}
+      grain(c,w,h,{seed:k+7,weave:.04,dye:.06});}}));});
+  /* ===== the plush tablecloth of the round table: velvet pile with a sheen that shifts, a woven border of a running
+     scroll in gold thread inside the edge; and the hanging skirt with its knotted fringe ===== */
+  const tableTop=col=>memo('fabTop'+col,()=>tex(512,512,(c,w,h)=>{c.fillStyle=col;c.fillRect(0,0,w,h);const cx=w/2,cy=h/2;
+    const g=c.createRadialGradient(cx*.8,cy*.8,10,cx,cy,w*.55);g.addColorStop(0,'rgba(255,255,255,.08)');g.addColorStop(1,'rgba(0,0,0,.15)');c.fillStyle=g;c.fillRect(0,0,w,h);
+    c.strokeStyle='rgba(222,190,110,.85)';c.lineWidth=3;[238,212].forEach(r=>{c.beginPath();c.arc(cx,cy,r,0,7);c.stroke();});
+    c.lineWidth=2.4;const n=36;for(let i=0;i<n;i++){const a0=i/n*Math.PI*2,a1=(i+1)/n*Math.PI*2;const r=225;c.beginPath();c.moveTo(cx+Math.cos(a0)*r,cy+Math.sin(a0)*r);
+      c.quadraticCurveTo(cx+Math.cos((a0+a1)/2)*(r+10),cy+Math.sin((a0+a1)/2)*(r+10),cx+Math.cos(a1)*r,cy+Math.sin(a1)*r);c.stroke();
+      const am=(a0+a1)/2;c.beginPath();c.arc(cx+Math.cos(am)*(r-5),cy+Math.sin(am)*(r-5),3.2,0,7);c.stroke();}
+    grain(c,w,h,{seed:31,weave:.03,dye:.06,nap:.14,per:4});},{clamp:true}));
+  const tableSkirt=col=>memo('fabSkirt'+col,()=>rep(tex(512,128,(c,w,h)=>{c.clearRect(0,0,w,h);c.fillStyle=col;c.fillRect(0,0,w,h-30);
+    c.strokeStyle='rgba(222,190,110,.85)';c.lineWidth=2.4;c.beginPath();c.moveTo(0,h-46);c.lineTo(w,h-46);c.stroke();for(let x=0;x<w;x+=32){c.beginPath();c.moveTo(x,h-60);c.quadraticCurveTo(x+16,h-74,x+32,h-60);c.stroke();}
+    /* the fringe: knotted bunches of threads */c.strokeStyle=col;c.lineWidth=1.3;for(let x=1;x<w;x+=2.6){c.beginPath();c.moveTo(x,h-31);c.quadraticCurveTo(x+(Math.sin(x)*2),h-14,x+Math.sin(x*.7)*1.5,h-1);c.stroke();}
+    c.fillStyle=col;for(let x=6;x<w;x+=13){c.beginPath();c.ellipse(x,h-27,4,3,0,0,7);c.fill();}
+    grain(c,w,h,{seed:33,weave:.03,dye:.05,nap:.12,per:4});})));
+  /* ===== the crocheted doily: thread drawn as thread - a flower in the middle, rounds of chain arches, a ring of
+     petals, fans, a picot edge; cut out by its alpha ===== */
+  const lace=()=>memo('fabLace',()=>tex(512,512,(c,w,h)=>{c.clearRect(0,0,w,h);const cx=w/2,cy=h/2;c.strokeStyle='#f6f2e8';c.fillStyle='#f6f2e8';c.lineCap='round';c.lineJoin='round';
+    const ring=r=>{c.lineWidth=4;c.beginPath();c.arc(cx,cy,r,0,7);c.stroke();};
+    /* centre flower */for(let k=0;k<8;k++){const a=k/8*Math.PI*2;c.lineWidth=5;c.beginPath();c.ellipse(cx+Math.cos(a)*16,cy+Math.sin(a)*16,14,6,a,0,7);c.stroke();}ring(6);ring(34);
+    /* chain arches */const arches=(r0,r1,n,lw)=>{c.lineWidth=lw;for(let k=0;k<n;k++){const a0=k/n*Math.PI*2,a1=(k+1)/n*Math.PI*2,am=(a0+a1)/2;c.beginPath();c.moveTo(cx+Math.cos(a0)*r0,cy+Math.sin(a0)*r0);
+      c.quadraticCurveTo(cx+Math.cos(am)*r1*1.08,cy+Math.sin(am)*r1*1.08,cx+Math.cos(a1)*r0,cy+Math.sin(a1)*r0);c.stroke();}};
+    arches(34,62,16,3.4);ring(64);
+    /* spokes and a ring of petals */c.lineWidth=3;for(let k=0;k<24;k++){const a=k/24*Math.PI*2;c.beginPath();c.moveTo(cx+Math.cos(a)*64,cy+Math.sin(a)*64);c.lineTo(cx+Math.cos(a)*104,cy+Math.sin(a)*104);c.stroke();}
+    for(let k=0;k<12;k++){const a=(k+.5)/12*Math.PI*2;c.lineWidth=4;c.beginPath();c.ellipse(cx+Math.cos(a)*90,cy+Math.sin(a)*90,16,8,a,0,7);c.stroke();}
+    ring(106);arches(106,140,30,3.2);ring(142);
+    /* fans */for(let k=0;k<18;k++){const a=k/18*Math.PI*2;for(let j=-2;j<=2;j++){const b=a+j*.05;c.lineWidth=3;c.beginPath();c.moveTo(cx+Math.cos(a)*144,cy+Math.sin(a)*144);c.lineTo(cx+Math.cos(b)*196,cy+Math.sin(b)*196);c.stroke();}}
+    arches(196,226,36,3.6);
+    /* picot edge */for(let k=0;k<72;k++){const a=k/72*Math.PI*2;c.beginPath();c.arc(cx+Math.cos(a)*238,cy+Math.sin(a)*238,4,0,7);c.lineWidth=2.6;c.stroke();}},{clamp:true}));
+  /* ===== wallpaper: a paper ground with a printed sprig in a half-drop, fine pinstripes, foxed and faded ===== */
+  const wallpaper=seed=>{seed=seed%4;return memo('fabWP'+seed,()=>{const P=[['#e6dec6','#8a6a4a','#5a7a4a','#b84a3a'],['#d6dfd0','#4a6a5a','#a06a5a','#2a4a6a'],['#eadac2','#7a4a3a','#4a5a7a','#b88a3a'],['#e2d6da','#6a4a5a','#5a6a4a','#8a3a4a']][seed];
+    const t=tex(512,512,(c,w,h)=>{const q=rng(300+seed);c.fillStyle=P[0];c.fillRect(0,0,w,h);
+      for(let x=0;x<w;x+=128){c.fillStyle='rgba(0,0,0,.035)';c.fillRect(x+56,0,16,h);c.strokeStyle=P[1];c.globalAlpha=.35;c.lineWidth=1.4;[4,124].forEach(o=>{c.beginPath();c.moveTo(x+o,0);c.lineTo(x+o,h);c.stroke();});c.globalAlpha=1;
+        for(let y=0;y<h;y+=128){const cx=x+64,cy=y+((x/128)%2)*64+30;
+          /* the sprig: a curved stem, paired leaves, a three-petal flower and buds */
+          c.strokeStyle=P[2];c.lineWidth=2.2;c.beginPath();c.moveTo(cx,cy+40);c.bezierCurveTo(cx-10,cy+20,cx+8,cy+4,cx,cy-14);c.stroke();
+          [[-1,22],[1,12],[-1,2]].forEach(([s,dy])=>{c.fillStyle=P[2];c.save();c.translate(cx+s*2,cy+dy);c.rotate(s*.9);c.beginPath();c.moveTo(0,0);c.quadraticCurveTo(s*8,-6,s*16,0);c.quadraticCurveTo(s*8,5,0,0);c.fill();c.restore();});
+          c.fillStyle=P[3];for(let k=0;k<3;k++){const a=-Math.PI/2+(k-1)*.7;c.beginPath();c.ellipse(cx+Math.cos(a)*7,cy-16+Math.sin(a)*7,6,3.6,a,0,7);c.fill();}c.fillStyle=P[1];c.beginPath();c.arc(cx,cy-16,2.6,0,7);c.fill();
+          [[-12,-6],[11,-4]].forEach(([dx,dy])=>{c.fillStyle=P[3];c.beginPath();c.ellipse(cx+dx,cy+dy,2.6,3.6,dx*.05,0,7);c.fill();});}}
+      for(let i=0;i<18;i++){const x=q()*w,y=q()*h,r=12+q()*44,g=c.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,'rgba(150,118,64,.10)');g.addColorStop(1,'rgba(150,118,64,0)');c.fillStyle=g;c.fillRect(x-r,y-r,2*r,2*r);}
+      grain(c,w,h,{seed:seed+11,weave:0,dye:.05,per:4});});
+    t.wrapS=t.wrapT=T.RepeatWrapping;return std({map:t,roughness:.85,envMapIntensity:.2});});};
+  /* ===== linoleum printed as parquet: herringbone blocks in three woods, each with its printed grain, a faint gloss
+     worn dull along the walking lines ===== */
+  const lino=()=>memo('fabLino',()=>tex(512,512,(c,w,h)=>{const q=rng(808);c.fillStyle='#6a4428';c.fillRect(0,0,w,h);const S=64,bw=16,tones=['#8a5a34','#7a4c2c','#9a6a40','#6e4426','#84542e'];
+    /* basket-weave parquet: squares of four strips, the strips turned a quarter in every other square (8 x 8 squares: tiles) */
+    for(let j=0;j<8;j++)for(let i=0;i<8;i++){const x0=i*S,y0=j*S,vert=(i+j)%2===0;for(let k=0;k<4;k++){const rx=vert?x0+k*bw:x0,ry=vert?y0:y0+k*bw,rw=vert?bw:S,rh=vert?S:bw;
+      c.fillStyle=tones[(q()*tones.length)|0];c.fillRect(rx,ry,rw,rh);c.strokeStyle='rgba(30,16,8,.2)';c.lineWidth=.8;
+      for(let l=0;l<4;l++){c.beginPath();if(vert){const xx=rx+2+q()*(bw-4);c.moveTo(xx,ry);c.bezierCurveTo(xx+(q()-.5)*3,ry+S*.3,xx+(q()-.5)*3,ry+S*.6,xx+(q()-.5)*2,ry+S);}else{const yy=ry+2+q()*(bw-4);c.moveTo(rx,yy);c.bezierCurveTo(rx+S*.3,yy+(q()-.5)*3,rx+S*.6,yy+(q()-.5)*3,rx+S,yy+(q()-.5)*2);}c.stroke();}
+      c.strokeStyle='rgba(20,10,4,.5)';c.lineWidth=1;c.strokeRect(rx+.5,ry+.5,rw-1,rh-1);}}
+    grain(c,w,h,{seed:9,weave:0,dye:.07,per:3});}));
+  return{grain,carpet,quilt,tableTop,tableSkirt,lace,wallpaper,lino};})();
+/* the bed covers and the lace everywhere take the new cloths */
+RF.quilt=k=>memo('fabQuiltM'+k%3,()=>std({map:FAB.quilt(k),roughness:.95,envMapIntensity:.15}));
+RF.LACE.map=FAB.lace();RF.LACE.needsUpdate=true;
+
+/* ---------- the furniture of a newer house - the kolkhoz's brick houses of the seventies and eighties, gas brought in,
+   water heating: the sofa-bed under its plaid, the polished wall unit (stenka) with its glass cases of crystal and
+   books and the television in its niche, the low coffee table, a wool rug on the floor, cast-iron radiators under the
+   windows, and in the kitchen the gas cooker, the refrigerator and the AGV boiler with its flue. Metres; standing on
+   the floor at y, facing +z unless turned. ---------- */
+const MOD=(()=>{const R=RF,m=(k,f)=>memo('mod_'+k,f);
+  const ENW=m('enw',()=>std({color:C(0xeeece4),roughness:.18,envMapIntensity:.9})),BLK=m('blk',()=>std({color:C(0x121212),roughness:.35,envMapIntensity:.6})),CHR=m('chr',()=>std({color:C(0xd8dad8),metalness:1,roughness:.12,envMapIntensity:1.4}));
+  const RAD=m('rad',()=>std({color:C(0xe6e0d0),roughness:.45,envMapIntensity:.5})),GLS=m('gls',()=>std({color:C(0xc8d4d8),roughness:.05,transparent:true,opacity:.28,envMapIntensity:1.2,depthWrite:false}));
+  /* upholstery: a woven furnishing fabric - a small jacquard lozenge in two tones over a ribbed ground */
+  const UPH=k=>m('uph'+k,()=>{const pal=[['#5a3a2a','#7a5238'],['#3a4a3a','#58705a'],['#4a3048','#6a4a68']][k%3];const t=tex(256,256,(c,w,h)=>{c.fillStyle=pal[0];c.fillRect(0,0,w,h);c.fillStyle=pal[1];
+      for(let y=0;y<h;y+=32)for(let x=((y/32)%2)*16;x<w;x+=32){c.beginPath();c.moveTo(x+16,y+4);c.lineTo(x+28,y+16);c.lineTo(x+16,y+28);c.lineTo(x+4,y+16);c.closePath();c.fill();}
+      FAB.grain(c,w,h,{seed:k+40,weave:.09,dye:.05,nap:.08,cell:1});});t.wrapS=t.wrapT=T.RepeatWrapping;
+    return std({map:t,roughness:.95,envMapIntensity:.15});});
+  /* a cushion: a puffed box, the seams rounded over, a little sag in the middle */
+  const cush=(w,h,d,sag)=>{const g=weldGeo(new T.BoxGeometry(w,h,d,10,4,8).toNonIndexed());const P=g.attributes.position;
+    for(let i=0;i<P.count;i++){let x=P.getX(i)/(w/2),y=P.getY(i)/(h/2),z=P.getZ(i)/(d/2);const ex=Math.max(Math.abs(x),Math.abs(z));const r=.82+.18*Math.pow(1-Math.min(1,Math.pow(ex,6)),.5);
+      const pf=(1-x*x)*(1-z*z);y=y*(.8+.2*pf*(y>0?1:.4))-(y>0?sag*pf:0);P.setXYZ(i,x*w/2*(.96+.04*r),y*h/2,z*d/2*(.96+.04*r));}g.computeVertexNormals();worldUV(g,3);return g;};
+  const sofa=(par,x,y,z,ry,k=0)=>{const g=R.G(par,x,y,z,ry),U=UPH(k),W=1.92,D=.86;
+    mesh(rbox(W-.1,.2,D-.08,.02),R.W3,0,.2,0,g);[[-1,-1],[1,-1],[-1,1],[1,1]].forEach(([a,b])=>mesh(new T.CylinderGeometry(.022,.016,.1,10),R.W3,a*(W/2-.12),.05,b*(D/2-.1),g));
+    /* armrests: upholstered blocks capped with a polished board */[-1,1].forEach(s_=>{mesh(cush(.14,.36,D,0),U,s_*(W/2-.07),.48,0,g);mesh(rbox(.16,.035,D+.02,.012),R.W1,s_*(W/2-.07),.675,0,g);});
+    mesh(cush(W-.28,.17,D-.18,.02),U,0,.385,.05,g);
+    {const b=mesh(cush(W-.28,.48,.18,.0),U,0,.69,-D/2+.11,g);b.rotation.x=-.12;
+     /* buttons tufted into the back */for(let i=0;i<5;i++)for(let j=0;j<2;j++){const bt=mesh(new T.SphereGeometry(.012,8,6),U,-.6+i*.3,.6+j*.18,-D/2+.21+j*.02,g);bt.scale.z=.5;}}
+    /* the plaid thrown over one end */{const pg=new T.PlaneGeometry(.7,1.3,10,18);const P=pg.attributes.position;for(let i=0;i<P.count;i++){const yy=P.getY(i),xx=P.getX(i);
+        const zz=yy>.25?0:yy>-.15?(yy-.25)*-.9:.36+(-.15-yy)*.1;P.setXYZ(i,xx,yy>.25?.47+(yy-.25)*.15:yy>-.15?.47-(.25-yy)*.25:.37-(-.15-yy)*.9,yy>.25?-D/2+.2+(yy-.25)*-.1:zz-D/2+.2);}
+      pg.computeVertexNormals();const pm=m('plaid',()=>std({map:FAB.quilt(1),roughness:.95,envMapIntensity:.15,side:T.DoubleSide}));mesh(pg,pm,W/2-.55,0,.15,g,false);}
+    return R.fin(g);};
+  /* the wall unit: cupboards below, the glass case in the middle with its shelves of crystal and books, the TV niche,
+     cupboards above under a cornice; veneer polished to a gloss */
+  const stenka=(par,x,y,z,ry)=>{const g=R.G(par,x,y,z,ry),W=2.4,D=.45,H=2.05,V=R.W1,V2=R.W3;
+    mesh(rbox(W,.06,D-.02,.006),V2,0,.03,0,g);mesh(rbox(.02,H-.06,D,.004),V,-W/2+.01,H/2+.03,0,g);mesh(rbox(.02,H-.06,D,.004),V,W/2-.01,H/2+.03,0,g);mesh(rbox(W,.02,D,.004),V,0,H,0,g);
+    mesh(rbox(W+.04,.05,D+.03,.01),V2,0,H+.035,.01,g);mesh(rbox(W-.04,H-.08,.012,.002),V2,0,H/2+.03,-D/2+.006,g);
+    [-.4,.4].forEach(xx=>mesh(rbox(.02,H-.08,D-.02,.004),V,xx,H/2+.03,0,g));
+    /* lower doors, a row of drawers */[-1,0,1].forEach(c=>{R.panelDoor(g,c*.8,.38,D/2-.01,.76,.62,V);R.knob(g,c*.8+(c<=0?.3:-.3),.44,D/2+.005);});
+    mesh(rbox(W-.04,.02,D-.02,.004),V,0,.71,0,g);
+    /* middle: left the glass case of crystal and plates, centre the TV niche, right the books */
+    [1.05,1.42].forEach(yy=>{mesh(rbox(.76,.012,D-.06,.002),GLS,-.8,yy,0,g);});
+    for(let i=0;i<4;i++)R.vase(g,-1.05+i*.16,.72,.04,.8+(i%2)*.3);for(let i=0;i<5;i++){const c=mesh(lathe([[0,0],[.025,0],[.03,.012],[.03,.09],[.034,.1],[0,.1]],12),R.CRYS,-1.1+i*.12,1.062,.02,g);c.renderOrder=3;}
+    for(let i=0;i<4;i++)R.plate(g,-1.08+i*.18,1.55,-.12,.1,.25);
+    mesh(new T.PlaneGeometry(.76,1.12),GLS,-.8,1.27,D/2-.008,g,false);mesh(rbox(.025,1.12,.02,.004),V2,-.8,1.27,D/2-.005,g);
+    tvColour(g,0,.72,0);
+    [1.15,1.5].forEach(yy=>mesh(rbox(.76,.018,D-.04,.004),V,.8,yy,0,g));
+    {const cols=[0x6a1c18,0x1c2a4a,0x2a4a2a,0x5a4a2a,0x3a2a2a,0x8a6a3a,0x1a1a1a,0x4a1a3a];const q=rng(5);[.73,1.17,1.52].forEach(sy=>{let bx=.44;while(bx<1.14){const bw=.025+q()*.035,bh=.2+q()*.12;
+        if(q()<.08){bx+=.06;continue;}const b=mesh(rbox(bw,bh,.15+q()*.06,.003),m('book'+(q()*8|0),()=>std({color:C(cols[(q()*8)|0]),roughness:.7})),bx+bw/2,sy+bh/2+.01,.02,g);if(bx>1.0&&q()<.5)b.rotation.z=-.25;bx+=bw+.002;}});}
+    /* the upper cupboards */[-1,0,1].forEach(c=>{R.panelDoor(g,c*.8,1.8,D/2-.01,.76,.4,V);R.knob(g,c*.8,1.65,D/2+.005);});mesh(rbox(W-.04,.02,D-.02,.004),V,0,1.59,0,g);
+    return R.fin(g);};
+  /* a colour television of the eighties on the niche shelf: a wood-effect cabinet, the curved screen, the control strip */
+  const tvColour=(g,x,y,z)=>{const t=R.G(g,x,y,z,0);mesh(rbox(.62,.48,.44,.02),R.W2,0,.25,0,t);mesh(rbox(.54,.4,.02,.02),BLK,-.02,.27,.22,t);
+    {const sc=new T.PlaneGeometry(.44,.34,10,10);const p=sc.attributes.position;for(let i=0;i<p.count;i++){const u=p.getX(i)/.22,v=p.getY(i)/.17;p.setZ(i,.02*(1-u*u*.8)*(1-v*v*.8));}sc.computeVertexNormals();mesh(sc,m('crt',()=>std({color:C(0x2c3230),roughness:.05,metalness:.2,envMapIntensity:1.3})),-.04,.28,.232,t);}
+    mesh(rbox(.06,.38,.02,.004),m('tvstrip',()=>std({color:C(0x8a8a86),roughness:.35,metalness:.6})),.24,.27,.232,t);for(let i=0;i<6;i++)mesh(rbox(.03,.018,.01,.003),BLK,.24,.42-i*.03,.245,t);
+    mesh(rbox(.18,.02,.12,.004),BLK,0,.505,-.05,t);[-1,1].forEach(s_=>{const a=mesh(new T.CylinderGeometry(.003,.003,.45,6),CHR,s_*.05,.73,-.05,t);a.rotation.z=s_*.5;});return t;};
+  /* the coffee table: a polished top on splayed legs, a shelf under it with the newspapers */
+  const coffeeTable=(par,x,y,z,ry)=>{const g=R.G(par,x,y,z,ry);mesh(rbox(.9,.03,.5,.008),R.W1,0,.5,0,g);mesh(rbox(.8,.015,.4,.004),R.W1,0,.16,0,g);
+    [[-1,-1],[1,-1],[-1,1],[1,1]].forEach(([a,b])=>{const l=mesh(new T.CylinderGeometry(.018,.012,.5,10),R.W3,a*.38,.25,b*.19,g);l.rotation.set(-b*.08,0,a*.08);});
+    paperMesh(g,'news',33,.1,.18,.0,.3);R.doily(g,0,.517,0,.16);R.vase(g,0,.517,0,1.1);return R.fin(g);};
+  /* a cast-iron radiator: a run of sections, each two rounded columns joined at top and bottom, painted cream, on its
+     brackets, the pipes in and out */
+  const radSec=G('radSec',()=>{const parts=[];[-.035,.035].forEach(zz=>{const c=new T.CylinderGeometry(.022,.022,.46,12);c.translate(0,0,zz);parts.push(c);});
+    [.215,-.215].forEach(yy=>{const b=rbox(.06,.06,.14,.025);b.translate(0,yy,0);parts.push(b);});const g=merge(parts);return g;});
+  const radiator=(par,x,y,z,ry,n=9)=>{const g=R.G(par,x,y,z,ry);for(let i=0;i<n;i++)mesh(radSec,RAD,(i-(n-1)/2)*.085,.37,0,g);
+    [.6,.14].forEach(yy=>{const p=new T.CylinderGeometry(.016,.016,.3,10);p.rotateZ(Math.PI/2);mesh(p,RAD,(n/2)*.085+.12,yy,-.02,g);});
+    [-1,1].forEach(s_=>mesh(rbox(.04,.08,.06,.006),RAD,s_*(n/2-1)*.085,.66,-.08,g));return g;};
+  /* the gas cooker: white enamel, four burners on the black hob under their pan supports, the oven door glazed, the
+     knobs along the front, a kettle on the back burner */
+  const cooker=(par,x,y,z,ry)=>{const g=R.G(par,x,y,z,ry);mesh(rbox(.5,.84,.56,.012),ENW,0,.42,0,g);mesh(rbox(.48,.012,.52,.004),BLK,0,.845,0,g);
+    [[-.12,-.12],[.12,-.12],[-.12,.12],[.12,.12]].forEach(([a,b])=>{mesh(new T.CylinderGeometry(.045,.05,.015,20),m('burner',()=>std({color:C(0x3a3a38),metalness:.6,roughness:.4})),a,.856,b,g);
+      for(let k=0;k<4;k++){const s_=mesh(rbox(.11,.012,.012,.003),BLK,a,.87,b,g);s_.rotation.y=k*Math.PI/4;}});
+    mesh(rbox(.42,.4,.02,.01),ENW,0,.4,.285,g);mesh(rbox(.3,.16,.005,.004),m('ovenglass',()=>std({color:C(0x1a1c1c),roughness:.08,envMapIntensity:1.2})),0,.42,.296,g);mesh(rbox(.34,.02,.03,.008),CHR,0,.63,.305,g);
+    for(let i=0;i<5;i++){mesh(new T.CylinderGeometry(.018,.02,.02,16).rotateX(Math.PI/2),BLK,-.18+i*.09,.73,.29,g);}
+    {const k=R.G(g,.12,.863,-.12,.6);mesh(lathe([[0,0],[.08,0],[.095,.03],[.095,.1],[.07,.15],[.03,.165],[0,.165]],28),m('kettle',()=>std({color:C(0x2a5a9a),roughness:.18,envMapIntensity:.9})),0,0,0,k);
+      mesh(new T.TubeGeometry(new T.CatmullRomCurve3([V3(.08,.05,0),V3(.13,.1,0),V3(.15,.14,0)]),10,.01,8),CHR,0,0,0,k);mesh(new T.TorusGeometry(.06,.008,8,20,Math.PI),BLK,0,.19,0,k);}
+    return g;};
+  /* the refrigerator: a rounded white cabinet, the chrome handle and nameplate */
+  const fridge=(par,x,y,z,ry)=>{const g=R.G(par,x,y,z,ry);mesh(rbox(.58,1.42,.6,.05),ENW,0,.71,0,g);mesh(rbox(.56,1.2,.03,.04),ENW,0,.8,.3,g);mesh(rbox(.56,.03,.02,.004),m('gasket',()=>std({color:C(0xb0aca0),roughness:.6})),0,.19,.3,g);
+    mesh(rbox(.04,.3,.05,.015),CHR,.22,.95,.33,g);mesh(rbox(.14,.03,.005,.003),CHR,0,1.3,.316,g);return g;};
+  /* the AGV boiler: a tall enamelled drum on its foot, the burner door low down, the flue up into the chimney */
+  const boiler=(par,x,y,z,ry,flueTop)=>{const g=R.G(par,x,y,z,ry);mesh(lathe([[0,0],[.2,0],[.215,.02],[.215,1.1],[.2,1.13],[.06,1.16],[0,1.16]],32),ENW,0,.06,0,g);
+    mesh(new T.CylinderGeometry(.22,.2,.06,32),BLK,0,.03,0,g);mesh(rbox(.14,.12,.02,.01),BLK,0,.22,.21,g);mesh(new T.CylinderGeometry(.012,.012,.02,10).rotateX(Math.PI/2),CHR,.05,.3,.215,g);
+    if(flueTop){const fl=new T.CylinderGeometry(.065,.065,flueTop-1.2,16);fl.translate(0,1.2+(flueTop-1.2)/2,0);mesh(fl,m('flue',()=>std({color:C(0x8a8a86),metalness:.7,roughness:.4})),0,0,0,g);}return g;};
+  return{sofa,stenka,coffeeTable,radiator,cooker,fridge,boiler,tvColour};})();
 
 /* ---------- Sector 1: the field, the checkpoint line, the farmhouse ---------- */
 const FL=.35;   // house floor level
@@ -6276,18 +6608,31 @@ function busStop(){const B=BUS,G=new T.Group();G.position.set(B.x,B.y,B.z);G.rot
   function fitBags(){const im=flushBags();if(im)fitInstBounds(im,[[-882,-351],[-860,-322]],6);}})();
 
 /* ======================= shell craters along the highway and the district road ======================= */
-(function craters(){const mat=splatMat(.45),bk=bucket(),r_=rng(902),rr=(a,b)=>a+(b-a)*r_();
-  const soil=std({color:C(0x3a3027),roughness:1,envMapIntensity:.15}),scorch=std({color:C(0x1d1a17),roughness:1,envMapIntensity:.1});
-  const RINGS=[1.98,1.82,1.64,1.46,1.3,1.16,1.04,.94,.82,.68,.54,.4,.26,.13,0],NS=40;
-  for(const c of CRATERS.L){const ps=[],sp=[],we=[],co=[];
+(function craters(){const mat=splatMat(.45);mat.polygonOffset=true;mat.polygonOffsetFactor=-1;mat.polygonOffsetUnits=-2;const bk=bucket(),r_=rng(902),rr=(a,b)=>a+(b-a)*r_();
+  /* torn-up earth: clods with the mud's own grain and relief, lumpy and broken-faced, half sunk where they landed */
+  const soil=std({map:PB.mud.a,normalMap:PB.mud.n,normalScale:new T.Vector2(1.5,1.5),color:new T.Color(1.9,1.7,1.5),vertexColors:true,roughness:1,envMapIntensity:.12}),scorch=std({map:PB.mud.a,normalMap:PB.mud.n,color:C(0x3a3632),vertexColors:true,roughness:1,envMapIntensity:.08});
+  /* the terrain mesh under a crater is sunk out of the way (every vertex within 2.05 radii) - and so are the triangles
+     that reach from those vertices out to the next ones, up to a grid cell further. The crater's own mesh carries on past
+     the sunk zone as a skirt over that slope and ends exactly on the terrain mesh as drawn, so there is no ledge where the
+     two meet (that was the flat disc with a step round it) */
+  const TX_=1285/338,TZ_=1040/272,meshY=(x,z)=>{const fx=(x+905)/TX_,fz=(z+720)/TZ_,ix=Math.floor(fx),iz=Math.floor(fz),u=fx-ix,v=fz-iz;const c=(i,j)=>Hterr(-905+i*TX_,-720+j*TZ_);
+    const h00=c(ix,iz),h10=c(ix+1,iz),h01=c(ix,iz+1),h11=c(ix+1,iz+1);return u+v<=1?h00+u*(h10-h00)+v*(h01-h00):h11+(1-u)*(h01-h11)+(1-v)*(h10-h11);};
+  const meshMix=(x,z)=>{const fx=(x+905)/TX_,fz=(z+720)/TZ_,ix=Math.floor(fx),iz=Math.floor(fz),u=fx-ix,v=fz-iz;const c=(i,j)=>groundMix(-905+i*TX_,-720+j*TZ_);
+    const a=c(ix,iz),b=c(ix+1,iz),d=c(ix,iz+1),e=c(ix+1,iz+1);return a.map((_,k)=>u+v<=1?a[k]+u*(b[k]-a[k])+v*(d[k]-a[k]):e[k]+(1-u)*(d[k]-e[k])+(1-v)*(b[k]-e[k]));};
+  const RINGS=[-3,-2,-1,1.98,1.82,1.64,1.46,1.3,1.16,1.04,.94,.82,.68,.54,.4,.26,.13,0],NS=40;
+  for(const c of CRATERS.L){const ps=[],sp=[],we=[],co=[];const SK=6.2/c.r;
     for(let i=0;i<=NS;i++){const a=(i%NS)/NS*Math.PI*2,f=1+.1*Math.sin(3*a+c.ph)+.06*Math.sin(5*a+c.ph2);
-      for(const p of RINGS){const d=p*c.r*f,x=c.x+Math.cos(a)*d,z=c.z+Math.sin(a)*d;ps.push(x,H(x,z)+(p>1.95?-.05:.004),z);
-        const gm=groundMix(x,z);sp.push(gm[0],gm[1],gm[2],gm[3]);we.push(clamp(gm[4]+(p<.55?.35:0),0,.9));
+      for(const p0 of RINGS){/* (negative entries: the skirt rings, -3 at its outer edge) */const sk=p0<0?-p0/3:0,p=p0<0?2.02+SK*sk:p0;
+        const d=p*c.r*f,x=c.x+Math.cos(a)*d,z=c.z+Math.sin(a)*d;const hT=H(x,z),hM=meshY(x,z);
+        ps.push(x,p0<0?(sk>=1?hM:Math.max(hT,hM)+.006*(1-sk)):hT+.004,z);
+        /* (on the skirt the ground's mix fades to what the terrain mesh shows there - its coarse vertices' mix, interpolated
+           the same way - so the two meet without a seam) */
+        let gm=groundMix(x,z);if(sk>0){const gc=meshMix(x,z),t=sstep(0,1,sk);gm=gm.map((v,j)=>lerp(v,gc[j],t));}sp.push(gm[0],gm[1],gm[2],gm[3]);we.push(clamp(gm[4]+(p<.55?.35:0),0,.9));
         const k=p<1.1?lerp(.5,.8,p/1.1):lerp(.8,1,sstep(1.1,1.9,p));const tc=terrCol(x,z);co.push(tc[0]*k,tc[1]*k,tc[2]*k);}}
     const g=ribbon(ps,null,NS+1,RINGS.length,{splat:[sp,4],wet:[we,1],color:[co,3]});const m=mesh(g,mat,0,0,0,scene,false);m.receiveShadow=true;shootables.push(m);
     /* clods of torn earth thrown round the rim, a few in the bowl; a scorched lump or two */
     const n=14+Math.floor(r_()*9);for(let k=0;k<n;k++){const a=rr(0,6.28),p=k<3?rr(.2,.7):rr(.95,1.75),d=p*c.r,x=c.x+Math.cos(a)*d,z=c.z+Math.sin(a)*d,s=rr(.05,.17);
-      const q=rockGeo(40+k%6,{detail:1,flat:.65});bk.add(q,k%5===0?scorch:soil,TRS(x,H(x,z)+s*.15,z,rr(-.4,.4),rr(0,6),rr(-.4,.4),s));}}
+      const q=rockGeo(40+k%9,{detail:s>.11?2:1,flat:.5,col:k%5===0?[.34,.31,.28]:[.78,.64,.5]});bk.add(q,k%5===0?scorch:soil,TRS(x,H(x,z)-s*.12,z,rr(-.35,.35),rr(0,6),rr(-.35,.35),s));}}
   bk.flush(scene,true);})();
 
 /* ======================= dead wood thickening towards the swamp ======================= */
@@ -6327,6 +6672,60 @@ function busStop(){const B=BUS,G=new T.Group();G.position.set(B.x,B.y,B.z);G.rot
     placed.push([x,z],[(x+ex)/2,(z+ez)/2],[ex,ez]);nF++;}
   bk.flush(scene,true);WEST.dead={nF,nS};})();
 
+/* ---------- the family photographs on the walls: real photographs of the people of this world. Each one is the game's
+   own characters - the old man in his quilted jacket, the man in the check shirt, a son in uniform, the soldiers -
+   stood in a studio and photographed: built, posed, lit with a key light, a fill and a rim, rendered off screen,
+   read back, and printed: black and white or sepia, the tones stretched like a print's, the soft focus of an old
+   lens, film grain, the oval vignette of a studio portrait, then the card mount, foxing and a crease or two.
+   A frame on the wall gets its texture at once (blank photographic paper) and the picture is printed onto it a few
+   frames after the game starts, once the characters' own textures have loaded. ---------- */
+const PORTRAIT=(()=>{const W=256,Hh=320,cache={},queue=[];let sc=null,cam=null,rt=null,lights=null,done=0;
+  /* who is in which photograph: [char, outfit, vest, helmet, turn]; one, two or three sitters */
+  /* (most of them in their own clothes - a quilted jacket, a check shirt; a son or two in uniform) */
+  const SPECS=[[['oldman','telogreika',0,0,.22]],[['guard3','plaid',0,0,-.2]],[['guard2','ratnik',0,0,.15]],[['guard4','telogreika',0,0,-.12]],
+    [['oldman','telogreika',0,0,.12],['plaid','plaid',0,0,-.12]],[['driver','plaid',0,0,.1]],[['guard1','ratnik',0,0,-.18]],
+    [['guard5','plaid',0,0,.08],['oldman','telogreika',0,0,0],['guard3','ratnik',0,0,-.1]],[['patrol','telogreika',0,0,.2]],[['plaid','plaid',0,0,-.25]]];
+  const setup=()=>{sc=new T.Scene();sc.background=null;if(typeof ENV!=='undefined')sc.environment=ENV;
+    const key=new T.DirectionalLight(0xfff4e6,3.0);key.position.set(-1.4,1.8,2.4);const fill=new T.HemisphereLight(0xe8e4dc,0x48443e,.75);const rim=new T.DirectionalLight(0xffffff,1.4);rim.position.set(1.6,1.4,-2.2);
+    sc.add(key,key.target,fill,rim);lights=[key,fill,rim];cam=new T.PerspectiveCamera(22,W/Hh,.1,30);
+    rt=new T.WebGLRenderTarget(W,Hh,{depthBuffer:true});};
+  /* the print: luminance, stretched between its own 2% and 98% points, a gentle S-curve; soft focus, grain; toned to
+     sepia or left grey; the oval vignette fading into the card; foxing; the white deckled border */
+  const print=(px,c,seed,sepia,oval)=>{const q=rng(seed*13+7),im=c.createImageData(W,Hh),d=im.data,L=new Float32Array(W*Hh),hist=new Uint32Array(256);
+    const A=new Float32Array(W*Hh);for(let y=0;y<Hh;y++)for(let x=0;x<W;x++){const s=((Hh-1-y)*W+x)*4,a=px[s+3]/255,l=a>.02?(px[s]*.3+px[s+1]*.59+px[s+2]*.11)/a:0;L[y*W+x]=l;A[y*W+x]=a;if(a>.5)hist[Math.min(255,l|0)]++;}
+    let tot=0;for(let i=0;i<256;i++)tot+=hist[i];tot=Math.max(1,tot);
+    let lo=0,hi=255,acc=0;for(let i=0;i<256;i++){acc+=hist[i];if(acc<tot*.01)lo=i;if(acc<tot*.992)hi=i;}hi=Math.max(hi,lo+30);
+    const pap=sepia?[232,216,188]:[226,224,216],ink=sepia?[38,24,14]:[22,22,24];const ox=W/2,oy=Hh*.46,rx=W*.42,ry=Hh*.44;
+    /* the studio backdrop: a painted cloth, light behind the sitter's head and darkening to the edges, mottled */
+    for(let y=0;y<Hh;y++)for(let x=0;x<W;x++){const i=y*W+x;let t=clamp((L[i]-lo)/(hi-lo),0,1);t=t*t*(3-2*t)*.45+t*.55;t=Math.pow(t,.95)*.92+.04;
+      const bd=.62-.38*Math.min(1,Math.hypot((x-W*.5)/(W*.6),(y-Hh*.32)/(Hh*.7)))+(fbmT(x/W+seed*.07,y/Hh,4,3)-.5)*.18;t=t*A[i]+bd*(1-A[i]);
+      t+=(vnP(x*.7+seed,y*.7,W*.7)-.5)*.07+(hash(x+seed*31,y)-.5)*.035;
+      let v=1;if(oval){const e=Math.hypot((x-ox)/rx,(y-oy)/ry);v=1-sstep(.82,1.04,e);}
+      const k=clamp(t,0,1);for(let ch=0;ch<3;ch++){const col=ink[ch]+(pap[ch]-ink[ch])*k;d[i*4+ch]=col*v+pap[ch]*(1-v);}d[i*4+3]=255;}
+    c.putImageData(im,0,0);
+    /* the old lens: a touch of softness, a little halation round the lights */
+    try{c.filter='blur(.6px)';c.globalAlpha=.55;c.drawImage(c.canvas,0,0);c.filter='none';c.globalAlpha=1;}catch(_){}
+    /* age: foxing spots, a faint crease, the silver going at the edges */
+    for(let i=0;i<14;i++){const x=q()*W,y=q()*Hh,r=1+q()*5,g=c.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,'rgba(120,80,40,.35)');g.addColorStop(1,'rgba(120,80,40,0)');c.fillStyle=g;c.fillRect(x-r,y-r,2*r,2*r);}
+    if(q()<.6){c.strokeStyle='rgba(255,250,240,.28)';c.lineWidth=1;c.beginPath();const y0=q()*Hh;c.moveTo(0,y0);c.bezierCurveTo(W*.3,y0+q()*30-15,W*.7,y0+q()*30-15,W,y0+q()*40-20);c.stroke();}
+    const eg=c.createRadialGradient(W/2,Hh/2,Math.min(W,Hh)*.35,W/2,Hh/2,Math.max(W,Hh)*.7);eg.addColorStop(0,'rgba(90,60,30,0)');eg.addColorStop(1,'rgba(90,60,30,.25)');c.fillStyle=eg;c.fillRect(0,0,W,Hh);
+    /* the card border */c.strokeStyle=sepia?'#efe4cc':'#ecebe6';c.lineWidth=14;c.strokeRect(0,0,W,Hh);c.strokeStyle='rgba(60,40,20,.25)';c.lineWidth=1;c.strokeRect(7.5,7.5,W-15,Hh-15);};
+  const shoot=(k)=>{if(cache[k])return cache[k];const spec=SPECS[k];const hs=[],n=spec.length;
+    spec.forEach(([ch,out,vest,helm,turn],i)=>{/* (a soldier's portrait in plain service khaki, as they were taken - not the field camouflage, which prints as a blotch) */const h=buildHuman({char:ch,outfit:out,vest:!!vest,helmet:!!helm,matMap:{emr:'khaki',velcro:'khaki'},drop:['pad','padhard'],bala:false});pose(h,POSE.doll);const x=(i-(n-1)/2)*.5;h.root.position.set(x,i===1&&n===3?.0:0,n===3&&i===1?-.12:0);h.root.rotation.y=turn;sc.add(h.root);hs.push(h);});
+    sc.updateMatrixWorld(true);const hp=V3(),c=V3();hs.forEach(h=>{h.P.head.getWorldPosition(hp);c.add(hp);});c.multiplyScalar(1/n);
+    const dist=n===1?1.32:n===2?2.2:2.9;cam.position.set(c.x+.04,c.y-.02,c.z+dist);cam.lookAt(c.x,c.y-(n===1?.1:.16),c.z);cam.updateMatrixWorld(true);
+    const prev=renderer.getRenderTarget(),pc=renderer.getClearColor(new T.Color()),pa=renderer.getClearAlpha();renderer.setClearColor(0x000000,0);renderer.setRenderTarget(rt);renderer.clear();renderer.render(sc,cam);renderer.setClearColor(pc,pa);const px=new Uint8Array(W*Hh*4);renderer.readRenderTargetPixels(rt,0,0,W,Hh,px);renderer.setRenderTarget(prev);
+    hs.forEach(h=>sc.remove(h.root));return cache[k]=px;};
+  /* a frame's photograph: its own paper now, the print later */
+  const photo=seed=>{const cv=document.createElement('canvas');cv.width=W;cv.height=Hh;const c=cv.getContext('2d');c.fillStyle='#e6dcc4';c.fillRect(0,0,W,Hh);
+    const t=new T.CanvasTexture(cv);t.encoding=T.sRGBEncoding;t.anisotropy=8;queue.push({t,c,seed});return t;};
+  /* (one print a frame, after the characters' textures are in, so nothing hitches) */
+  const ready=()=>typeof CTEX!=='undefined'&&CTEX.every(t=>t.image&&t.image.complete&&t.image.naturalWidth>0);
+  const tick=()=>{if(!queue.length)return;if(!ready())return;if(!sc)setup();const j=queue.shift();const k=(j.seed*7+3)%SPECS.length;
+    try{const px=shoot(k);print(px,j.c,j.seed,j.seed%3!==1,SPECS[k].length===1&&j.seed%2===0);j.t.needsUpdate=true;}catch(e){console.warn('portrait',e);}
+    if(!queue.length&&rt){rt.dispose();rt=null;sc=null;}};
+  return{photo,tick,get pending(){return queue.length;}};})();
+
 /* ---------- the rest of Staroye Opalikhino (layout: VILL in 02_terrain): eleven more houses on the street and the lane,
    built like the farmhouse - log walls with real openings on a plinth, plank floors, carved white window frames and
    painted shutters - some clad in painted boards, gable or hip roofs of asbestos slate or painted ribbed tin, glazed
@@ -6336,41 +6735,42 @@ function busStop(){const B=BUS,G=new T.Group();G.position.set(B.x,B.y,B.z);G.rot
    of ridged beds. Three houses stand boarded up, one of those burnt out. ---------- */
 const HOUSES=[HOUSE],PORCHES=[],DOORS=[],YARDS=[];
 /* a sepia family photograph in a dark frame: people in a row, the old ones sat in front (each one different) */
-function photoTex(seed){return tex(128,160,(c,w,h)=>{const q=rng(seed);const g=c.createLinearGradient(0,0,0,h);g.addColorStop(0,'#cdb894');g.addColorStop(1,'#a88e68');c.fillStyle=g;c.fillRect(0,0,w,h);
-  const n=2+Math.floor(q()*4);for(let i=0;i<n;i++){const x=(i+.5)/n*w+(q()-.5)*8,big=q()<.5,y=h*(big?.48:.4),s=big?1:.85;
-    c.fillStyle=`rgba(${50+q()*30|0},${38+q()*20|0},${28+q()*10|0},.9)`;c.beginPath();c.ellipse(x,y+40*s,22*s,34*s,0,Math.PI,0);c.fill();c.fillRect(x-22*s,y+40*s,44*s,h);
-    c.fillStyle=`rgba(${120+q()*30|0},${95+q()*20|0},${70|0},.95)`;c.beginPath();c.ellipse(x,y,10*s,13*s,0,0,7);c.fill();c.fillStyle='rgba(40,30,22,.85)';c.beginPath();c.ellipse(x,y-6*s,11*s,7*s,0,Math.PI,0);c.fill();}
-  for(let i=0;i<120;i++){c.fillStyle=`rgba(255,250,230,${q()*.12})`;c.fillRect(q()*w,q()*h,1+q()*2,1);}c.strokeStyle='#efe6d0';c.lineWidth=8;c.strokeRect(4,4,w-8,h-8);});}
+function photoTex(seed){return PORTRAIT.photo(seed);}
 /* Soviet wallpaper: a pale ground, a printed vertical stripe of little flower sprigs, a fine pinstripe, faded and
    foxed with age; and lime-wash over plaster, white with a blue tint, worn grey at hand height */
-function wallPaper(seed){seed=seed%4;return memo('wp'+seed,()=>{const P=[['#e4dcc4','#8a6a4a','#5a7a4a'],['#d8e0d0','#4a6a5a','#a06a5a'],['#e8d8c0','#7a4a3a','#4a5a7a'],['#e0d4d8','#6a4a5a','#5a6a4a']][seed%4];
-  const t=tex(256,256,(c,w,h)=>{const q=rng(300+seed);c.fillStyle=P[0];c.fillRect(0,0,w,h);
-    for(let x=0;x<w;x+=64){c.fillStyle=`rgba(0,0,0,.05)`;c.fillRect(x+28,0,8,h);c.fillStyle=P[1];c.globalAlpha=.35;c.fillRect(x+2,0,1.5,h);c.fillRect(x+60,0,1.5,h);c.globalAlpha=1;
-      for(let y=0;y<h;y+=42){const cx=x+32,cy=y+((x/64)%2)*21+10;c.strokeStyle=P[2];c.lineWidth=1.6;c.beginPath();c.moveTo(cx,cy+12);c.quadraticCurveTo(cx-3,cy+4,cx,cy-6);c.stroke();
-        [[-6,-2],[6,0],[-4,6],[5,7]].forEach(([dx,dy])=>{c.fillStyle=P[2];c.beginPath();c.ellipse(cx+dx,cy+dy,4,2,dx>0?.6:-.6,0,7);c.fill();});
-        c.fillStyle=P[1];[[0,-8],[-3,-10],[3,-10],[0,-12]].forEach(([dx,dy])=>{c.beginPath();c.arc(cx+dx,cy+dy,2.4,0,7);c.fill();});}}
-    for(let i=0;i<14;i++){const x=q()*w,y=q()*h,r=8+q()*30,g=c.createRadialGradient(x,y,0,x,y,r);g.addColorStop(0,'rgba(140,110,60,.12)');g.addColorStop(1,'rgba(140,110,60,0)');c.fillStyle=g;c.fillRect(x-r,y-r,2*r,2*r);}
-    const im=c.getImageData(0,0,w,h),d=im.data;for(let i=0;i<d.length;i+=4){const v=.93+Math.random()*.1;d[i]*=v;d[i+1]*=v;d[i+2]*=v;}c.putImageData(im,0,0);});
-  t.wrapS=t.wrapT=T.RepeatWrapping;return std({map:t,roughness:.85,envMapIntensity:.2});});}
+function wallPaper(seed){return FAB.wallpaper(seed);}
 function wallLime(seed){return memo('lime',()=>{const t=tex(256,256,(c,w,h)=>{const q=rng(500+seed);c.fillStyle='#dfe6ea';c.fillRect(0,0,w,h);
     for(let i=0;i<260;i++){const x=q()*w,y=q()*h,r=2+q()*14;c.fillStyle=`rgba(${q()<.5?150:255},${q()<.5?160:255},${q()<.5?165:255},${.05+q()*.08})`;c.beginPath();c.arc(x,y,r,0,7);c.fill();}
     for(let i=0;i<40;i++){c.strokeStyle=`rgba(90,90,95,${.05+q()*.08})`;c.lineWidth=.6;c.beginPath();let x=q()*w,y=q()*h;c.moveTo(x,y);for(let k=0;k<5;k++){x+=(q()-.5)*20;y+=q()*14;c.lineTo(x,y);}c.stroke();}});
   t.wrapS=t.wrapT=T.RepeatWrapping;return std({map:t,roughness:.95,envMapIntensity:.25});});}
 /* the carpet on the wall over the bed: dark red field, border bands, a row of medallions */
-function carpetTex(seed){return tex(256,384,(c,w,h)=>{const q=rng(seed);const f=['#6e1c1a','#5a1e2a','#2a3858'][seed%3];c.fillStyle=f;c.fillRect(0,0,w,h);
-  for(const [m,col] of [[6,'#d8c39a'],[18,'#1d2a3a'],[26,'#b5442e']]){c.strokeStyle=col;c.lineWidth=7;c.strokeRect(m,m,w-2*m,h-2*m);}
-  for(let k=0;k<3;k++){const cx=w/2,cy=h*(.25+k*.25);c.fillStyle=['#d8c39a','#b5442e','#1d2a3a'][k%3];c.beginPath();c.moveTo(cx,cy-46);c.lineTo(cx+58,cy);c.lineTo(cx,cy+46);c.lineTo(cx-58,cy);c.closePath();c.fill();
-    c.fillStyle=f;c.beginPath();c.moveTo(cx,cy-26);c.lineTo(cx+32,cy);c.lineTo(cx,cy+26);c.lineTo(cx-32,cy);c.closePath();c.fill();c.fillStyle='#d8c39a';c.fillRect(cx-6,cy-6,12,12);}
-  for(let i=0;i<60;i++){c.fillStyle=['#d8c39a','#1d2a3a','#b5442e'][i%3];const x=40+q()*(w-80),y=40+q()*(h-80);c.fillRect(x,y,4,4);}
-  const im=c.getImageData(0,0,w,h),d=im.data;for(let i=0;i<d.length;i+=4){const k=.82+Math.random()*.25;d[i]*=k;d[i+1]*=k;d[i+2]*=k;}c.putImageData(im,0,0);});}
+function carpetTex(seed){return FAB.carpet(seed);}
 (function village(){const LR=.125,LS=.215,NL=12;const top=FL+.11+NL*LS;const bk=bucket();
   const charred=std({map:TX.bark,color:C(0x2a2420),roughness:1,envMapIntensity:.1});
+  const charEnd=std({map:TX.endgrain,color:C(0x2a2622),roughness:1,envMapIntensity:.08});
+  /* a hewn log between two points: round but not a cylinder - it tapers butt to top, swells and dips along its length,
+     its section is a little out of round and it bows; the sawn ends are capped with end grain (rings, checks) cut to the
+     very rim of the bark, so nothing shows through. Returns the bark and the two end faces as separate geometries */
+  function hqLog(A,B,r,q,o={}){const d=V3().subVectors(B,A),L=d.length(),rs=o.rs||14,ls=Math.max(1,Math.round(L/(o.seg||.7)));
+    const g=new T.CylinderGeometry(1,1,L,rs,ls,true),P=g.attributes.position,U=g.attributes.uv;const ph=q()*6.28,ph2=q()*6.28,bow=(q()-.5)*(o.bow===undefined?.04:o.bow),tap=o.taper===undefined?.08:o.taper,ov=.03+q()*.03;
+    const rad=(a,t)=>r*(1+tap*(.5-t))*(1+ov*Math.sin(a*2+ph)+.018*Math.sin(a*5+t*7+ph2)+.025*Math.sin(t*L*2.3+ph)*Math.sin(t*L*.9+ph2));
+    for(let i=0;i<P.count;i++){const y=P.getY(i),t=.5-y/L,a=Math.atan2(P.getZ(i),P.getX(i)),rr=rad(a,t),b=bow*(1-4*(t-.5)*(t-.5));
+      P.setXYZ(i,Math.cos(a)*rr+b,y,Math.sin(a)*rr);/* (u along the log, v round it: the bark textures' grain runs along u) */U.setXY(i,t*L*.45+ph,U.getX(i));}
+    g.computeVertexNormals();
+    /* end faces: a fan from the centre to the exact rim vertices of each end ring */
+    const cap=(j,sg)=>{const pos=[],uv=[],nr=[];const c=j*(rs+1);const cx=P.getX(c)*0,cy=P.getY(c);let mx=0,mz=0;for(let k=0;k<rs;k++){mx+=P.getX(c+k);mz+=P.getZ(c+k);}mx/=rs;mz/=rs;
+      const u0=(q()-.5)*.1,v0=(q()-.5)*.1;for(let k=0;k<rs;k++){const a0=c+k,a1=c+k+1;const pts=[[mx,cy,mz],[P.getX(a0),cy,P.getZ(a0)],[P.getX(a1),cy,P.getZ(a1)]];if(sg<0)pts.reverse();
+        for(const [x,y,z] of pts){pos.push(x,y,z);uv.push(u0+(x-mx)/(2.2*r)+.5,v0+(z-mz)/(2.2*r)+.5);nr.push(0,sg,0);}}
+      const cg=new T.BufferGeometry();cg.setAttribute('position',new T.Float32BufferAttribute(pos,3));cg.setAttribute('normal',new T.Float32BufferAttribute(nr,3));cg.setAttribute('uv',new T.Float32BufferAttribute(uv,2));return cg;};
+    const caps=[cap(0,1),cap(ls,-1)];const cg=merge(caps);
+    const m=new T.Matrix4().compose(A.clone().add(B).multiplyScalar(.5),new T.Quaternion().setFromUnitVectors(V3(0,1,0),d.normalize()),V3(1,1,1));g.applyMatrix4(m);cg.applyMatrix4(m);
+    return{side:g,cap:cg};}
   /* ribbed sheet tin, painted and weathered: ribs run down the slope (v), rust bleeding from the fixings */
   const tinTex=tex(256,256,(c,w,h)=>{c.fillStyle='#bdbdb6';c.fillRect(0,0,w,h);for(let x=0;x<w;x+=16){const g=c.createLinearGradient(x,0,x+16,0);g.addColorStop(0,'#8e8e88');g.addColorStop(.3,'#e6e6de');g.addColorStop(.55,'#c9c9c2');g.addColorStop(1,'#7c7c76');c.fillStyle=g;c.fillRect(x,0,16,h);}
     const q=rng(41);for(let i=0;i<70;i++){const x=(q()*16|0)*16+8,y=q()*h;const g=c.createLinearGradient(0,y,0,y+30+q()*60);g.addColorStop(0,'rgba(120,60,30,.55)');g.addColorStop(1,'rgba(120,60,30,0)');c.fillStyle=g;c.fillRect(x-3,y,6,90);}
     for(let i=0;i<500;i++){c.fillStyle=`rgba(${q()<.5?60:220},${q()<.5?55:215},${q()<.5?50:205},${q()*.12})`;c.fillRect(q()*w,q()*h,2,2);}});tinTex.wrapS=tinTex.wrapT=T.RepeatWrapping;
   const tinM=col=>std({map:tinTex,color:C(col).multiplyScalar(1.25),roughness:.5,metalness:.45,envMapIntensity:.55,side:T.DoubleSide});
-  const plank=std({map:M.boards.map,color:C(0x9a8c78),roughness:1}),plankG=std({map:M.boards.map,color:C(0x8a8478),roughness:1}),stone=std({map:TX.whitewash,color:C(0x7c776c),roughness:1}),brick=std({map:TX.whitewash,color:C(0x8a4a38),roughness:.95});
+  const plank=std({map:M.boards.map,color:C(0x9a8c78),roughness:1}),plankG=std({map:M.boards.map,color:C(0x8a8478),roughness:1}),stone=std({map:TX.whitewash,color:C(0x7c776c),roughness:1}),brick=std({map:PB.brick.a,normalMap:PB.brick.n,roughnessMap:PB.brick.r,normalScale:new T.Vector2(1.3,1.3),color:C(0xb4aca4),roughness:1,envMapIntensity:.2});
   /* the garden: freshly hoed earth - crumbs and clods, a few stones, dry crust on the tops - and the plants: potato
      haulm (compound leaves of 5-7 leaflets on branching stems), cabbages (a tight pale head in a ruff of broad, veined,
      blue-green outer leaves), carrot and dill rows (fine feathery tufts) */
@@ -6412,10 +6812,34 @@ function carpetTex(seed){return tex(256,384,(c,w,h)=>{const q=rng(seed);const f=
   const face=(pts,uvs)=>{const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(pts.flat(),3));g.setAttribute('uv',new T.Float32BufferAttribute(uvs.flat(),2));g.computeVertexNormals();return g;};
   const quad=(a,b,c,d,ua,ub,va,vb)=>face([a,b,c,a,c,d],[[ua,va],[ub,va],[ub,vb],[ua,va],[ub,vb],[ua,vb]]);
   const tri=(a,b,c,u0,u1,uc,v0,v1)=>face([a,b,c],[[u0,v0],[u1,v0],[uc,v1]]);
+  /* a brick chimney stack through the roof: running bond (uv in metres), two corbelled courses at the head, a little tin
+     hood on four rods against the rain, soot up the top courses */
+  const sootM=memo('chimSoot',()=>std({map:tex(64,256,(c,w,h)=>{const g=c.createLinearGradient(0,0,0,h);g.addColorStop(0,'rgba(14,12,10,.85)');g.addColorStop(.35,'rgba(14,12,10,.35)');g.addColorStop(1,'rgba(14,12,10,0)');c.fillStyle=g;c.fillRect(0,0,w,h);},{clamp:true}),transparent:true,depthWrite:false,roughness:1,polygonOffset:true,polygonOffsetFactor:-2}));
+  const chimney=(par,x,y0,y1,z,hood)=>{const hgt=y1-y0;const b=worldUV(rbox(.52,hgt,.52,.012),.96);b.translate(x,y0+hgt/2,z);const parts=[b];
+    [[.6,.075,y1-.04],[.66,.075,y1+.035]].forEach(([w,t,y])=>{const c=worldUV(rbox(w,t,w,.01),.96);c.translate(x,y,z);parts.push(c);});shootables.push(mesh(merge(parts),brick,0,0,0,par));
+    [[0,1,0],[0,-1,Math.PI],[1,0,Math.PI/2],[-1,0,-Math.PI/2]].forEach(([dx,dz,ry])=>{const m=mesh(new T.PlaneGeometry(.53,.9),sootM,x+dx*.264,y1-.45,z+dz*.264,par,false);m.rotation.y=ry;});
+    if(hood){const tin=std({map:PB.rust.a,normalMap:PB.rust.n,color:C(0x8a8680),roughness:.75,metalness:.5,side:T.DoubleSide});const cn=new T.ConeGeometry(.5,.22,4,1,true);cn.rotateY(Math.PI/4);mesh(cn,tin,x,y1+.42,z,par);
+      [[-.2,-.2],[.2,-.2],[-.2,.2],[.2,.2]].forEach(([dx,dz])=>mesh(new T.CylinderGeometry(.008,.008,.34,6),tin,x+dx,y1+.22,z+dz,par));}};
+  /* ===== what each house is built of and how it is finished - the village was built over a century: the old log
+     izbas, some clad later in painted lap boards or in vertical boards and battens, the post-war houses rendered in
+     lime and painted, and the kolkhoz's brick houses of the seventies with their corbelled cornices and flat-arched
+     window heads. Window trims: the carved arch, the gabled kokoshnik with its fretwork, a plain cornice with dentils;
+     painted white, blue, green or ochre; shutters or none; a few families have put in white plastic windows ===== */
+  const HSTYLE={n1:{ped:0,trim:0xe0dcd0,gas:1,ant:1},n2:{ped:1,trim:0xe0dcd0,gas:1,dish:1},n3:{ped:0},n4:{wall:'plaster',col:0xdfe4e6,ped:2,trim:0x3a6aa0,shut:1,gas:1,ant:1,dorm:1},
+    s1:{wall:'brick',pvc:1,gas:1,dish:1},s2:{ped:1,trim:0xf0e6c8,gas:1,ant:1,shut:0},s3:{ped:0},s4:{wall:'vboard',ped:2,trim:0xe8e4d8,gas:1},s5:{wall:'brick',gas:1,ant:1},
+    l1:{ped:2},l2:{ped:0,trim:0xd8c070,gas:1,dish:1,dorm:1},b1:{wall:'plaster',col:0xe6d49a,ped:0,trim:0xf2efe6,shut:1,gas:1,ant:1,dorm:1},b2:{ped:1,trim:0x4a7a52,gas:1},
+    b4:{ped:2,trim:0xe0dcd0,pvc:1,gas:1,dish:1,shut:0},b5:{ped:0},c1:{wall:'brick',sil:1,gas:1,ant:1,dorm:1},c2:{ped:1}};
+  const brickM=std({map:PB.brick.a,normalMap:PB.brick.n,roughnessMap:PB.brick.r,normalScale:new T.Vector2(1.3,1.3),color:C(0xb4aca4),roughness:1,envMapIntensity:.2});
+  /* (sand-lime brick: the same bond, pale grey) */const silM=std({map:PB.brick.a,normalMap:PB.brick.n,roughnessMap:PB.brick.r,normalScale:new T.Vector2(1.2,1.2),color:C(0xe6e2da),roughness:1,envMapIntensity:.22});
+  silM.onBeforeCompile=sh=>{sh.fragmentShader=sh.fragmentShader.replace('#include <map_fragment>','#include <map_fragment>\n diffuseColor.rgb=mix(vec3(dot(diffuseColor.rgb,vec3(.3,.59,.11)))*vec3(1.55,1.52,1.45),diffuseColor.rgb,.12);');};silM.customProgramCacheKey=()=>'silbrick';
+  const plasterM=col=>memo('plast'+col,()=>std({map:PB.plaster.a,normalMap:PB.plaster.n,roughnessMap:PB.plaster.r,normalScale:new T.Vector2(1.1,1.1),color:C(col),roughness:1,envMapIntensity:.22}));
+  const trimMat=col=>memo('trim'+col,()=>std({color:C(col),roughness:.8,map:TX.whitewash}));
+  const gasY=std({color:C(0xd8b020),roughness:.45,metalness:.3,envMapIntensity:.6}),galvM=std({map:PB.galv.a,normalMap:PB.galv.n,color:C(0xb8bcb8),roughness:.45,metalness:.8,envMapIntensity:.8});
   const buildHouses=()=>VILL.houses.forEach((hd,hi)=>{const W=hd.W,D=hd.D;const h=new T.Group();h.position.set(hd.x,0,hd.z);h.rotation.y=hd.yaw;scene.add(h);
     const wb=(a0,a1,b0,b1)=>{const r=villRect(hd,a0,a1,b0,b1);return solidAABB(r.x1,r.x2,r.z1,r.z2);};
     const paint=M.blue.clone();paint.color=C(hd.col);const logM=hd.burnt?charred:M.logs;const dx=hi%2?.6:.2,sd=hi%2?-1:1;
     const cladM=std({map:M.boards.map,color:C(hd.col).multiplyScalar(1.15),roughness:.85});
+    const st=HSTYLE[hd.id]||{},WK=st.wall||(hd.clad?'lap':'log'),masonry=WK==='brick'||WK==='plaster',wallM=WK==='brick'?(st.sil?silM:brickM):WK==='plaster'?plasterM(st.col||0xe6e6e0):null,trimM=trimMat(st.trim||0xe0dcd0);
     mesh(rbox(W+.3,FL-.02+.5,D+.3,.04),M.concrete,0,(FL-.02)/2-.27,0,h);
     const dX0=dx-.95,dX1=dx+.05,wf=W/2-1.25,wide=W>8.5;
     const w3=-sd*(wf-1.7);const fW=wide?[[-wf-.5,-wf+.5],[wf-.5,wf+.5],[w3-.5,w3+.5]]:[[-wf-.5,-wf+.5],[wf-.5,wf+.5]];
@@ -6426,15 +6850,15 @@ function carpetTex(seed){return tex(256,384,(c,w,h)=>{const q=rng(seed);const f=
     /* a ruin: 'collapse' (a shell came through it - the side it came from is down to a course or two, the rest broken off at
        ragged heights, the corners standing longest as corners do), 'strike' (a drone through the side wall and the roof) */
     const ruin=hd.ruin,RP={front:.5,back:.38,east:.08,west:.78},fallen=[],burntLogs=[];
-    const stands=(nm,a,k)=>{if(ruin!=='collapse')return true;const half=(nm==='front'||nm==='back'?W:D)/2;const f=RP[nm]+sstep(half-1,half+.2,Math.abs(a))*.32+.15*Math.sin(a*1.9+hi*1.3)+.07*Math.sin(a*5.3+k*.7);return k<NL*f;};
+    const stands=(nm,a,k)=>{if(ruin!=='collapse')return true;const half=(nm==='front'||nm==='back'?W:D)/2;const f=RP[nm]+sstep(half-1,half+.2,Math.abs(a))*.32+.15*Math.sin(a*1.9+hi*1.3)+.07*Math.sin(a*5.3+hi*2.1);/* (a log only stands on the one under it: the height a wall is broken off at depends on where along it, never on the course) */return k<NL*f;};
     if(ruin==='strike')open[hd.breach[0]].push([hd.breach[1],hd.breach[2],FL+.2,FL+1.75]);
     /* the log walls, opening by opening; a clad house gets a skin of painted lap boards outside the logs */
-    const logs=[],boards=[];const addLog=(axis,c,a0,a1,y)=>{const L=a1-a0;if(L<.05)return;const g=new T.CylinderGeometry(LR,LR,L,10,1);const uv=g.attributes.uv;for(let i=0;i<uv.count;i++){const u=uv.getX(i),v=uv.getY(i);uv.setXY(i,v*L*.45,u);}
-      if(axis==='x'){g.rotateZ(Math.PI/2);g.translate((a0+a1)/2,y,c);}else{g.rotateX(Math.PI/2);g.translate(c,y,(a0+a1)/2);}logs.push(g);};
+    const logs=[],boards=[],lq=rng(9000+hi);const addLog=(axis,c,a0,a1,y)=>{const L=a1-a0;if(L<.05)return;const A=axis==='x'?V3(a0,y,c):V3(c,y,a0),B=axis==='x'?V3(a1,y,c):V3(c,y,a1);
+      /* (hewn logs, a little out of round and tapering, their sawn ends showing the grain) */logs.push(hqLog(A,B,LR,lq,{rs:12,seg:2.0,bow:.012,taper:.04}));};
     const addBoard=(axis,c,a0,a1,y,out)=>{const L=a1-a0;if(L<.05)return;const g=new T.BoxGeometry(axis==='x'?L:.025,LS*.92,axis==='x'?.025:L);g.rotateX(axis==='x'?out*.07:0);g.rotateZ(axis==='x'?0:-out*.07);g.translate(axis==='x'?(a0+a1)/2:c,y,axis==='x'?c:(a0+a1)/2);boards.push(g);};
     const segsFor=(nm,half,ext,y,yr)=>{let segs=[[-half-ext,half+ext]];open[nm].forEach(o=>{if(y+yr<o[2]||y-yr>o[3])return;const ns=[];segs.forEach(s=>{if(o[1]<=s[0]||o[0]>=s[1]){ns.push(s);return;}if(o[0]>s[0])ns.push([s[0],o[0]]);if(o[1]<s[1])ns.push([o[1],s[1]]);});segs=ns;});return segs;};
     const WALLS=[['front',D/2,'x',1],['back',-D/2,'x',-1],['east',W/2,'z',1],['west',-W/2,'z',-1]];
-    for(let k=0;k<NL;k++){const y=FL+.11+k*LS;
+    if(!masonry)for(let k=0;k<NL;k++){const y=FL+.11+k*LS;
       WALLS.forEach(([nm,c,axis])=>{const half=(axis==='x'?W:D)/2;const ext=hd.clad?0:((k%2===0)===(axis==='x'))?.28:0;const yy=axis==='x'?y:y+LS/2;
         segsFor(nm,half,ext,y,LR*.5).forEach(sg=>{if(ruin!=='collapse'){addLog(axis,c,sg[0],sg[1],yy);return;}
           /* broken off: the standing runs of this course, each end snapped short; what is missing has fallen */
@@ -6442,12 +6866,35 @@ function carpetTex(seed){return tex(256,384,(c,w,h)=>{const q=rng(seed);const f=
             if(!st&&a<sg[1])fallen.push([nm,c,axis,a,Math.min(a+.25,sg[1]),yy]);}
           if(run!==null)addLog(axis,c,run,sg[1],yy);
           /* the courses just under the break are charred */const am=(sg[0]+sg[1])/2;if(!stands(nm,am,k+2)||!stands(nm,sg[0]+.3,k+2)||!stands(nm,sg[1]-.3,k+2))burntLogs.push(...logs.splice(nb));});});}
-    if(hd.clad)for(let y=FL-.05;y<top+.05;y+=LS*.92)WALLS.forEach(([nm,c,axis,o])=>{const half=(axis==='x'?W:D)/2+LR+.03;segsFor(nm,half,0,y,LS*.42).forEach(s=>addBoard(axis,c+o*(LR+.035),s[0],s[1],y,o));});
-    addLog('z',W/2,-D/2,D/2,FL+.11-LS/2);addLog('z',-W/2,-D/2,D/2,FL+.11-LS/2);if(ruin!=='collapse'){addLog('x',D/2,-W/2-(hd.clad?0:.28),W/2+(hd.clad?0:.28),top);addLog('x',-D/2,-W/2-(hd.clad?0:.28),W/2+(hd.clad?0:.28),top);}
-    shootables.push(mesh(merge(logs),logM,0,0,0,h));if(burntLogs.length)shootables.push(mesh(merge(burntLogs),charred,0,0,0,h));
+    if(WK==='lap')for(let y=FL-.05;y<top+.05;y+=LS*.92)WALLS.forEach(([nm,c,axis,o])=>{const half=(axis==='x'?W:D)/2+LR+.03;segsFor(nm,half,0,y,LS*.42).forEach(s=>addBoard(axis,c+o*(LR+.035),s[0],s[1],y,o));});
+    /* vertical boards and battens over the logs: boards on end, a narrow batten over every joint, cut round the openings */
+    if(WK==='vboard'){const bt=[];WALLS.forEach(([nm,c,axis,o])=>{const half=(axis==='x'?W:D)/2+LR+.03,oc=c+o*(LR+.035);const y0=FL-.05,y1=top+.05;
+      for(let a=-half;a<half-.01;a+=.17){const a1=Math.min(half,a+.17),am=(a+a1)/2;let segs=[[y0,y1]];
+        open[nm].forEach(op=>{if(a1<=op[0]||a>=op[1])return;const ns=[];segs.forEach(sg=>{if(op[3]<=sg[0]||op[2]>=sg[1]){ns.push(sg);return;}if(op[2]>sg[0])ns.push([sg[0],op[2]]);if(op[3]<sg[1])ns.push([op[3],sg[1]]);});segs=ns;});
+        segs.forEach(([b0,b1])=>{if(b1-b0<.02)return;const g=new T.BoxGeometry(axis==='x'?a1-a-.006:.022,b1-b0,axis==='x'?.022:a1-a-.006);g.translate(axis==='x'?am:oc,(b0+b1)/2,axis==='x'?oc:am);boards.push(g);
+          const t=new T.BoxGeometry(axis==='x'?.05:.02,b1-b0,axis==='x'?.02:.05);t.translate(axis==='x'?a1:oc+o*.02,(b0+b1)/2,axis==='x'?oc+o*.02:a1);bt.push(t);});}});
+      boards.push(...bt);}
+    /* rendered or brick walls: solid, cut round every opening; boxes laid edge to edge with the texture mapped by the metre
+       in the house's own frame, so the bond and the render run on unbroken from piece to piece and into the reveals */
+    if(masonry){const slab=[],T2=2*LR,y0=FL-.02,y1=top+.06,uvS=WK==='brick'?.96:.5;
+      WALLS.forEach(([nm,c,axis])=>{const half=axis==='x'?W/2+LR:D/2-LR;const ops=open[nm].map(o=>[o[0],o[1],Math.max(o[2],y0),Math.min(o[3],y1)]);
+        const xs=[-half,half];ops.forEach(o=>xs.push(clamp(o[0],-half,half),clamp(o[1],-half,half)));xs.sort((p_,q_)=>p_-q_);
+        for(let i=0;i<xs.length-1;i++){const a0=xs[i],a1=xs[i+1];if(a1-a0<.004)continue;const am=(a0+a1)/2;let segs=[[y0,y1]];
+          ops.forEach(o=>{if(am<=o[0]||am>=o[1])return;const ns=[];segs.forEach(sg=>{if(o[3]<=sg[0]||o[2]>=sg[1]){ns.push(sg);return;}if(o[2]>sg[0])ns.push([sg[0],o[2]]);if(o[3]<sg[1])ns.push([o[3],sg[1]]);});segs=ns;});
+          segs.forEach(([b0,b1])=>{if(b1-b0<.004)return;const g=new T.BoxGeometry(axis==='x'?a1-a0:T2,b1-b0,axis==='x'?T2:a1-a0);g.translate(axis==='x'?am:c,(b0+b1)/2,axis==='x'?c:am);worldUV(g,uvS);slab.push(g);});}});
+      /* the brick house's cornice (two corbelled courses), its corner pilasters; the rendered house's painted plinth band */
+      const band=(y,hh,p,m,list)=>{[[0,D/2,W+2*LR+2*p,'x'],[0,-D/2,W+2*LR+2*p,'x'],[W/2,0,D+2*LR,'z'],[-W/2,0,D+2*LR,'z']].forEach(([x,z,L,ax])=>{const g=new T.BoxGeometry(ax==='x'?L:T2+2*p,hh,ax==='x'?T2+2*p:L);g.translate(x,y,z);worldUV(g,uvS);list.push(g);});};
+      if(WK==='brick'){band(y1-.09,.075,.035,wallM,slab);band(y1-.035,.075,.07,wallM,slab);[[-1,-1],[1,-1],[-1,1],[1,1]].forEach(([sx,sz])=>{const g=new T.BoxGeometry(.4,y1-y0-.16,.4);g.translate(sx*(W/2+LR-.17),(y0+y1-.16)/2,sz*(D/2+LR-.17));worldUV(g,uvS);slab.push(g);});}
+      shootables.push(mesh(merge(slab),wallM,0,0,0,h));
+      if(WK==='plaster'){const pb=[];band(FL+.08,.5,.012,null,pb);mesh(merge(pb),memo('plinthPaint',()=>std({map:PB.plaster.a,normalMap:PB.plaster.n,color:C(0x8a8a86),roughness:1,envMapIntensity:.2})),0,0,0,h);}}
+    if(!masonry){addLog('z',W/2,-D/2,D/2,FL+.11-LS/2);addLog('z',-W/2,-D/2,D/2,FL+.11-LS/2);}if(!masonry&&ruin!=='collapse'){addLog('x',D/2,-W/2-(hd.clad?0:.28),W/2+(hd.clad?0:.28),top);addLog('x',-D/2,-W/2-(hd.clad?0:.28),W/2+(hd.clad?0:.28),top);}
+    if(logs.length){shootables.push(mesh(merge(logs.map(l=>l.side)),logM,0,0,0,h));mesh(merge(logs.map(l=>l.cap)),hd.burnt?charEnd:WM.end,0,0,0,h);}if(burntLogs.length){shootables.push(mesh(merge(burntLogs.map(l=>l.side)),charred,0,0,0,h));mesh(merge(burntLogs.map(l=>l.cap)),charEnd,0,0,0,h);}
     /* inside a lived-in house the logs are lined: wallpaper on battens over the logs in most, lime-washed plaster in some,
        cut round every window and the door, a painted skirting board along the floor */
-    if(hd.enter){const lin=hi%4===2?wallLime(hi):wallPaper(hi);const IN=LR+.012,y0=FL+.03,y1=top-.08,parts=[],cas=[];
+    /* the inside finish: the brick houses papered, the rendered ones lime-washed with an oil-painted dado, the log houses
+       papered or limed - and in two of them nothing at all over the logs, the moss in the joints */
+    const bareLogs=!masonry&&(hd.id==='b2'||hd.id==='n1');
+    if(hd.enter&&!bareLogs){const lin=WK==='plaster'?wallLime(hi):WK==='brick'?wallPaper(hi+1):hi%4===2?wallLime(hi):wallPaper(hi);const IN=LR+.012,y0=FL+.03,y1=top-.08,parts=[],cas=[];
       /* a painted casing round each opening, standing a little proud of the lining */
       const casing=(lo,hi2,c0,c1,place,door)=>{const bw=.075,bx=(w,h_,cx,cy)=>{const g=new T.BoxGeometry(w,h_,.022);g.translate(cx,cy,.011);place(g);cas.push(g);};
         bx(bw,c1-c0+(door?bw:2*bw),lo-bw/2,(c0+c1)/2+(door?bw/2:0));bx(bw,c1-c0+(door?bw:2*bw),hi2+bw/2,(c0+c1)/2+(door?bw/2:0));bx(hi2-lo,bw,(lo+hi2)/2,c1+bw/2);if(!door)bx(hi2-lo,bw,(lo+hi2)/2,c0-bw/2);};
@@ -6468,14 +6915,30 @@ function carpetTex(seed){return tex(256,384,(c,w,h)=>{const q=rng(seed);const f=
       parts.forEach(g=>{g.deleteAttribute('normal');g.computeVertexNormals();});mesh(merge(parts),lin,0,0,0,h,false).userData.inside=hd.id;if(cas.length)mesh(merge(cas),M.trimWhite,0,0,0,h,false).userData.inside=hd.id;
       /* skirting */const sk=std({map:RF.PAINT.map,color:C(hi%2?0x8a5a3a:0x6a4a34),roughness:.6});
       [[0,-D/2+IN+.012,W-2*LR,'x'],[W/2-IN-.012,0,D-2*LR,'z'],[-W/2+IN+.012,0,D-2*LR,'z']].forEach(([x,z,L,ax])=>{mesh(rbox(ax==='x'?L:.024,.1,ax==='x'?.024:L,.006),sk,x,FL+.08,z,h).userData.inside=hd.id;});
-      [[-W/2+LR,dX0],[dX1,W/2-LR]].forEach(([a,b])=>{if(b-a>.05)mesh(rbox(b-a,.1,.024,.006),sk,(a+b)/2,FL+.08,D/2-IN-.012,h).userData.inside=hd.id;});}
+      [[-W/2+LR,dX0],[dX1,W/2-LR]].forEach(([a,b])=>{if(b-a>.05)mesh(rbox(b-a,.1,.024,.006),sk,(a+b)/2,FL+.08,D/2-IN-.012,h).userData.inside=hd.id;});
+      /* the dado: oil paint, gloss, to just under the window sills, a dark line along its top */
+      if(WK==='plaster'){const dm=memo('dado'+hi%2,()=>std({map:TX.whitewash,color:C(hi%2?0x4a6a86:0x5a7a62),roughness:.32,envMapIntensity:.55})),ln=memo('dadoLine',()=>std({color:C(0x2a2a2a),roughness:.5})),dp=[],lp=[];
+        const strip=(x0,x1,place)=>{const g=new T.PlaneGeometry(x1-x0,.78);g.translate((x0+x1)/2,FL+.1+.39,0);place(g);dp.push(g);const l=new T.PlaneGeometry(x1-x0,.018);l.translate((x0+x1)/2,FL+.88,0);place(l);lp.push(l);};
+        const L2=W/2-LR-.01,L3=D/2-LR-.01;strip(-L2,L2,g=>g.translate(0,0,-D/2+IN+.004));strip(-L3,L3,g=>{g.rotateY(-Math.PI/2);g.translate(W/2-IN-.004,0,0);});strip(-L3,L3,g=>{g.rotateY(Math.PI/2);g.translate(-W/2+IN+.004,0,0);});
+        [[-L2,dX0-.08],[dX1+.08,L2]].forEach(([a,b])=>{if(b-a>.05)strip(-b,-a,g=>{g.rotateY(Math.PI);g.translate(0,0,D/2-IN-.004);});});
+        mesh(merge(dp),dm,0,0,0,h,false).userData.inside=hd.id;mesh(merge(lp),ln,0,0,0,h,false).userData.inside=hd.id;}}
     if(boards.length){shootables.push(mesh(merge(boards),cladM,0,0,0,h));
       /* white corner boards and the skirting board */[[-1,-1],[1,-1],[-1,1],[1,1]].forEach(([sx,sz])=>mesh(rbox(.16,top-FL+.2,.16,.01),M.trimWhite,sx*(W/2+LR+.05),(top+FL)/2,sz*(D/2+LR+.05),h));
       [[0,D/2,W+.5,'x'],[0,-D/2,W+.5,'x'],[W/2,0,D+.5,'z'],[-W/2,0,D+.5,'z']].forEach(([x,z,L,ax])=>mesh(rbox(ax==='x'?L:.06,.18,ax==='x'?.06:L,.01),M.trimWhite,x+(ax==='z'?Math.sign(x)*(LR+.06):0),FL-.02,z+(ax==='x'?Math.sign(z)*(LR+.06):0),h));}
     wb(-W/2-.15,W/2+.15,-D/2-.15,-D/2+.15);wb(-W/2-.15,-W/2+.15,-D/2,D/2);wb(W/2-.15,W/2+.15,-D/2,D/2);wb(-W/2,dX0,D/2-.15,D/2+.15);wb(dX1,W/2,D/2-.15,D/2+.15);
-    shootables.push(mesh(rbox(W-.2,.06,D-.2,.01),M.planks,0,FL,0,h));mesh(rbox(W-.1,.06,D-.1,.01),M.planks,0,top-.05,0,h);
+    /* the floor: bare boards, boards painted the usual brick-red ochre, or linoleum printed like parquet */
+    const flM=WK==='brick'?memo('lino',()=>std({map:FAB.lino(),roughness:.38,envMapIntensity:.55})):(WK==='plaster'||hd.id==='s2'||hd.id==='b4')?memo('paintFloor',()=>std({map:PB.planks.a,normalMap:PB.planks.n,color:C(0xb0583a),roughness:.42,envMapIntensity:.5})):M.planks;
+    {const fg=rbox(W-.2,.06,D-.2,.01);if(flM!==M.planks)worldUV(fg,WK==='brick'?.5:.6);shootables.push(mesh(fg,flM,0,FL,0,h));}
+    /* the ceiling boards; where a drone came through the roof they are torn open under the hole, the broken ends hanging */
+    if(ruin==='strike'){const [rs,i0,i1]=hd.hole,exr=W/2+.6,hx0=Math.max(-W/2+.1,-exr+.55+i0*1.03-.35),hx1=Math.min(W/2-.1,-exr+.55+i1*1.03+.35),hz0=rs>0?.35:-(D/2-.35),hz1=rs>0?D/2-.35:-.35;
+      const cb=[],box=(x0,x1,z0,z1)=>{if(x1-x0<.05||z1-z0<.05)return;const g=rbox(x1-x0,.06,z1-z0,.01);g.translate((x0+x1)/2,top-.05,(z0+z1)/2);cb.push(g);};
+      box(-W/2+.05,hx0,-D/2+.05,D/2-.05);box(hx1,W/2-.05,-D/2+.05,D/2-.05);box(hx0,hx1,-D/2+.05,hz0);box(hx0,hx1,hz1,D/2-.05);mesh(merge(cb),M.planks,0,0,0,h);
+      const q=rng(330+hi),hp=[];for(let i=0;i<7;i++){const x=lerp(hx0+.1,hx1-.1,q()),z=q()<.5?hz0:hz1,L=.4+q()*.7,g=rbox(.12,.025,L,.004);g.translate(0,0,(z===hz0?1:-1)*L/2);g.rotateX((z===hz0?1:-1)*(.9+q()*.5));g.translate(x,top-.05,z);hp.push(g);}
+      mesh(merge(hp),charred,0,0,0,h);
+      /* what came down with it, on the floor under the hole */const dp=[];for(let i=0;i<18;i++){const g=rbox(.08+q()*.12,.025,.3+q()*.8,.004);g.rotateY(q()*3);g.rotateZ((q()-.5)*.4);g.translate(lerp(hx0,hx1,q()),FL+.05+q()*.06,lerp(hz0,hz1,q()));dp.push(g);}mesh(merge(dp),q()<.5?charred:M.planks,0,0,0,h);}
+    else if(ruin!=='collapse')mesh(rbox(W-.1,.06,D-.1,.01),M.planks,0,top-.05,0,h);/* (a collapsed house has no ceiling left: it came down with the roof) */
     /* door */
-    const door=new T.Group();door.position.set(dX0,FL,D/2-.02);h.add(door);
+    const door=new T.Group();door.position.set(dX0,FL,D/2-.02);h.add(door);/* (a collapsed house's door has come down with its frame, flat out over the porch) */if(ruin==='collapse'){door.rotation.set(1.5,0,.12);door.position.set(dX0+.05,FL+.25,D/2+.1);}
     mesh(rbox(1.0,2.02,.06,.01),hd.burnt?charred:M.boards,.5,1.01,0,door);[.3,1.7].forEach(y=>mesh(rbox(.9,.12,.04,.01),M.boards,.5,y,-.05,door));mesh(new T.SphereGeometry(.03,8,6),M.rust,.88,1.0,.05,door);
     const dsol=wb(dX0,dX1,D/2-.12,D/2+.12);
     if(hd.enter){const st={g:door,open:false};dsol.door=st;DOORS.push(st);interact.push({obj:door,off:V3(.5,1,0),label:'Open door',r:2.2,fn(){st.open=!st.open;this.label=st.open?'Close door':'Open door';sfx.creak();}});}
@@ -6483,12 +6946,30 @@ function carpetTex(seed){return tex(256,384,(c,w,h)=>{const q=rng(seed);const f=
     /* windows: carved white frames standing proud of the wall, painted shutters, glass, net curtains */
     const po=hd.clad?.06:0;
     const win=(x,z,ry,broken,boarded)=>{const g=new T.Group();g.position.set(x,FL+1.45,z);g.rotation.y=ry;h.add(g);
-      [[0,.58,1.2,.1],[0,-.6,1.25,.12],[-.55,0,.1,1.25],[.55,0,.1,1.25]].forEach(b=>mesh(rbox(b[2],b[3],.07,.01),M.trimWhite,b[0],b[1],.15+po,g));
-      const ped=new T.Shape();ped.moveTo(-.7,0);ped.lineTo(.7,0);ped.lineTo(.5,.22);ped.quadraticCurveTo(0,.42,-.5,.22);ped.closePath();mesh(new T.ExtrudeGeometry(ped,{depth:.04,bevelEnabled:false}),M.trimWhite,0,.62,.13+po,g);
-      mesh(rbox(.08,1.15,.04,.01),paint,0,0,.06,g);mesh(rbox(1,.06,.04,.01),paint,0,.15,.06,g);
+      const sash=st.pvc?memo('pvc',()=>std({color:C(0xf2f2ee),roughness:.35,envMapIntensity:.6})):paint;
+      if(masonry){/* set in the reveal: the frame, a tin sill outside, the head - a flat arch of bricks, or a rendered surround */
+        [[0,.52,1.0,.07],[0,-.52,1.0,.07],[-.465,0,.07,1.1],[.465,0,.07,1.1]].forEach(b=>mesh(rbox(b[2],b[3],.08,.008),st.pvc?sash:trimM,b[0],b[1],.02,g));
+        const sl=mesh(rbox(1.14,.018,.17,.004),galvM,0,-.565,.16,g);sl.rotation.x=.12;
+        if(WK==='brick'){const hb=worldUV(rbox(1.26,.17,.06,.006),.96);mesh(hb,wallM,0,.635,.135,g);}
+        else{[[0,.62,1.3,.12],[0,-.6,1.3,.06],[-.6,0,.1,1.3],[.6,0,.1,1.3]].forEach(b=>mesh(rbox(b[2],b[3],.02,.004),trimM,b[0],b[1],.133,g));}}
+      else{[[0,.58,1.2,.1],[0,-.6,1.25,.12],[-.55,0,.1,1.25],[.55,0,.1,1.25]].forEach(b=>mesh(rbox(b[2],b[3],.07,.01),trimM,b[0],b[1],.15+po,g));
+        const pd=st.ped||0;
+        if(pd===0){const ped=new T.Shape();ped.moveTo(-.7,0);ped.lineTo(.7,0);ped.lineTo(.5,.22);ped.quadraticCurveTo(0,.42,-.5,.22);ped.closePath();mesh(new T.ExtrudeGeometry(ped,{depth:.04,bevelEnabled:false}),trimM,0,.62,.13+po,g);}
+        else if(pd===1){/* the kokoshnik: a gabled head with a fretwork of round and leaf holes, an apron of scallops under the sill */
+          const ped=new T.Shape();ped.moveTo(-.72,0);ped.lineTo(.72,0);ped.lineTo(.62,.08);ped.lineTo(0,.46);ped.lineTo(-.62,.08);ped.closePath();
+          [[-.3,.12],[0,.2],[.3,.12]].forEach(([hx,hy],k)=>{const hp=new T.Path();hp.absarc(hx,hy,k===1?.07:.045,0,Math.PI*2,true);ped.holes.push(hp);});
+          [-1,1].forEach(sg=>{const hp=new T.Path();hp.moveTo(sg*.15,.06);hp.quadraticCurveTo(sg*.2,.16,sg*.12,.2);hp.quadraticCurveTo(sg*.1,.12,sg*.15,.06);ped.holes.push(hp);});
+          mesh(new T.ExtrudeGeometry(ped,{depth:.035,bevelEnabled:true,bevelThickness:.004,bevelSize:.004,bevelSegments:1,curveSegments:14}),trimM,0,.62,.13+po,g);
+          mesh(rbox(1.5,.05,.09,.008),trimM,0,.645,.17+po,g);
+          const ap=new T.Shape();ap.moveTo(-.62,0);ap.lineTo(.62,0);for(let k=5;k>=0;k--){const xx=-.62+k*1.24/6;ap.lineTo(xx+.207,-.06);ap.quadraticCurveTo(xx+.103,-.16,xx,-.06);}ap.closePath();
+          mesh(new T.ExtrudeGeometry(ap,{depth:.03,bevelEnabled:false,curveSegments:8}),trimM,0,-.66,.135+po,g);}
+        else{/* a plain cornice board on brackets, a row of dentils under it */mesh(rbox(1.44,.07,.12,.01),trimM,0,.7,.17+po,g);for(let k=0;k<11;k++)mesh(rbox(.05,.05,.05,.006),trimM,-.6+k*.12,.645,.16+po,g);
+          [-1,1].forEach(sg=>mesh(rbox(.06,.16,.08,.008),trimM,sg*.62,.6,.17+po,g));}}
+      if(st.pvc){mesh(rbox(.06,1.06,.06,.006),sash,0,0,.05,g);mesh(rbox(.47,.05,.05,.006),sash,.24,.16,.05,g);}
+      else{mesh(rbox(.08,1.15,.04,.01),sash,0,0,.06,g);mesh(rbox(1,.06,.04,.01),sash,0,.15,.06,g);}
       if(!broken)mesh(new T.PlaneGeometry(1,1.1),M.glass,0,0,.04,g);else{const sh=new T.Shape();sh.moveTo(-.5,-.55);sh.lineTo(.5,-.55);sh.lineTo(.5,-.1);sh.lineTo(.1,-.3);sh.lineTo(-.2,.1);sh.lineTo(-.5,-.2);sh.closePath();mesh(new T.ShapeGeometry(sh),M.glass,0,0,.04,g);}
-      if(!boarded)mesh(new T.PlaneGeometry(.95,.7),std({map:TX.cloth,color:C(0xe8e2d2),roughness:1,transparent:true,opacity:.75,side:T.DoubleSide}),0,.15,-.05,g,false);
-      [-1,1].forEach(s=>{const sh=new T.Group();sh.position.set(s*.62,0,.178+po);g.add(sh);sh.rotation.y=-s*(broken&&s>0?.95:.1);mesh(rbox(.55,1.15,.04,.01),paint,s*.29,0,0,sh);mesh(rbox(.4,.06,.05,.01),M.trimWhite,s*.29,.3,0,sh);});
+      if(!boarded)mesh(new T.PlaneGeometry(.95,.7),memo('netCurtain',()=>std({map:TX.cloth,color:C(0xe8e2d2),roughness:1,transparent:true,opacity:.75,side:T.DoubleSide})),0,.15,-.05,g,false);
+      if(!masonry&&st.shut!==0||st.shut)[-1,1].forEach(s=>{const sh=new T.Group();sh.position.set(s*(masonry?.66:.62),0,(masonry?.15:.178)+po);g.add(sh);sh.rotation.y=-s*(broken&&s>0?.95:.1);mesh(rbox(.55,1.15,.04,.01),paint,s*.29,0,0,sh);mesh(rbox(.4,.06,.05,.01),trimM,s*.29,.3,0,sh);mesh(rbox(.4,.06,.05,.01),trimM,s*.29,-.3,0,sh);});
       if(boarded)[[.25,.12],[-.2,-.1],[-.5,.05]].forEach(([y,rz])=>{const b=mesh(rbox(1.35,.15,.03,.01),M.boards,0,y,.21+po,g);b.rotation.z=rz;});
       mesh(rbox(1.1,.05,.25,.01),M.boards,0,-.6,-.2,g);};
     const bo=!!hd.boarded,kTop=Math.ceil((FL+2.1-FL-.11)/LS),okW=(nm,a)=>stands(nm,a-.55,kTop)&&stands(nm,a+.55,kTop)&&stands(nm,a,kTop);
@@ -6508,11 +6989,24 @@ function carpetTex(seed){return tex(256,384,(c,w,h)=>{const q=rng(seed);const f=
       const rm=mesh(merge(parts),roofM,0,0,0,h);shootables.push(rm);mesh(rbox(2*rx+.2,.08,.2,.02),roofM,0,ridge+.01,0,h);
       /* fascia boards along the eaves */[[0,ez,2*ex,'x'],[0,-ez,2*ex,'x']].concat(hd.hip?[[ex,0,2*ez,'z'],[-ex,0,2*ez,'z']]:[]).forEach(([x,z,L,ax])=>mesh(rbox(ax==='x'?L:.04,.16,ax==='x'?.04:L,.01),M.trimWhite,x,eave-.07,z,h));}
     if(!hd.hip&&ruin!=='collapse')[-1,1].forEach(s=>{const gs=new T.Shape();gs.moveTo(-D/2-.1,0);gs.lineTo(D/2+.1,0);gs.lineTo(0,ridge-top+.05);gs.closePath();const gg=new T.ExtrudeGeometry(gs,{depth:.05,bevelEnabled:false});worldUV(gg,1);
-      const gm=mesh(gg,hd.burnt?charred:hd.clad?cladM:paint,s*(W/2+(hd.clad?LR+.06:.05)),top-.02,0,h);gm.rotation.y=s*Math.PI/2;
-      /* the attic window in the gable, with its own little carved frame */mesh(rbox(.06,.5,.4,.01),M.dark,s*(W/2+(hd.clad?LR+.1:.1)),top+.6,0,h);mesh(rbox(.05,.62,.52,.01),M.trimWhite,s*(W/2+(hd.clad?LR+.09:.09)),top+.6,0,h);});
+      const gm=mesh(gg,hd.burnt?charred:hd.clad?cladM:paint,s*(W/2+(hd.clad?LR+.06:masonry?LR-.04:.05)),top-.02,0,h);gm.rotation.y=s*Math.PI/2;
+      /* the attic window in the gable: a cross-barred casement in a frame, glazed, under a little pediment */{const ag=new T.Group();ag.position.set(s*(W/2+(hd.clad?LR+.115:masonry?LR+.015:.105)),top+.62,0);ag.rotation.y=s*Math.PI/2;h.add(ag);
+        [[0,.29,.56,.06],[0,-.29,.56,.06],[-.25,0,.06,.64],[.25,0,.06,.64]].forEach(b=>mesh(rbox(b[2],b[3],.05,.006),trimM,b[0],b[1],.02,ag));mesh(rbox(.035,.52,.03,.004),trimM,0,0,.015,ag);mesh(rbox(.44,.035,.03,.004),trimM,0,.05,.015,ag);
+        mesh(new T.PlaneGeometry(.46,.54),memo('atticGlass',()=>std({color:C(0x1c2224),roughness:.08,metalness:.2,envMapIntensity:1.2})),0,0,.004,ag);const pdS=new T.Shape();pdS.moveTo(-.36,0);pdS.lineTo(.36,0);pdS.lineTo(0,.16);pdS.closePath();mesh(new T.ExtrudeGeometry(pdS,{depth:.03,bevelEnabled:false}),trimM,0,.32,.0,ag);}});
+    /* a dormer (svetyolka) on the street slope of some gable roofs: a little boarded front with its window and a gable of
+       its own, set into the slope - the part of it under the roof is inside the loft and never seen */
+    if(st.dorm&&!hd.hip&&!ruin){const zf=ez*.68,ry0=eave+(ridge-eave)*(1-zf/ez),dw=1.7,wh=1.0,base=ry0-.12,rise=Math.min(.42,ridge-(base+wh)-.04),dg=new T.Group();dg.position.set(0,base,zf);h.add(dg);
+      const dp=[];for(let x=-dw/2;x<dw/2-.01;x+=.14){const x1=Math.min(dw/2,x+.14),xm=(x+x1)/2;if(Math.abs(xm)<.36){const lo=rbox(x1-x-.006,.18,.025,.003);lo.translate(xm,.09,0);dp.push(lo);const up=rbox(x1-x-.006,.12,.025,.003);up.translate(xm,wh-.06,0);dp.push(up);continue;}
+        const b=rbox(x1-x-.006,wh,.025,.003);b.translate(xm,wh/2,0);dp.push(b);}
+      [-1,1].forEach(sg=>{const sw=rbox(.025,wh,zf+.02,.003);sw.translate(sg*dw/2,wh/2,-zf/2);dp.push(sw);});mesh(merge(dp),cladM,0,0,0,dg);
+      const gs=new T.Shape();gs.moveTo(-dw/2-.05,0);gs.lineTo(dw/2+.05,0);gs.lineTo(0,rise);gs.closePath();const gg=new T.ExtrudeGeometry(gs,{depth:.03,bevelEnabled:false});worldUV(gg,1);mesh(gg,cladM,0,wh,-.01,dg);
+      const sl=Math.hypot(dw/2+.15,rise),pa=Math.atan2(rise,dw/2+.15);[-1,1].forEach(sg=>{const r=rbox(sl,.035,zf+.3,.006);r.rotateZ(-sg*pa);mesh(r,roofM,sg*(dw/2+.15)/2,wh+rise/2+.03,-zf/2+.1,dg);const bb=rbox(sl+.04,.12,.03,.004);bb.rotateZ(-sg*pa);mesh(bb,trimM,sg*(dw/2+.15)/2,wh+rise/2,.05,dg);});
+      /* its window: a twin casement in a carved frame */[[0,.82,.86,.07],[0,.17,.86,.07],[-.4,.5,.07,.72],[.4,.5,.07,.72]].forEach(b=>mesh(rbox(b[2],b[3],.05,.006),trimM,b[0],b[1],.03,dg));
+      mesh(new T.PlaneGeometry(.72,.6),M.glass,0,.5,.01,dg);mesh(rbox(.04,.6,.03,.004),paint,0,.5,.025,dg);mesh(rbox(.72,.04,.03,.004),paint,0,.62,.025,dg);
+      const pd=new T.Shape();pd.moveTo(-.5,0);pd.lineTo(.5,0);pd.lineTo(0,.2);pd.closePath();mesh(new T.ExtrudeGeometry(pd,{depth:.03,bevelEnabled:false}),trimM,0,.87,.02,dg);}
     if(ruin==='collapse'){/* the stove and its chimney stand when the house round them has gone - as they do */const cx=hi%2?-W/2+1.2:W/2-1.2;const sg=new T.Group();sg.scale.x=hi%2?-1:1;sg.userData.noMerge=true;h.add(sg);russianStove(sg,W/2-.98,FL,-D/2+1.05,top-FL-.06);
-      mesh(rbox(.52,ridge-top+1.0,.52,.03),brick,cx,top+(ridge-top+1.0)/2-.08,-.4,h);mesh(rbox(.62,.1,.62,.02),brick,cx,ridge+.92,-.4,h);wb(sd>0?W/2-1.78:-W/2+.18,sd>0?W/2-.18:-W/2+1.78,-D/2+.1,-D/2+2.05);}
-    else{const cx=hi%2?-W/2+1.2:W/2-1.2;mesh(rbox(.52,2.4,.52,.03),brick,cx,ridge-.3,-.4,h);mesh(rbox(.62,.1,.62,.02),brick,cx,ridge+.92,-.4,h);}
+      chimney(h,cx,top-.08,ridge+.92,-.4,false);wb(sd>0?W/2-1.78:-W/2+.18,sd>0?W/2-.18:-W/2+1.78,-D/2+.1,-D/2+2.05);}
+    else{const cx=hi%2?-W/2+1.2:W/2-1.2;chimney(h,cx,ridge-1.5,ridge+.92,-.4,hi%3!==0);}
     /* in front of the door: a glazed veranda (the small one round the door, or one across the whole front), or an open porch */
     if(hd.ver){const vw=hd.ver===2?W-.4:3.2,vd=2.3,vx=hd.ver===2?0:dx-.45,vz=D/2+vd/2+.02;const vg=new T.Group();vg.position.set(vx,0,vz);h.add(vg);
       mesh(rbox(vw,FL+.25,vd,.01),M.concrete,0,(FL-.25)/2,0,vg);mesh(rbox(vw-.1,.05,vd-.1,.01),M.planks,0,FL+.005,0,vg);
@@ -6532,9 +7026,53 @@ function carpetTex(seed){return tex(256,384,(c,w,h)=>{const q=rng(seed);const f=
       if(hd.enter)HOUSES.push(villRect(hd,vx-vw/2,vx+vw/2,D/2,D/2+vd));
       wb(vx-vw/2-.06,vx-vw/2+.06,D/2,D/2+vd);wb(vx+vw/2-.06,vx+vw/2+.06,D/2,D/2+vd);wb(vx-vw/2,vx+dxx-dw/2,D/2+vd-.06,D/2+vd+.06);wb(vx+dxx+dw/2,vx+vw/2,D/2+vd-.06,D/2+vd+.06);}
     else{const porch=new T.Group();porch.position.set(dx-.45,0,D/2+.75);h.add(porch);
-      mesh(rbox(1.8,FL+.2,1.3,.01),M.boards,0,(FL-.2)/2,0,porch);mesh(rbox(1.8,FL*.5+.1,.32,.01),M.boards,0,FL*.25-.05,.75,porch);[-.85,.85].forEach((x,i)=>{const pp=mesh(rbox(.1,2.6,.1,.01),M.post,x,1.15,.55,porch);if(ruin==="collapse"&&i===1){pp.rotation.z=1.5;pp.position.set(.15,FL+.055,.7);}});
-      if(ruin!=='collapse'){const pr=mesh(rbox(2.2,.05,1.6,.01),roofM,0,2.5,.05+LR+(hd.clad?.06:0),porch);pr.rotation.x=.18;}
+      /* the open porch (kryltso): a boarded base, a deck of planks, two steps, turned posts, side rails on balusters, and its
+         canopy - a little gable with its own carved pediment on some houses, a lean-to on rafters on others */
+      const wz=-.75+LR+(WK==='lap'||WK==='vboard'?.08:.02),pq=rng(5300+hi),pk=[];
+      mesh(rbox(1.8,FL+.2,1.3,.01),M.boards,0,(FL-.2)/2-.01,0,porch);
+      for(let i=0;i<11;i++){const z=-.65+(i+.5)*1.3/11,b=rbox(1.84,.03,1.3/11-.008,.004);b.translate((pq()-.5)*.01,FL+.012,z);pk.push(b);}
+      [[FL*.5,.82,.36],[FL*.25,.98,.3]].forEach(([y,z,d])=>{const b=rbox(1.3,y,d,.008);b.translate(0,y/2-.02,z-.05);pk.push(b);const t=rbox(1.34,.03,d+.03,.004);t.translate(0,y,z-.05);pk.push(t);});
+      mesh(merge(pk),M.boards,0,0,0,porch);
+      const postG=G('porchPost',()=>lathe([[0,0],[.07,0],[.07,.08],[.055,.1],[.05,.14],[.06,.2],[.045,.26],[.045,1.6],[.055,1.66],[.04,1.72],[.04,1.86],[.06,1.9],[.065,1.96],[.06,2.02],[0,2.02]],16));
+      const balG=G('porchBal',()=>lathe([[0,0],[.022,0],[.022,.05],[.016,.08],[.03,.24],[.016,.42],[.022,.45],[.022,.5],[0,.5]],10));
+      const ph=2.45;[-.85,.85].forEach((x,i)=>{const pp=mesh(postG,trimM,x,FL,.55,porch);pp.scale.y=(ph-FL)/2.02;if(ruin==='collapse'){if(i===1){pp.rotation.z=1.5;pp.position.set(.95,FL+.07,.62);}else{pp.rotation.set(.25,0,-.62);pp.position.set(-.9,FL,.5);}}});
+      if(ruin!=='collapse'){[-.85,.85].forEach(x=>{mesh(rbox(.05,.05,1.15,.006),trimM,x,FL+.85,wz/2+.28,porch);mesh(rbox(.05,.05,1.15,.006),trimM,x,FL+.1,wz/2+.28,porch);for(let k=0;k<6;k++)mesh(balG,trimM,x,FL+.12,-.45+k*.16,porch).scale.y=1.42;});
+        mesh(rbox(1.92,.12,.1,.01),M.post,0,ph+.06,.55,porch);[-.85,.85].forEach(x=>mesh(rbox(.08,.1,.55-wz,.01),M.post,x,ph+.05,(wz+.55)/2,porch));
+        if(hi%2){/* gable canopy */const half=1.0,rise=.5,sl=Math.hypot(half,rise),pa=Math.atan2(rise,half),L=.69-wz;[-1,1].forEach(sg=>{const r=rbox(sl+.08,.04,L,.006);r.rotateZ(-sg*pa);mesh(r,roofM,sg*half/2,ph+.13+rise/2,wz+L/2,porch);});
+          const gs=new T.Shape();gs.moveTo(-half,0);gs.lineTo(half,0);gs.lineTo(0,rise);gs.closePath();const ho=new T.Path();ho.absarc(0,rise*.4,.09,0,Math.PI*2,true);gs.holes.push(ho);
+          mesh(new T.ExtrudeGeometry(gs,{depth:.03,bevelEnabled:false,curveSegments:16}),trimM,0,ph+.1,.6,porch);
+          [-1,1].forEach(sg=>{const bb=rbox(sl+.12,.12,.03,.006);bb.rotateZ(-sg*pa);mesh(bb,trimM,sg*half/2,ph+.1+rise/2,.645,porch);});}
+        else{/* lean-to on rafters */const z0=wz,z1=.72,y0=ph+.42,y1=ph+.13,ln=Math.hypot(z1-z0,y0-y1),pa=Math.atan2(y0-y1,z1-z0);
+          for(let k=0;k<4;k++){const r=rbox(.05,.09,ln,.006);r.rotateX(pa);mesh(r,M.post,-.85+k*.567,(y0+y1)/2+.02,(z0+z1)/2,porch);}
+          const rf=rbox(2.1,.04,ln+.1,.006);rf.rotateX(pa);mesh(rf,roofM,0,(y0+y1)/2+.085,(z0+z1)/2,porch);const fa=rbox(2.12,.14,.03,.004);mesh(fa,trimM,0,y1+.03,z1+.05,porch);}}
       PORCHES.push(Object.assign(villRect(hd,dx-1.35,dx+.45,D/2,D/2+1.45),{y:FL}),Object.assign(villRect(hd,dx-1.35,dx+.45,D/2+1.45,D/2+1.75),{y:FL*.5}));}
+    /* the things on a lived-in house's front: the yellow gas pipe on its brackets coming up the corner and along under
+       the eaves to the meter by the door, the electricity meter box, the street number, a television aerial on its mast
+       at the gable, a satellite dish */
+    if(!hd.boarded&&!ruin){const q=rng(7700+hi),fo=D/2+LR+(WK==='lap'||WK==='vboard'?.09:.03),cs=-sd,cx=cs*(W/2+LR+(WK==='lap'||WK==='vboard'?.09:.03));
+      /* (behind a veranda across the whole front, the meter, the number and the gas come in on the side wall instead) */
+      const side=hd.ver===2;const onWall=(lx,ly,off)=>side?{p:V3(cx+cs*off,ly,D/2-.9-lx),ry:cs*Math.PI/2}:{p:V3(lx,ly,fo+off),ry:0};
+      if(st.gas){const gy=Math.min(top-.25,FL+2.55),px=[],run=(A,B)=>{px.push(new T.CylinderGeometry(.021,.021,A.distanceTo(B),12).applyMatrix4(new T.Matrix4().compose(A.clone().add(B).multiplyScalar(.5),new T.Quaternion().setFromUnitVectors(V3(0,1,0),V3().subVectors(B,A).normalize()),V3(1,1,1))));};
+        let pts;const mpos=side?onWall(0,FL+1.6,.08):onWall(cs>0?dX1+.35:dX0-.35,FL+1.55,.08);
+        if(side){const zr=D/2-.6,xr=cx+cs*.07;pts=[V3(xr,gY(hd,xr,zr)-.1,zr),V3(xr,FL+1.95,zr),V3(xr,FL+1.95,mpos.p.z+.12),V3(xr,FL+1.75,mpos.p.z+.12)];}
+        else{const c0=V3(cx+cs*.06,gY(hd,cx+cs*.06,fo-.3)-.1,fo-.3),c1=V3(cx+cs*.06,gy,fo-.3),c2=V3(cx+cs*.06,gy,fo+.06),c3=V3(mpos.p.x,gy,fo+.06),c4=V3(mpos.p.x,FL+1.75,fo+.06);pts=[c0,c1,c2,c3,c4];}
+        for(let i=0;i<pts.length-1;i++)run(pts[i],pts[i+1]);pts.slice(1,-1).forEach(c=>px.push(new T.SphereGeometry(.03,12,8).translate(c.x,c.y,c.z)));
+        if(!side){const c2=pts[2],c3=pts[3];for(let t=.15;t<1;t+=1.1/Math.max(1,c2.distanceTo(c3))){const p_=c2.clone().lerp(c3,t);px.push(new T.BoxGeometry(.03,.03,.08).translate(p_.x,p_.y,p_.z-.04));}}
+        mesh(merge(px),gasY,0,0,0,h);const mb=mesh(rbox(.26,.32,.16,.01),galvM,mpos.p.x,mpos.p.y,mpos.p.z,h);mb.rotation.y=mpos.ry;}
+      /* the meter box and the street number */
+      {const mp=side?onWall(.7,FL+1.9,.065):onWall(cs>0?dX1+.75:dX0-.75,FL+1.9,.065);const mm=mesh(rbox(.32,.42,.13,.01),memo('meterBox',()=>std({color:C(0x6a6e68),roughness:.6,metalness:.4,envMapIntensity:.5})),mp.p.x,mp.p.y,mp.p.z,h);mm.rotation.y=mp.ry;
+       const nm_={n:'ЦЕНТРАЛЬНАЯ',s:'ЦЕНТРАЛЬНАЯ',l:'ЛУГОВАЯ',b:'ПОЛЕВАЯ',c:'ЛЕСНАЯ'}[hd.id[0]],no=(hi*3+7)%40+1;
+       const pt=memo('plate'+hd.id,()=>tex(256,128,(c,w,h_)=>{c.fillStyle='#1f4a8a';c.fillRect(0,0,w,h_);c.strokeStyle='#e8ecf0';c.lineWidth=5;c.strokeRect(6,6,w-12,h_-12);c.fillStyle='#eef2f4';c.textAlign='center';c.font='bold 26px sans-serif';c.fillText('УЛ. '+nm_,w/2,48);c.font='bold 52px sans-serif';c.fillText(String(no),w/2,106);
+         const q2=rng(no);for(let i=0;i<60;i++){c.fillStyle=`rgba(90,60,30,${q2()*.25})`;c.beginPath();c.arc(q2()*w,q2()*h_,1+q2()*3,0,7);c.fill();}}));
+       const pp=side?onWall(-.1,FL+2.25,.006):onWall(cs>0?W/2-.6:-W/2+.6,FL+2.25,.006);const pl=mesh(rbox(.4,.2,.012,.004),memo('plateM'+hd.id,()=>std({map:pt,roughness:.5,metalness:.3,envMapIntensity:.6})),pp.p.x,pp.p.y,pp.p.z,h);pl.rotation.y=pp.ry;}
+      /* aerial: a galvanised mast up the gable end past the ridge, a Yagi on top */
+      if(st.ant){const ax=-cs*(W/2+LR+.12),am=[];const my0=top-.6,my1=ridge+1.9;am.push(new T.CylinderGeometry(.018,.022,my1-my0,10).translate(ax,(my0+my1)/2,-.4));
+        [top-.3,top+.6].forEach(y=>am.push(new T.BoxGeometry(.2,.03,.03).translate(ax+cs*.1,y,-.4)));am.push(new T.CylinderGeometry(.008,.008,1.4,8).rotateX(Math.PI/2).translate(ax,my1-.05,-.4));
+        for(let k=0;k<8;k++){const z_=-.4-.6+k*.17,L_=.48-k*.025;am.push(new T.CylinderGeometry(.004,.004,L_,6).rotateZ(Math.PI/2).translate(ax,my1-.05,z_));}mesh(merge(am),galvM,0,0,0,h);}
+      /* satellite dish on the front wall's top corner */
+      if(st.dish){const dg=new T.Group();dg.position.set(cs*(W/2-.45),top-.35,fo+.05);dg.rotation.set(-.35,cs*.5,0);h.add(dg);const dm=memo('dishM',()=>std({color:C(0xd8dad8),roughness:.45,metalness:.2,envMapIntensity:.6,side:T.DoubleSide}));
+        const pts=[];for(let i=0;i<=10;i++){const r=i/10*.3;pts.push([r,r*r*.9]);}const dish=lathe(pts,32);dish.rotateX(Math.PI/2);mesh(dish,dm,0,0,.28,dg);
+        mesh(new T.CylinderGeometry(.008,.008,.34,8).rotateX(Math.PI/2+.25),galvM,0,-.06,.44,dg);mesh(rbox(.05,.06,.09,.01),dm,0,-.1,.6,dg);mesh(rbox(.06,.2,.05,.008),galvM,0,0,.1,dg);mesh(rbox(.14,.14,.02,.004),galvM,0,0,0,dg);}}
     /* the covered yard behind, under its own lower roof: weathered vertical boards, a pair of cart doors in the side */
     if(hd.dvor){const L=7.2,z0=-D/2-L/2,hh=3.4;const dv=new T.Group();h.add(dv);
       const pl=[];for(let x=-W/2;x<W/2;x+=.22)for(const zz of [-D/2-L]){const g=new T.BoxGeometry(.21,hh,.035);g.translate(x+.11,hh/2,zz);pl.push(g);}
@@ -6556,19 +7094,31 @@ function carpetTex(seed){return tex(256,384,(c,w,h)=>{const q=rng(seed);const f=
      kitchen by it, the red corner (icon, embroidered towel) over the table diagonally opposite, the bed under a carpet,
      the family's photographs, a clock, rag runners on the boards; left in a hurry: a chair over, papers on the floor ---- */
   const dX0Of=(hd,hi)=>(hi%2?.6:.2)-.95,dX1Of=(hd,hi)=>(hi%2?.6:.2)+.05;
-  function furnish(h,hd,hi,W,D,wb,top){const sd=hi%2?-1:1;
-    {const sg=new T.Group();sg.scale.x=sd;sg.userData.noMerge=true;h.add(sg);russianStove(sg,W/2-.98,FL,-D/2+1.05,top-FL-.06);}wb(sd>0?W/2-1.78:-W/2+.18,sd>0?W/2-.18:-W/2+1.78,-D/2+.1,-D/2+2.05);
+  function furnish(h,hd,hi,W,D,wb,top){const sd=hi%2?-1:1;const st=HSTYLE[hd.id]||{},modern=st.wall==='brick';
+    /* an izba's Russian stove in its corner; a brick house has gas: the AGV boiler in the corner with its flue up to the
+       chimney, the cooker and the refrigerator along the back wall, radiators under the windows */
+    if(!modern){const sg=new T.Group();sg.scale.x=sd;sg.userData.noMerge=true;h.add(sg);russianStove(sg,W/2-.98,FL,-D/2+1.05,top-FL-.06);wb(sd>0?W/2-1.78:-W/2+.18,sd>0?W/2-.18:-W/2+1.78,-D/2+.1,-D/2+2.05);}
+    else{const cxs=hi%2?-W/2+1.2:W/2-1.2;MOD.boiler(h,cxs,FL,-D/2+.42,0,top-FL-.04);wb(cxs-.25,cxs+.25,-D/2+.15,-D/2+.7);
+      MOD.cooker(h,sd*(W/2-.45),FL,-D/2+.45,0);wb(sd*(W/2-.45)-.27,sd*(W/2-.45)+.27,-D/2+.15,-D/2+.75);
+      MOD.fridge(h,sd*(W/2-.45),FL,-D/2+1.3,-sd*Math.PI/2);wb(sd*(W/2-.45)-.32,sd*(W/2-.45)+.32,-D/2+1.0,-D/2+1.62);
+      const wf=W/2-1.25,wide=W>8.5,w3=-sd*(wf-1.7);(wide?[-wf,wf,w3]:[-wf,wf]).forEach(x=>MOD.radiator(h,x,FL,D/2-LR-.12,Math.PI,9));}
     {const dx=hi%2?.6:.2,lo=W>=8?1.13:(sd>0?dx+.05:-(dx-.95))+.05,hi_=W/2-1.25-.55,wx=sd*(lo+hi_)/2;washstand(h,wx,FL,D/2-.33,Math.PI);wb(wx-.3,wx+.3,D/2-.55,D/2-.1);}
     wardrobe(h,-sd*(W/2-.45),FL,-D/2+.95,sd*Math.PI/2);wb(sd>0?-W/2+.1:W/2-.8,sd>0?-W/2+.8:W/2-.1,-D/2+.3,-D/2+1.6);
-    wallClock(h,-sd*.6,FL+1.85,-D/2+.15,0);
+    if(!modern)wallClock(h,-sd*.6,FL+1.85,-D/2+.15,0);else wallClock(h,sd*1.0,FL+1.9,D/2-.15,Math.PI);
     ragRunner(h,0,FL+.034,.2,D-1.6,.7,.06*sd);ragRunner(h,-sd*1.1,FL+.034,-.6,1.4,.6,Math.PI/2);
+    if(modern){/* the sofa-bed along the side wall under the carpet, the coffee table, a wool rug on the linoleum */
+      MOD.sofa(h,-sd*(W/2-.58),FL,.4,sd*Math.PI/2,hi);wb(sd>0?-W/2+.1:W/2-1.05,sd>0?-W/2+1.05:W/2-.1,-.6,1.4);
+      MOD.coffeeTable(h,-sd*(W/2-1.55),FL,.4,sd*Math.PI/2);wb(-sd*(W/2-1.55)-.3,-sd*(W/2-1.55)+.3,-.05,.85);
+      const rg=mesh(new T.PlaneGeometry(2.0,2.8),memo('floorRug'+hi%3,()=>std({map:FAB.carpet(hi+1),roughness:1,envMapIntensity:.1})),-sd*(W/2-1.45),FL+.036,.4,h,false);rg.rotation.set(-Math.PI/2,0,Math.PI/2);rg.receiveShadow=true;}
+    else{
     /* bed along the side wall with the carpet over it */
     const bed=new T.Group();bed.position.set(-sd*(W/2-.6),FL,.4);h.add(bed);const iron=std({color:C(0x2c3034),roughness:.5,metalness:.7});
-    [[-.45,-1.0],[.45,-1.0],[-.45,1.0],[.45,1.0]].forEach(p=>mesh(new T.CylinderGeometry(.018,.018,p[1]<0?1.0:.75,6),iron,p[0],p[1]<0?.5:.375,p[1],bed));
-    [-1.0,1.0].forEach(z=>{mesh(xf(new T.CylinderGeometry(.015,.015,.9,6),0,0,0,0,0,Math.PI/2),iron,0,z<0?.95:.7,z,bed);for(let i=0;i<5;i++)mesh(new T.CylinderGeometry(.008,.008,.35,10),iron,-.36+i*.18,z<0?.78:.55,z,bed);});
+    [[-.45,-1.0],[.45,-1.0],[-.45,1.0],[.45,1.0]].forEach(p=>mesh(new T.CylinderGeometry(.018,.018,p[1]<0?1.0:.75,14),iron,p[0],p[1]<0?.5:.375,p[1],bed));
+    [-1.0,1.0].forEach(z=>{mesh(xf(new T.CylinderGeometry(.015,.015,.9,14),0,0,0,0,0,Math.PI/2),iron,0,z<0?.95:.7,z,bed);for(let i=0;i<5;i++)mesh(new T.CylinderGeometry(.008,.008,.35,10),iron,-.36+i*.18,z<0?.78:.55,z,bed);});
     /* mattress in its white sheet, the coverlet laid over it and hanging down the sides a little */mesh(rbox(.86,.14,1.9,.05),RF.LINEN,0,.49,0,bed);
       {const qm=RF.quilt(hi);qm.side=T.DoubleSide;mesh(new T.BoxGeometry(.92,.025,1.7),qm,0,.57,.1,bed);[-1,1].forEach(sx=>{const dg=new T.PlaneGeometry(1.7,.13);{const P=dg.attributes.position,U=dg.attributes.uv;for(let i=0;i<P.count;i++)U.setXY(i,(P.getY(i)+.065)/.92,(P.getX(i)+.85)/1.7);}const m=mesh(dg,qm,sx*.46,.505,.1,bed);m.rotation.y=sx*Math.PI/2;});}pillowStack(bed,0,.57,-.72,0);{const v=mesh(new T.PlaneGeometry(1.92,.22),RF.LEDGE,sd*.455,.38,0,bed,false);v.rotation.y=Math.PI/2;}
     wb(sd>0?-W/2+.15:W/2-1.05,sd>0?-W/2+1.05:W/2-.15,-.65,1.45);
+    }
     const cp=mesh(new T.PlaneGeometry(1.5,2.1),std({map:carpetTex(hi),roughness:1,envMapIntensity:.1}),-sd*(W/2-.14),FL+1.45,.4,h,false);cp.rotation.y=sd*Math.PI/2;
     /* table with oilcloth in the red corner, the bench along the wall, chairs */
     const tx=-sd*(W/2-.75),tz=D/2-.75;const table=new T.Group();table.position.set(tx,FL,tz);h.add(table);
@@ -6584,13 +7134,14 @@ function carpetTex(seed){return tex(256,384,(c,w,h)=>{const q=rng(seed);const f=
     else{viennaChair(h,tx+sd*.78,FL,tz-.1,sd*Math.PI/2,false);viennaChair(h,sd*.3,FL,.6,1.2+hi,hi%2===0);}
     /* against the back wall of the living room: the sideboard, or the chest of drawers under its mirror, or the dowry
        chest beside the television - a different house, a different family */
-    {const v=hi%3,bz=-D/2+.13;
-     if(v===0){servant(h,-sd*1.6,FL,bz+.24,0);wb(sd>0?-2.3:.9,sd>0?-.9:2.3,bz,bz+.5);}
+    {const v=modern?3:hi%3,bz=-D/2+.13;
+     if(v===3){MOD.stenka(h,-sd*1.05,FL,bz+.23,0);wb(-sd*1.05-1.22,-sd*1.05+1.22,bz,bz+.48);}
+     else if(v===0){servant(h,-sd*1.6,FL,bz+.24,0);wb(sd>0?-2.3:.9,sd>0?-.9:2.3,bz,bz+.5);}
      else if(v===1){komod(h,-sd*1.55,FL,bz+.24,0,true);wb(sd>0?-2.05:1.05,sd>0?-1.05:2.05,bz,bz+.5);}
      else{sunduk(h,-sd*1.75,FL,bz+.28,0,[0x5a3828,0x2e4a3a,0x4a2a2a][hi%3]);wb(sd>0?-2.25:1.25,sd>0?-1.25:2.25,bz,bz+.56);tvRubin(h,-sd*.55,FL,bz+.25,0);wb(sd>0?-.88:.22,sd>0?-.22:.88,bz,bz+.5);}}
     /* the big houses' living rooms: the round table under the silk lampshade with its bentwood chairs, the sewing machine
        under the window, a woven rug of deer on the partition */
-    if(W>=8){const rx=-sd*(W/2-2.4),rz=.9;roundTable(h,rx,FL,rz,['#7a2a26','#2a4a6a','#5a4a2a'][hi%3]);abazhur(h,rx,rz,top-.05,[0xd06a30,0xc0a040,0xb04040][hi%3]);wb(rx-.5,rx+.5,rz-.5,rz+.5);
+    if(W>=8&&!modern){const rx=-sd*(W/2-2.4),rz=.9;roundTable(h,rx,FL,rz,['#7a2a26','#2a4a6a','#5a4a2a'][hi%3]);abazhur(h,rx,rz,top-.05,[0xd06a30,0xc0a040,0xb04040][hi%3]);wb(rx-.5,rx+.5,rz-.5,rz+.5);
       [0,2.2,4.2].forEach(a=>viennaChair(h,rx+Math.sin(a)*.72,FL,rz+Math.cos(a)*.72,a+Math.PI));
       sewingMachine(h,-sd*(W/2-2.1),FL,D/2-.35,Math.PI);wb(-sd*(W/2-2.1)-.38,-sd*(W/2-2.1)+.38,D/2-.6,D/2-.1);
       deerRug(h,sd*(1.05-.035),FL+1.45,-1.5,-sd*Math.PI/2,1.0,.72);}
@@ -6599,7 +7150,7 @@ function carpetTex(seed){return tex(256,384,(c,w,h)=>{const q=rng(seed);const f=
     const ix=-sd*(W/2-.35),iz=D/2-.35;mesh(rbox(.3,.04,.3,.01),M.boards,ix,FL+1.75,iz,h);mesh(new T.PlaneGeometry(.2,.27),M.icon,ix+sd*.05,FL+1.92,iz-.05,h).rotation.y=sd>0?Math.PI*.75:-Math.PI*.75;
     mesh(new T.PlaneGeometry(.12,.6),std({color:C(0xd8d0c0),map:TX.cloth,roughness:1,side:T.DoubleSide}),ix+sd*.03,FL+1.7,iz-.03,h).rotation.y=sd>0?Math.PI*.75:-Math.PI*.75;lampada(h,ix+sd*.06,FL+1.73,iz-.06);
     /* the family's photographs on the back wall, a calendar, a shelf with jars */
-    for(let i=0;i<2+hi%3;i++){const fx=-sd*(1.0+i*.36),fy=FL+2.12-(i%2)*.06;mesh(rbox(.24,.3,.02,.004),std({color:C(0x3a2a1c),roughness:.6}),fx,fy,-D/2+.15,h);mesh(new T.PlaneGeometry(.19,.24),std({map:photoTex(hi*7+i),roughness:.5}),fx,fy,-D/2+.162,h,false);}
+    for(let i=0;i<2+hi%3;i++){const fx=-sd*(1.0+i*.36),fy=FL+(modern?2.42:2.12)-(i%2)*.06;mesh(rbox(.24,.3,.02,.004),std({color:C(0x3a2a1c),roughness:.6}),fx,fy,-D/2+.15,h);mesh(new T.PlaneGeometry(.19,.24),std({map:photoTex(hi*7+i),roughness:.5}),fx,fy,-D/2+.162,h,false);}
     mesh(new T.PlaneGeometry(.28,.42),M.calendar,sd*(W/2-.15),FL+1.55,.9,h).rotation.y=-sd*Math.PI/2;
     const shX=W>=8?sd*1.22:sd*(W/2-.3);mesh(rbox(.28,.04,1.0,.01),M.boards,shX,FL+1.6,1.7,h);[1.4,1.6,1.8].forEach(z=>mesh(new T.CylinderGeometry(.045,.045,.16,10),M.glass,shX,FL+1.7,z,h));
     [1.3,2.1].forEach(z=>{const b=mesh(rbox(.03,.2,.03,.004),M.boards,shX+(W>=8?-sd:sd)*.1,FL+1.48,z,h);});
@@ -6615,7 +7166,7 @@ function carpetTex(seed){return tex(256,384,(c,w,h)=>{const q=rng(seed);const f=
     /* the tea things on the table as they were left: two cups, the teapot or the pickle jar, the loaf on its board; the
        samovar on the round table in the big room; water buckets by the stove; felt boots by the door */
     LV.loaf(table,-.05,.772,-.18,.3+hi*.4);LV.teacup(table,.33,.772,.2,hi);if(hi%2)LV.teacup(table,-.44,.772,-.22,hi+1);if(hi%3===0)LV.pickles(table,.45,.772,-.25);else LV.teapot(table,.42,.772,-.22,hi*.7);
-    if(W>=8){const rx=-sd*(W/2-2.4),rt=RF.G(h,rx,FL,.9,0);LV.samovar(rt,.24,.762,-.12,hi);[[-.26,.06],[.04,.3],[.12,-.36]].forEach(([x,z],k)=>LV.teacup(rt,x,.762,z,k*2+hi));}
+    if(W>=8&&!modern){const rx=-sd*(W/2-2.4),rt=RF.G(h,rx,FL,.9,0);LV.samovar(rt,.24,.762,-.12,hi);[[-.26,.06],[.04,.3],[.12,-.36]].forEach(([x,z],k)=>LV.teacup(rt,x,.762,z,k*2+hi));}
     LV.bucket(h,sd*(W/2-.45),FL+.03,-D/2+2.35,true,hi);LV.bucket(h,sd*(W/2-.85),FL+.03,-D/2+2.3,hi%2===0,hi+1);
     {const vx=sd>0?dX0Of(hd,hi)-.32:dX1Of(hd,hi)+.32;LV.valenki(h,vx,FL+.03,D/2-.32,Math.PI+.3);}
     /* what is worth taking, left where it was put down: on the table, on the kitchen shelf */
@@ -6632,13 +7183,13 @@ function carpetTex(seed){return tex(256,384,(c,w,h)=>{const q=rng(seed);const f=
     for(let i=0;i<p.count;i++){const key=p.getX(i).toFixed(3)+','+p.getY(i).toFixed(3)+','+p.getZ(i).toFixed(3);if(!mm.has(key))mm.set(key,.68+q()*.6);const f=mm.get(key);p.setXYZ(i,p.getX(i)*f,p.getY(i)*f*.72,p.getZ(i)*f*(.85+k*.06));}g.computeVertexNormals();return g;});
   /* dug soil stands proud of the trodden ground round it */
   const BED=.08;
-  function ridge(hd,xa,xb,zr,seed){const n=Math.max(2,Math.ceil((xb-xa)/.09)),RS=8,pos=[],uv=[],idx=[],top=[];
+  function ridge(hd,xa,xb,zr,seed){const n=Math.max(2,Math.ceil((xb-xa)/.09)),RS=12,pos=[],uv=[],idx=[],top=[];
     for(let i=0;i<=n;i++){const x=xa+(xb-xa)*i/n,end=Math.min(1,Math.min(x-xa,xb-x)/.4),taper=Math.sqrt(Math.max(.06,end));
       const zc=zr+(vnoise(x*.55+seed,seed*.37)-.5)*.16+(vnoise(x*2.3+seed*3,seed)-.5)*.045;
       const wid=(.25+(vnoise(x*1.7+seed*5,1.3)-.5)*.09)*(.7+.3*taper),hgt=(.135+(vnoise(x*1.3+seed*2,4.1)-.5)*.07)*taper;
       for(let j=0;j<=RS;j++){const a=j/RS*Math.PI,lz=zc+Math.cos(a)*wid*(1+(hash(i*.7+seed,j*1.3)-.5)*.14);const [wx,wz]=villW(hd,x,lz);
         const lump=(hash(Math.round(wx*16),Math.round(wz*16))-.5)*.04+(vnoise(wx*7,wz*7)-.5)*.06+(vnoise(wx*3.2+9,wz*3.2)-.5)*.05;
-        pos.push(wx,H(wx,wz)+BED+Math.sin(a)*hgt+(j===0||j===RS?-.03:lump*Math.sin(a)),wz);uv.push(x*.9,j/RS*.55+seed*.13);}
+        /* (a hoed mound, not a tube: a soft crown and long toes that run out into the furrow) */const cs=Math.cos(a),pr=Math.pow(Math.max(0,1-cs*cs),1.45);pos.push(wx,H(wx,wz)+BED+pr*hgt+(j===0||j===RS?-.03:lump*Math.sqrt(pr)),wz);uv.push(x*.9,j/RS*.55+seed*.13);}
       top.push([x,zc,hgt,wid]);}
     for(let i=0;i<n;i++)for(let j=0;j<RS;j++){const a=i*(RS+1)+j,b=a+RS+1;idx.push(a,b,a+1,b,b+1,a+1);}
     const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute(pos,3));g.setAttribute('uv',new T.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();bk.add(g,soilM);return top;}
@@ -6655,20 +7206,50 @@ function carpetTex(seed){return tex(256,384,(c,w,h)=>{const q=rng(seed);const f=
   /* the roof of a shelled house, come down: sections of it leaning from what is left of the walls into the room, the ridge
      beam fallen corner to corner and out through the gap, rafters broken and sticking up, sheets of slate strewn outside
      the side the blast came from; the logs that came down from the walls lie where they fell or lean on the stubs */
-  function ruinRoof(h,hd,hi,W,D,top,ridge,fallen,logM,topAt){const q=rng(4100+hi),sl=[],wd=[],lg=[],ch=[];/* (the tops of what is left of the front and west walls, where each piece rests) */const ft=topAt('front',-W*.12),wt=topAt('west',-D*.12);
-    const slab=(A,B,w)=>sl.push(beamG(A,B,w,.035));
-    slab(V3(-W*.12,ft+.05,D/2+.25),V3(-W*.12,FL+.3,-D/2+1.4),W*.5);slab(V3(W*.18,topAt('front',W*.18),D/2+.1),V3(W*.24,FL+.2,-.2),W*.32);
-    slab(V3(-W/2-.15,wt,-D*.12),V3(W/2-.9,FL+.25,-D*.2),D*.42);slab(V3(-W/2+.1,topAt('west',D*.25),D*.25),V3(W/2+.3,.25,D*.3),D*.28);
-    wd.push(beamG(V3(-W/2+.1,topAt('west',.2)+.12,.2),V3(W/2+1.6,gY(hd,W/2+1.6,-.4)+.12,-.4),.15,.15));
-    for(let i=0;i<7;i++){const x=-W/2+.4+q()*(W-.8),z0=(q()<.5?-1:1)*(D/2-.1),A=V3(x,topAt(z0>0?'front':'back',x),z0),B=V3(x+(q()-.5)*1.2,FL+.3+q()*1.4,z0*(.2+q()*.4));if(q()<.4)B.y=A.y+.9+q()*.8;wd.push(beamG(A,B,.08,.12));}
-    for(let i=0;i<14;i++){const lx=W/2+.6+q()*4.5,lz=(q()-.5)*(D+3),y=gY(hd,lx,lz);const g=rbox(.5+q()*.6,.025,.4+q()*.7,.006);g.rotateX((q()-.5)*.25);g.rotateY(q()*3);g.rotateZ((q()-.5)*.25);g.translate(lx,y+.03,lz);sl.push(g);}
+  function ruinRoof(h,hd,hi,W,D,top,ridge,fallen,logM,topAt){const q=rng(4100+hi),sl=[],wd=[],lg=[],ch=[],bt=[],sh=[],lcap=[];
+    /* the roof has come down into the house: the ridge broke and dropped, and each slope swung down on its eave - still
+       resting on what is left of its wall where the wall stands, slid off onto the ground where the wall has gone - so the
+       two slopes lie in a broken V with the ridge down among the wreckage on the floor. Each sheet-width of slope is laid
+       on its own: rafters, the battens across them, the corrugated sheets on the battens; some sheets gone, a few rafters
+       snapped off short and sticking up */
+    const ex=W/2+.6,ov=.55,eave=top-.2,ez=D/2+ov,slope=Math.hypot(ez,ridge-eave),nS=Math.ceil(2*ex/1.03);
+    const rsheet=G('rsheet',()=>{const g=new T.PlaneGeometry(1.1,1,28,1);const p=g.attributes.position;for(let i=0;i<p.count;i++)p.setZ(i,Math.sin(p.getX(i)/.167*Math.PI*2)*.018);g.computeVertexNormals();return g;});
+    const place=(E,Rp,x0)=>{const ey=V3().subVectors(E,Rp),L=ey.length();ey.normalize();const exv=V3(1,0,0),ezv=V3().crossVectors(exv,ey).normalize();exv.crossVectors(ey,ezv).normalize();
+      return{L,m:new T.Matrix4().makeBasis(exv,ey,ezv),ezv,ey,exv};};
+    for(const s_ of [1,-1]){const wall=s_>0?'front':'back',zW=s_*D/2;
+      for(let i=0;i<nS;i++){const x=-ex+.55+i*1.03,xa=clamp(x,-W/2+.25,W/2-.25),wt=topAt(wall,xa);
+        /* where it rests: on the wall's broken top, or out on the ground past a wall that has gone */
+        let E;if(wt>FL+.75){E=V3(x,wt+LR*.7,zW+s_*.32);}else{const zg=zW+s_*(1.1+q()*.5);E=V3(x,gY(hd,x,zg)+.1,zg);}
+        const zr=-s_*(.15+q()*.35)+(s_>0?.0:.0),Rp=V3(x+(q()-.5)*.25,FL+.18+q()*.35+(s_>0?.28:0),zr);
+        /* (the slope cannot be longer than it was: if the floor is too far it stops short, broken) */
+        const d=E.distanceTo(Rp);if(d>slope){Rp.sub(E).multiplyScalar(slope/d).add(E);}
+        const P=place(E,Rp);const mid=E.clone().add(Rp).multiplyScalar(.5);
+        /* rafter on the column's left edge (and the right edge of the last), battens every 35 cm across */
+        for(const xo of (i===nS-1?[-.515,.515]:[-.515])){const snap=q()<.18;const a=E.clone().addScaledVector(P.exv,xo),b=Rp.clone().addScaledVector(P.exv,xo);
+          if(snap){b.lerp(a,.35+q()*.3);const st=b.clone().addScaledVector(P.ezv,.0);const up=st.clone().add(V3((q()-.5)*.3,.5+q()*.5,(q()-.5)*.3));(q()<.5?wd:ch).push(beamG(st,up,.06,.13));}
+          (q()<.3?ch:wd).push(beamG(a,b,.06,.13));}
+        const gone=q()<.22;const nb=Math.floor(P.L/.35);
+        for(let k=0;k<=nb;k++){if(gone&&k>1&&k<nb-1&&q()<.6)continue;const c=E.clone().lerp(Rp,k/nb).addScaledVector(P.ezv,.08);bt.push(beamG(c.clone().addScaledVector(P.exv,-.54),c.clone().addScaledVector(P.exv,.54),.045,.03));}
+        if(!gone){const g=rsheet.clone();const m=P.m.clone().scale(V3(1,P.L*(.92+q()*.06),1)).setPosition(mid.clone().addScaledVector(P.ezv,.115).addScaledVector(P.ey,(q()-.5)*.1));
+          g.applyMatrix4(m);sh.push(g);}
+        else if(q()<.7){/* the sheet slid off and lies on the ground below, cracked across */const lx=x+(q()-.5)*.6,lz=zW+s_*(1.4+q()*1.6),y=gY(hd,lx,lz);for(let k=0;k<2;k++){const g=rsheet.clone();g.applyMatrix4(new T.Matrix4().makeScale(1,.7+q()*.5,1));g.rotateX(-Math.PI/2+(q()-.5)*.25);g.rotateY(q()*.6-.3+(k?.4:0));g.translate(lx+k*.3,y+.05+k*.04,lz+k*.5*s_);sh.push(g);}}}}
+    /* the attic floor: joists torn out of the wall tops, hanging from one end down onto the floor */
+    for(let i=0;i<6;i++){const x=-W/2+.6+i*(W-1.2)/5+(q()-.5)*.3,zs=q()<.5?1:-1,wt=topAt(zs>0?'front':'back',x);if(wt<FL+1)continue;
+      const A=V3(x,wt-.05,zs*(D/2-.2)),B=V3(x+(q()-.5)*.8,FL+.1+q()*.3,zs*(D/2-.2)-zs*(2.2+q()*1.2));(q()<.4?ch:wd).push(beamG(A,B,.08,.16));}
+    /* the ridge beam itself, broken in two, both halves down in the middle of it all */
+    wd.push(beamG(V3(-ex+.2,FL+.3,.05),V3(-.2,FL+.85,-.1),.15,.15));ch.push(beamG(V3(.1,FL+.9,.0),V3(ex-.3,FL+.25,.15),.15,.15));
+    /* the west gable, fallen out flat on the grass, its boards splitting */
+    {const gw=D+.2,gh=ridge-top,gx=-W/2-gh*.55-.6;for(let k=0;k<9;k++){const t=(k+.5)/9,len=gh*(1-Math.abs(t-.5)*2)+.05;if(len<.15||q()<.12)continue;const lz=-gw/2+t*gw,lx=gx+len/2-gh*.5;
+      const g=rbox(len,.025,gw/9-.012,.004);g.rotateY((q()-.5)*.08);g.rotateZ((q()-.5)*.06);g.translate(lx,gY(hd,lx,lz)+.04+q()*.03,lz);wd.push(g);}}
+    if(sh.length)shootables.push(mesh(merge(sh),slateDS,0,0,0,h));if(bt.length)mesh(merge(bt),WM.board,0,0,0,h);
+    for(let i=0;i<14;i++){const lx=W/2+.6+q()*4.5,lz=(q()-.5)*(D+3),y=gY(hd,lx,lz);const g=rbox(.3+q()*.5,.012,.25+q()*.5,.003);g.rotateX((q()-.5)*.25);g.rotateY(q()*3);g.rotateZ((q()-.5)*.25);g.translate(lx,y+.025,lz);sl.push(g);}
     /* the fallen logs: runs of the same course and wall make one log; about half lie about, a few lean */
     const runs=[];for(const f of fallen){const r=runs[runs.length-1];if(r&&r[0]===f[0]&&r[5]===f[5]&&Math.abs(r[4]-f[3])<.01)r[4]=f[4];else runs.push(f.slice());}
     for(const [nm,c,axis,a0,a1,yy] of runs){if(a1-a0<.6||q()>.55)continue;const L=Math.min(a1-a0,1+q()*2.2),out=nm==='front'||nm==='east'?1:-1,am=(a0+a1)/2,off=out*(.6+q()*2.4)*(q()<.75?1:-1),yaw=(q()-.5)*.9;
       let cx,cz;if(axis==='x'){cx=am;cz=c+off;}else{cx=c+off;cz=am;}const inside=Math.abs(cx)<W/2-.2&&Math.abs(cz)<D/2-.2;const y0=inside?FL+.03+LR:gY(hd,cx,cz)+LR*.8;
       const dx=(axis==='x'?Math.cos(yaw):Math.sin(yaw))*L/2,dz=(axis==='x'?Math.sin(yaw):Math.cos(yaw))*L/2;const lean=q()<.2;
-      const A=V3(cx-dx,y0,cz-dz),B=V3(cx+dx,lean?y0+L*.5:y0+(q()-.5)*.1,cz+dz);(q()<.4?ch:lg).push(logG(A,B,LR*(.9+q()*.15)));}
-    if(sl.length)shootables.push(mesh(merge(sl),slateDS,0,0,0,h));if(wd.length)shootables.push(mesh(merge(wd),RUIN.wood,0,0,0,h));if(lg.length)shootables.push(mesh(merge(lg),logM,0,0,0,h));if(ch.length)shootables.push(mesh(merge(ch),charred,0,0,0,h));
+      const A=V3(cx-dx,y0,cz-dz),B=V3(cx+dx,lean?y0+L*.5:y0+(q()-.5)*.1,cz+dz);const lo=hqLog(A,B,LR*(.95+q()*.1),q,{rs:14,seg:.6});(q()<.4?ch:lg).push(lo.side);lcap.push(lo.cap);}
+    if(sl.length)shootables.push(mesh(merge(sl),slateDS,0,0,0,h));if(wd.length)shootables.push(mesh(merge(wd),RUIN.wood,0,0,0,h));if(lg.length)shootables.push(mesh(merge(lg),logM,0,0,0,h));if(ch.length)shootables.push(mesh(merge(ch),charred,0,0,0,h));if(lcap.length)mesh(merge(lcap),WM.end,0,0,0,h);
     /* (big pieces you cannot walk through) */[[W/2+1.6,-.4,.5],[W/2+.6,0,.6]].forEach(([lx,lz,r])=>{const [x,z]=villW(hd,lx,lz);solids.push({cx:x,cz:z,r});});}
   /* the scorch, the broken things lying round, and the smoke still coming off a hit */
   function ruinDetail(h,hd,hi,W,D,top,ridge,eave,ez,fallen,logM){const q=rng(5200+hi);const deb=[],brk=[],gl=[];
@@ -6676,7 +7257,7 @@ function carpetTex(seed){return tex(256,384,(c,w,h)=>{const q=rng(seed);const f=
     if(hd.ruin==='collapse'){dec(W/2+1.5,0,7,q()*3);dec(-.5,D/2+2.2,5.5,q()*3);
       for(let i=0;i<40;i++){const lx=(q()-.5)*(W+5),lz=(q()-.5)*(D+5),inside=Math.abs(lx)<W/2-.2&&Math.abs(lz)<D/2-.2,y=inside?FL+.03:gY(hd,lx,lz);
         if(q()<.55){const g=rbox(.24,.065,.12,.01);g.rotateY(q()*3);g.rotateX((q()-.5)*.6);g.translate(lx,y+.04,lz);brk.push(g);}else{const g=rbox(.08+q()*.12,.025,.5+q()*1.1,.005);g.rotateY(q()*3);g.rotateZ((q()-.5)*.3);g.translate(lx,y+.02,lz);deb.push(g);}}
-      /* brick tumble at the foot of the chimney */const cx=hi%2?-W/2+1.2:W/2-1.2;for(let i=0;i<24;i++){const g=rbox(.24,.065,.12,.01);g.rotateY(q()*3);g.rotateX((q()-.5)*1.2);g.translate(cx+(q()-.5)*1.4,FL+.06+q()*.25,-.4+(q()-.5)*1.4+.9);brk.push(g);}}
+      /* brick tumble at the foot of the chimney */const cx=hi%2?-W/2+1.2:W/2-1.2;for(let i=0;i<24;i++){const g=worldUV(rbox(.24,.065,.12,.01),.96);g.rotateY(q()*3);g.rotateX((q()-.5)*1.2);g.translate(cx+(q()-.5)*1.4,FL+.06+q()*.25,-.4+(q()-.5)*1.4+.9);brk.push(g);}}
     if(hd.ruin==='strike'){const [wl,b0,b1]=hd.breach,sx=wl==='west'?-1:1,cx=sx*W/2;
       /* the breach: splintered log ends round it, its edges charred, a fan of wreckage blown out into the yard */
       const wsT=memo('wallScorch',()=>tex(256,192,(c,w,h)=>{c.clearRect(0,0,w,h);const q=rng(77),cx=w/2,cy=h*.55;
@@ -6696,13 +7277,26 @@ function carpetTex(seed){return tex(256,384,(c,w,h)=>{const q=rng(seed);const f=
       VILL.smoke=VILL.smoke||[];const [wx,wz]=villW(hd,(x0+x1)/2,rs*ez*.5);VILL.smoke.push({x:wx,y:(ridge+eave)/2,z:wz,t:0});}
     if(deb.length)mesh(merge(deb),charred,0,0,0,h);if(brk.length)mesh(merge(brk),hd.ruin==='strike'?logM:brick,0,0,0,h);if(gl.length)mesh(merge(gl),slateDS,0,0,0,h);}
   /* ===== a yard someone lives in ===== */
-  const bootT=()=>memo('bootT',()=>tex(64,128,(c,w,h)=>{c.clearRect(0,0,w,h);c.fillStyle='rgba(22,16,10,.82)';c.beginPath();c.ellipse(w/2,h*.3,w*.36,h*.24,0,0,7);c.fill();c.beginPath();c.ellipse(w/2,h*.78,w*.28,h*.17,0,0,7);c.fill();c.fillRect(w*.3,h*.45,w*.4,h*.2);
-    c.globalCompositeOperation='destination-out';c.fillStyle='rgba(0,0,0,.55)';for(let y=12;y<h-8;y+=11)for(let x=10;x<w-8;x+=12){c.fillRect(x+(y%22?0:5),y,6,4);}c.globalCompositeOperation='source-over';
-    c.strokeStyle='rgba(120,100,80,.35)';c.lineWidth=2;c.beginPath();c.ellipse(w/2,h*.3,w*.38,h*.26,0,0,7);c.stroke();},{clamp:true}));
-  const bootM=()=>memo('bootM',()=>std({map:bootT(),transparent:true,depthWrite:false,roughness:.45,envMapIntensity:.5,polygonOffset:true,polygonOffsetFactor:-3}));
-  const mudM=()=>memo('mudM',()=>{const t=tex(256,256,(c,w,h)=>{c.fillStyle='#3a2c20';c.fillRect(0,0,w,h);const q=rng(66);for(let i=0;i<900;i++){const x=q()*w,y=q()*h,r=1+q()*6;c.fillStyle=`rgba(${q()<.5?20:80},${q()<.5?14:64},${q()<.5?10:48},${.2+q()*.4})`;c.beginPath();c.ellipse(x,y,r,r*.7,q()*3,0,7);c.fill();}
-      for(let i=0;i<10;i++){const x=q()*w,y=q()*h,g=c.createRadialGradient(x,y,0,x,y,18+q()*20);g.addColorStop(0,'rgba(18,16,14,.7)');g.addColorStop(1,'rgba(18,16,14,0)');c.fillStyle=g;c.fillRect(0,0,w,h);}});t.wrapS=t.wrapT=T.RepeatWrapping;
-    return std({map:t,roughness:.42,metalness:.05,envMapIntensity:.7});});
+  /* a boot print pressed into mud: the sole's outline (a broad tread, the waist, the heel), the lugs of the tread as
+     square pits in rows, the heel's horseshoe of lugs; dark where the mud is pushed down and wet, a raised lip of mud
+     pushed up round the edge catching the light */
+  const bootT=()=>memo('bootT2',()=>tex(128,256,(c,w,h)=>{c.clearRect(0,0,w,h);const sole=(inset)=>{c.beginPath();c.moveTo(w*.5,h*.04+inset);c.bezierCurveTo(w*.86-inset,h*.06,w*.9-inset,h*.3,w*.82-inset,h*.46);
+      c.bezierCurveTo(w*.74-inset,h*.56,w*.7-inset,h*.6,w*.74-inset,h*.7);c.bezierCurveTo(w*.8-inset,h*.86,w*.72-inset,h*.96-inset,w*.5,h*.96-inset);c.bezierCurveTo(w*.28+inset,h*.96-inset,w*.2+inset,h*.86,w*.26+inset,h*.7);
+      c.bezierCurveTo(w*.3+inset,h*.6,w*.26+inset,h*.56,w*.18+inset,h*.46);c.bezierCurveTo(w*.1+inset,h*.3,w*.14+inset,h*.06,w*.5,h*.04+inset);c.closePath();};
+    c.save();sole(-3);c.lineWidth=8;c.strokeStyle='rgba(120,98,76,.45)';c.stroke();c.restore();
+    sole(0);c.fillStyle='rgba(26,18,12,.78)';c.fill();c.save();sole(0);c.clip();
+    c.fillStyle='rgba(8,5,3,.55)';for(let y=h*.08;y<h*.56;y+=14)for(let x=w*.22;x<w*.8;x+=16){const o=((y/14|0)%2)*8;c.fillRect(x+o-5,y-4,10,8);}
+    for(let k=0;k<9;k++){const a=Math.PI*(.08+k*.105),cx=w*.5+Math.cos(a)*w*.2,cy=h*.82+Math.sin(a)*h*.08;c.fillRect(cx-5,cy-4,10,8);}c.fillRect(w*.42,h*.78,w*.16,h*.06);
+    const g=c.createLinearGradient(0,0,w,0);g.addColorStop(0,'rgba(0,0,0,.25)');g.addColorStop(.5,'rgba(0,0,0,0)');g.addColorStop(1,'rgba(255,240,220,.08)');c.fillStyle=g;c.fillRect(0,0,w,h);c.restore();},{clamp:true}));
+  const bootM=()=>memo('bootM2',()=>std({map:bootT(),transparent:true,depthWrite:false,roughness:.4,envMapIntensity:.45,polygonOffset:true,polygonOffsetFactor:-3}));
+  /* the churned strip: wet dark mud with puddled water in the ruts, its edges ragged and fading into the grass (alpha) */
+  const mudM=()=>memo('mudM2',()=>{const t=tex(256,512,(c,w,h)=>{c.clearRect(0,0,w,h);const q=rng(66);const im=c.createImageData(w,h),d=im.data;
+      for(let y=0;y<h;y++)for(let x=0;x<w;x++){const u=x/w,v=y/h,i=(y*w+x)*4;const edge=Math.min(u,1-u),rag=(fbmT(u*.25,v,8,3)-.5)*.22,a=sstep(.04,.26,edge+rag);
+        const n=fbmT(u,v,6,4),f=fbmT(u+.3,v,24,2),rut=Math.exp(-Math.pow((u-.32+.03*Math.sin(v*12.6))/.07,2))+Math.exp(-Math.pow((u-.68+.03*Math.sin(v*12.6+1))/.07,2));
+        const k=.55+n*.5+(f-.5)*.25-rut*.25;d[i]=58*k;d[i+1]=44*k;d[i+2]=32*k;d[i+3]=255*a;}
+      c.putImageData(im,0,0);
+      for(let i=0;i<500;i++){const x=w*(.2+q()*.6),y=q()*h,r=1+q()*4;c.fillStyle=`rgba(${q()<.5?20:100},${q()<.5?14:82},${q()<.5?10:62},${.2+q()*.35})`;c.beginPath();c.ellipse(x,y,r,r*.7,q()*3,0,7);c.fill();}});
+    t.wrapS=T.ClampToEdgeWrapping;t.wrapT=T.RepeatWrapping;return std({map:t,transparent:true,depthWrite:false,alphaTest:.02,roughness:.5,metalness:.02,envMapIntensity:.4,polygonOffset:true,polygonOffsetFactor:-1});});
   const propFree=(hd,lx,lz,r)=>{const [x0,x1,z0,z1]=hd.plotL,g=hd.garden;if(lx<x0+.5+r||lx>x1-.5-r||lz<z0+.5+r||lz>z1-.5-r)return false;if(lx>g[0]-.3-r&&lx<g[1]+.3+r&&lz>g[2]-.3-r&&lz<g[3]+.3+r)return false;
     return !hd.out.some(([k,ox,oz,ry])=>{const sw=Math.abs(Math.sin(ry))>.5,[w,d]=FPY[k];const a=(sw?d:w)/2+.3+r,b=(sw?w:d)/2+.3+r;if(lx>ox-a&&lx<ox+a&&lz>oz-b&&lz<oz+b)return true;
       if(k==='cellar'){const bx=ox-3.55*Math.sin(ry),bz=oz-3.55*Math.cos(ry),ex=(sw?2.4:1.9)+r,ez=(sw?1.9:2.4)+r;return lx>bx-ex&&lx<bx+ex&&lz>bz-ez&&lz<bz+ez;}return false;});};
@@ -6739,9 +7333,9 @@ function carpetTex(seed){return tex(256,384,(c,w,h)=>{const q=rng(seed);const f=
     const FPS={saray:[3.8,3.2],banya:[4.3,4.5],wood:[4.1,1.9],wc:[1.5,1.75],green:[3.1,5.9],cellar:[2.5,2.8]};
     const busy=hd.out.map(([k,lx,lz,ry])=>{const sw=Math.abs(Math.sin(ry))>.5,[w,d]=FPS[k];const W_=(sw?d:w)/2+.25,D_=(sw?w:d)/2+.25;return[lx-W_,lx+W_,lz-D_,lz+D_];});
     const isBusy=(x,z)=>busy.some(b=>x>b[0]&&x<b[1]&&z>b[2]&&z<b[3]);
-    const gx=dx-.45;fenceRun(hd,x0,z1,x1,z1,hd.fence,[gx-.75,gx+.75]);fenceRun(hd,x0,z0,x0,z1,'rail');fenceRun(hd,x1,z0,x1,z1,'rail');fenceRun(hd,x0,z0,x1,z0,'rail');
+    const gx=dx-.45,pc=[(x0+x1)/2,(z0+z1)/2],gc=[(g[0]+g[1])/2,(g[2]+g[3])/2];fenceRun(hd,x0,z1,x1,z1,hd.fence,[gx-.75,gx+.75],0,pc);fenceRun(hd,x0,z0,x0,z1,'rail',null,0,pc);fenceRun(hd,x1,z0,x1,z1,'rail',null,0,pc);fenceRun(hd,x0,z0,x1,z0,'rail',null,0,pc);
     /* the garden: its own low rail fence, dug ridges, potatoes in most of them, a row or two of cabbages */
-    fenceRun(hd,g[0],g[2],g[1],g[2],'rail',null,.9);fenceRun(hd,g[0],g[2],g[0],g[3],'rail',null,.9);fenceRun(hd,g[1],g[2],g[1],g[3],'rail',null,.9);fenceRun(hd,g[0],g[3],g[1],g[3],'rail',[(g[0]+g[1])/2-.6,(g[0]+g[1])/2+.6],.9);
+    fenceRun(hd,g[0],g[2],g[1],g[2],'rail',null,.9,gc);fenceRun(hd,g[0],g[2],g[0],g[3],'rail',null,.9,gc);fenceRun(hd,g[1],g[2],g[1],g[3],'rail',null,.9,gc);fenceRun(hd,g[0],g[3],g[1],g[3],'rail',[(g[0]+g[1])/2-.6,(g[0]+g[1])/2+.6],.9,gc);
     /* the ridges, hoed up by hand: each one follows the ground, wanders a little off the line, swells and slumps along
        its length, its crown lumpy, its ends ragged; clods large and small lie on its flanks and in the furrows */
     /* the whole bed is turned earth, furrows included: a sheet of soil laid over the ground, a little lumpy, darker and damper
@@ -6754,8 +7348,8 @@ function carpetTex(seed){return tex(256,384,(c,w,h)=>{const q=rng(seed);const f=
      {const n=bg.attributes.normal;let up=0;for(let k=0;k<n.count;k++)up+=n.getY(k);if(up<0){for(let k=0;k<idx.length;k+=3){const t=idx[k+1];idx[k+1]=idx[k+2];idx[k+2]=t;}bg.setIndex(idx);bg.computeVertexNormals();}}
      bk.add(bg,furrowM);}
     const q=rng(77+hi);let ri=0;
-    for(let z=g[2]+.7+q()*.15;z<g[3]-.5;z+=.74+q()*.1){const kind=q();ri++;const seed=hi*31+ri*7.3;
-      const xa0=g[0]+.45+q()*.3,xb0=g[1]-.45-q()*.3;const runs=[];let st=null;for(let x=xa0;x<=xb0+.001;x+=.1){const b=isBusy(x,z);if(!b&&st===null)st=x;if((b||x>xb0-.05)&&st!==null){const e=b?x-.1:x;if(e-st>.4)runs.push([st,e]);st=null;}}
+    for(let z=g[2]+.85+q()*.15;z<g[3]-.7;z+=.74+q()*.1){const kind=q();ri++;const seed=hi*31+ri*7.3;
+      const xa0=g[0]+.6+q()*.3,xb0=g[1]-.6-q()*.3;const runs=[];let st=null;for(let x=xa0;x<=xb0+.001;x+=.1){const b=isBusy(x,z);if(!b&&st===null)st=x;if((b||x>xb0-.05)&&st!==null){const e=b?x-.1:x;if(e-st>.4)runs.push([st,e]);st=null;}}
       for(const [xa,xb] of runs){const top=ridge(hd,xa,xb,z,seed);
         /* clods: most of them crumbs, a few fist-sized */
         for(let t=xa+.04;t<xb;t+=.07){if(q()>(hd.boarded?.3:.6))continue;const k=Math.min(top.length-1,Math.round((t-xa)/(xb-xa)*(top.length-1))),[,zc,hg,wd]=top[k];const off=(q()*2-1)*(wd+.12),pr=Math.max(0,1-(off/wd)*(off/wd));
@@ -6774,23 +7368,47 @@ function carpetTex(seed){return tex(256,384,(c,w,h)=>{const q=rng(seed);const f=
     for(const o of hd.out)OUT[o[0]](hd,o[1],o[2],o[3],hi);}
   /* a run of fence along a straight line in the house's frame, posts sunk in the ground; picket (shtaketnik), close
      boards, or poles on posts (zherdi); an opening [a,b] along the run for a gate */
-  function fenceRun(hd,ax,az,bx,bz,type,gap,hgt){const L=Math.hypot(bx-ax,bz-az),ux=(bx-ax)/L,uz=(bz-az)/L,yr=hd.yaw+Math.atan2(-uz,ux);const hh=hgt||(type==='board'?1.65:type==='picket'?1.2:1.1);
-    const fm=type==='board'&&hd.boarded?plankG:type==='board'?plank:plankG;const inGap=t=>{if(!gap)return false;const p=ax===bx?az+uz*t:ax+ux*t;return p>gap[0]&&p<gap[1];};
-    const at=t=>villW(hd,ax+ux*t,az+uz*t);
-    for(let t=0;t<=L+.01;t+=type==='rail'?2.4:2.2){if(inGap(t))continue;const [x,z]=at(Math.min(t,L));const y=H(x,z);const pg=new T.CylinderGeometry(.05,.06,hh+.45,6);pg.translate(0,(hh+.45)/2-.45,0);bk.add(pg,M.post,TRS(x,y,z,(Math.sin(t*3+x)*.03),0,0));}
-    if(type==='picket'||type==='board'){const st=type==='board'?.19:.15;for(let t=.08;t<L;t+=st){if(inGap(t))continue;const [x,z]=at(t);const y=H(x,z),ph=hh+((x*31+z*17)%1)*.07*(type==='picket'?1:.3);
-        const pg=new T.BoxGeometry(type==='board'?.17:.08,ph,.022);pg.translate(0,ph/2-.08,0);bk.add(pg,fm,TRS(x,y,z,0,yr,(Math.sin(t*7)*.015)));}}
-    /* the rails (two on a picket or board fence behind the boards, three poles on a rail fence), broken at the gap */
-    const rails=type==='rail'?[.3,.65,.98].map(k=>k*hh):[.3,.85].map(k=>k*hh);let segs=[[0,L]];if(gap){const t0=ax===bx?(gap[0]-az)/uz:(gap[0]-ax)/ux,t1=ax===bx?(gap[1]-az)/uz:(gap[1]-ax)/ux;segs=[[0,Math.min(t0,t1)],[Math.max(t0,t1),L]];}
-    for(const [s0,s1] of segs){for(let s=s0;s<s1-.05;s+=2.4){const e=Math.min(s1,s+2.4),[x0,z0]=at(s),[x1,z1]=at(e),y0=H(x0,z0),y1=H(x1,z1),ln=Math.hypot(x1-x0,z1-z0);
-        for(const ry of rails){const rg=type==='rail'?new T.CylinderGeometry(.045,.05,ln,6):new T.BoxGeometry(ln,.06,.035);if(type==='rail')rg.rotateZ(Math.PI/2);
-          const m4=new T.Matrix4().compose(V3((x0+x1)/2,(y0+y1)/2+ry,(z0+z1)/2),new T.Quaternion().setFromEuler(new T.Euler(0,yr,Math.atan2(y1-y0,ln),'YXZ')),V3(1,1,1));
-          if(type!=='rail')m4.multiply(new T.Matrix4().makeTranslation(0,0,-.03));bk.add(rg,type==='rail'?M.post:fm,m4);}
-        const r=villRect(hd,Math.min(ax+ux*s,ax+ux*e)-(ax===bx?.08:0),Math.max(ax+ux*s,ax+ux*e)+(ax===bx?.08:0),Math.min(az+uz*s,az+uz*e)-(az===bz?.08:0),Math.max(az+uz*s,az+uz*e)+(az===bz?.08:0));solidAABB(r.x1,r.x2,r.z1,r.z2);}}
-    /* the gate: posts either side, its leaf standing open */
-    if(gap&&type!=='rail'){const t0=ax===bx?(gap[0]-az)/uz:(gap[0]-ax)/ux;[gap[0],gap[1]].forEach(p=>{const [x,z]=ax===bx?villW(hd,ax,p):villW(hd,p,az);bk.add(new T.CylinderGeometry(.07,.08,hh+.8,7).translate(0,(hh+.8)/2-.45,0),M.post,TRS(x,H(x,z),z));});
+  function fenceRun(hd,ax,az,bx,bz,type,gap,hgt,cen){const L=Math.hypot(bx-ax,bz-az),ux=(bx-ax)/L,uz=(bz-az)/L,yr=hd.yaw+Math.atan2(-uz,ux);const hh=hgt||(type==='board'?1.65:type==='picket'?1.2:1.1);
+    const fm=type==='board'&&hd.boarded?plankG:type==='board'?plank:plankG;
+    /* the side away from what the fence encloses: rails are nailed to that face of the posts, the boards to the rails */
+    let nx=-uz,nz=ux;{const c0=cen||[0,0],mx=(ax+bx)/2-c0[0],mz=(az+bz)/2-c0[1];if(nx*mx+nz*mz<0){nx=-nx;nz=-nz;}}
+    const at=(t,o)=>villW(hd,ax+ux*t+nx*(o||0),az+uz*t+nz*(o||0));
+    /* the run in spans either side of the gateway; posts evenly spaced along each span, one at each of its ends, so
+       every rail ends on a post */
+    let spans=[[0,L]];if(gap){const t0=ax===bx?(gap[0]-az)/uz:(gap[0]-ax)/ux,t1=ax===bx?(gap[1]-az)/uz:(gap[1]-ax)/ux;spans=[[0,Math.min(t0,t1)],[Math.max(t0,t1),L]];}
+    const gate=gap&&type!=='rail',bay=type==='rail'?2.3:2.1,pR=type==='rail'?.07:.06,q=rng(Math.round((ax*7+az*13+bx*3+bz*5)*100)+hd.x|0);
+    const postG=G('fpost'+type+hh,()=>{const g=new T.CylinderGeometry(pR*.88,pR,hh+.5,12,4);const P=g.attributes.position;for(let i=0;i<P.count;i++){const y=P.getY(i),a=Math.atan2(P.getZ(i),P.getX(i)),k=1+(Math.sin(a*3+y*2.1)*.05+Math.sin(a*7+y*5)*.025);P.setX(i,P.getX(i)*k);P.setZ(i,P.getZ(i)*k);}
+      const U=g.attributes.uv;for(let i=0;i<U.count;i++)U.setXY(i,U.getX(i)*.45,U.getY(i)*(hh+.5)*.6);g.translate(0,(hh+.5)/2-.5,0);g.computeVertexNormals();return g;});
+    for(const [s0,s1] of spans){if(s1-s0<.3)continue;const n=Math.max(1,Math.ceil((s1-s0)/bay)),ts=[];for(let i=0;i<=n;i++)ts.push(s0+(s1-s0)*i/n);
+      /* (where a shell landed on the line the posts are gone and the rails lie broken in the hole) */const gone=ts.map(t=>{const [x,z]=at(t);return craterD(x,z)<-.08;});
+      ts.forEach((t,i)=>{if(gone[i])return;if(gate&&((i===0&&s0>0)||(i===n&&s1<L)))return;const [x,z]=at(t);bk.add(postG,M.post,TRS(x,H(x,z),z,(q()-.5)*.05,q()*6.28,(q()-.5)*.05));});
+      const rails=type==='rail'?[.3,.64,.97].map(k=>k*hh):[.26,.82].map(k=>k*hh);
+      for(let i=0;i<n;i++){const ta=ts[i],tb=ts[i+1];
+        if(gone[i]||gone[i+1]){for(let k=0;k<2;k++){const [x,z]=at(lerp(ta,tb,.3+q()*.4),(q()-.5)*1.2);const L_=.6+q()*.9,rg=new T.CylinderGeometry(.045,.05,L_,10);rg.rotateZ(Math.PI/2+(q()-.5)*.3);
+            bk.add(rg,M.post,TRS(x,H(x,z)+.05,z,0,q()*6.28,0));}continue;}
+        if(type==='rail'){/* poles: barked, a little crooked, nailed across the posts' outer faces; inside a run each one
+             runs a hand past the post into the next bay, at the run's ends it stops on the post */
+          const ea=i>0?.12:0,eb=i<n-1?.12:0,o=pR+.05;const A=at(ta-ea,o),B=at(tb+eb,o);
+          rails.forEach((ry,k)=>{const r=.042+q()*.012,ya=H(A[0],A[1])+ry+(q()-.5)*.03,yb=H(B[0],B[1])+ry+(q()-.5)*.03;const ln=Math.hypot(B[0]-A[0],B[1]-A[1],yb-ya);
+            const rg=new T.CylinderGeometry(r,r*1.1,ln,10,3);{const P=rg.attributes.position;const bow=(q()-.5)*.05;for(let j=0;j<P.count;j++){const y=P.getY(j)/ln;P.setX(j,P.getX(j)+bow*(1-4*y*y));}}
+            {const U=rg.attributes.uv;for(let j=0;j<U.count;j++)U.setXY(j,U.getX(j)*.4,U.getY(j)*ln*.5);}rg.computeVertexNormals();
+            const d=V3(B[0]-A[0],yb-ya,B[1]-A[1]).normalize();const m4=new T.Matrix4().compose(V3((A[0]+B[0])/2,(ya+yb)/2,(A[1]+B[1])/2),new T.Quaternion().setFromUnitVectors(V3(0,1,0),d),V3(1,1,1));bk.add(rg,M.post,m4);});}
+        else{/* two sawn rails on the posts' outer faces, the boards or pickets nailed to the rails */
+          const o=pR+.0175,A=at(ta,o),B=at(tb,o);rails.forEach(ry=>{const ya=H(A[0],A[1])+ry,yb=H(B[0],B[1])+ry,ln=Math.hypot(B[0]-A[0],B[1]-A[1]);
+            const rg=new T.BoxGeometry(ln,.065,.035);bk.add(rg,fm,new T.Matrix4().compose(V3((A[0]+B[0])/2,(ya+yb)/2,(A[1]+B[1])/2),new T.Quaternion().setFromEuler(new T.Euler(0,yr,Math.atan2(yb-ya,ln),'YXZ')),V3(1,1,1)));});}
+        const r=villRect(hd,Math.min(ax+ux*ta,ax+ux*tb)-(ax===bx?.1:0),Math.max(ax+ux*ta,ax+ux*tb)+(ax===bx?.1:0),Math.min(az+uz*ta,az+uz*tb)-(az===bz?.1:0),Math.max(az+uz*ta,az+uz*tb)+(az===bz?.1:0));solidAABB(r.x1,r.x2,r.z1,r.z2);}
+      if(type==='picket'||type==='board'){const st=type==='board'?.185:.15,bw=type==='board'?.165:.085,o=pR+.035+.012;const nb=Math.max(1,Math.round((s1-s0-.04)/st));
+        for(let i=0;i<nb;i++){const t=s0+.02+(i+.5)*(s1-s0-.04)/nb;const [x,z]=at(t,o);if(craterD(x,z)<-.05)continue;const y=H(x,z),ph=hh+(type==='picket'?(q()-.5)*.06:(q()-.5)*.02);
+          const key='fb'+type+(ph*50|0);const pg=G(key,()=>{let g;if(type==='picket'){const sh=new T.Shape();sh.moveTo(-bw/2,0);sh.lineTo(bw/2,0);sh.lineTo(bw/2,ph-.1);sh.lineTo(0,ph-.02);sh.lineTo(-bw/2,ph-.1);sh.closePath();
+              g=new T.ExtrudeGeometry(sh,{depth:.02,bevelEnabled:true,bevelThickness:.002,bevelSize:.002,bevelSegments:1});g.translate(0,0,-.01);}else g=rbox(bw,ph,.022,.003).translate(0,ph/2,0);
+            worldUV(g,1);g.translate(0,.05,0);return g;});
+          bk.add(pg,fm,TRS(x,y,z,0,yr,(q()-.5)*.025));}}}
+    /* the gate: heavier posts either side, its leaf standing open */
+    if(gate){[gap[0],gap[1]].forEach(p=>{const [x,z]=ax===bx?villW(hd,ax,p):villW(hd,p,az);bk.add(new T.CylinderGeometry(.075,.085,hh+.85,12).translate(0,(hh+.85)/2-.5,0),M.post,TRS(x,H(x,z),z));});
       const [x,z]=ax===bx?villW(hd,ax,gap[1]):villW(hd,gap[1],az);const gt=new T.Group();gt.position.set(x,H(x,z),z);gt.rotation.y=yr+2.1;scene.add(gt);
-      for(let i=0;i<8;i++)mesh(new T.BoxGeometry(type==='board'?.17:.08,hh-.1,.022),fm,-.1-i*.18,hh/2-.05,0,gt);[.3,.85].forEach(k=>mesh(new T.BoxGeometry(1.45,.06,.035),fm,-.73,k*hh,-.03,gt));}}
+      const lw=Math.abs(gap[1]-gap[0])-.2,nb=Math.max(4,Math.round(lw/(type==='board'?.185:.15)));
+      for(let i=0;i<nb;i++)mesh(rbox(type==='board'?.165:.085,hh-.12,.022,.003),fm,-.12-(i+.5)*lw/nb,hh/2,0,gt);[.22,.8].forEach(k=>mesh(rbox(lw,.065,.035,.004),fm,-.1-lw/2,k*hh,-.03,gt));
+      {const br=mesh(rbox(.06,Math.hypot(lw,hh*.58),.03,.004),fm,-.1-lw/2,hh*.51,-.03,gt);br.rotation.z=Math.atan2(lw,hh*.58);}}}
   /* ===== outbuildings, placed in the house's frame (x, z) and turned (ry) relative to it; each sits on its own footing ===== */
   const OUTG=(hd,lx,lz,ry)=>{const [x,z]=villW(hd,lx,lz);const g=new T.Group();g.position.set(x,H(x,z),z);g.rotation.y=hd.yaw+ry;scene.add(g);return g;};
   const OUTS=(hd,lx,lz,ry,w,d)=>{const sw=Math.abs(Math.sin(ry))>.5;const r=villRect(hd,lx-(sw?d:w)/2,lx+(sw?d:w)/2,lz-(sw?w:d)/2,lz+(sw?w:d)/2);solidAABB(r.x1,r.x2,r.z1,r.z2);};
@@ -6906,26 +7524,55 @@ function carpetTex(seed){return tex(256,384,(c,w,h)=>{const q=rng(seed);const f=
   /* ===== the village well (kolodets) at the mouth of the lane: a square log frame (srub) dovetailed at the corners over
      the shaft, two posts carrying the windlass drum with its chain and iron crank, a little gable roof over it, a hinged
      plank lid, and the zinc bucket stood on the rim ===== */
-  {const wx=VILL.well.x,wz=VILL.well.z,g=new T.Group();g.position.set(wx,H(wx,wz)-.08,wz);g.rotation.y=.35;scene.add(g);const S=1.15,lr=.1,n=6,lg=[];
-   for(let k=0;k<n;k++){const y=.1+k*.17;[[0,S/2,'x'],[0,-S/2,'x'],[S/2,0,'z'],[-S/2,0,'z']].forEach(([x,z,ax])=>{const ext=((k%2===0)===(ax==='x'))?.16:.04;const c=new T.CylinderGeometry(lr,lr*1.05,S+2*ext,10);
-     if(ax==='x'){c.rotateZ(Math.PI/2);c.translate(0,y+(ax==='z'?.085:0),z);}else{c.rotateX(Math.PI/2);c.translate(x,y+.085,0);}lg.push(c);});}
-   shootables.push(mesh(merge(lg),M.logs,0,0,0,g));
-   /* dark water down the shaft, the boarded lid (one half hinged up) */
-   mesh(new T.PlaneGeometry(S-.22,S-.22).rotateX(-Math.PI/2),std({color:C(0x0c0e0e),roughness:.05,metalness:.2,envMapIntensity:1.2}),0,-.6,0,g);
-   const lw=std({map:M.boards.map,color:C(0x7a6e5e),roughness:1});mesh(rbox(S+.1,.04,S/2+.05,.008),lw,0,1.14,S/4,g);
-   const lid=new T.Group();lid.position.set(0,1.16,0);lid.rotation.x=1.25;g.add(lid);mesh(rbox(S+.1,.04,S/2,.008),lw,0,0,-S/4,lid);[-.35,.35].forEach(x=>mesh(rbox(.06,.03,S/2-.04,.005),lw,x,.03,-S/4,lid));
-   /* posts, windlass drum with the chain wound on it and hanging down, crank */
-   const pH=2.05;[-S/2-.06,S/2+.06].forEach(x=>mesh(rbox(.13,pH+.4,.13,.015),M.post,x,(pH+.4)/2-.4,0,g));
-   const dr=new T.CylinderGeometry(.11,.11,S+.1,12);dr.rotateZ(Math.PI/2);mesh(dr,M.logs,0,1.62,0,g);const iron=std({color:C(0x2c2a28),roughness:.55,metalness:.75});
-   for(let i=0;i<9;i++){const t=new T.TorusGeometry(.115,.008,4,14);t.rotateY(Math.PI/2);mesh(t,iron,-.3+i*.055,1.62,0,g);}
-   for(let i=0;i<12;i++){const l=new T.TorusGeometry(.018,.005,4,8);l.rotateY(i%2?Math.PI/2:0);mesh(l,iron,.12,1.5-i*.032,-.11,g);}
-   const ax=new T.CylinderGeometry(.018,.018,.32,8);ax.rotateZ(Math.PI/2);mesh(ax,iron,S/2+.2,1.62,0,g);mesh(rbox(.035,.34,.03,.004),iron,S/2+.36,1.47,0,g);const hdl=new T.CylinderGeometry(.022,.022,.16,8);hdl.rotateZ(Math.PI/2);mesh(hdl,M.post,S/2+.43,1.31,0,g);
-   /* the roof: two slopes of boards on the post heads, barge boards at the ends */
-   const rw=S+.5,rise=.55,half=.85;[-1,1].forEach(sd=>{const r=mesh(rbox(rw,.03,Math.hypot(half,rise)+.08,.006),lw,0,pH+rise/2+.02,sd*half/2,g);r.rotation.x=sd*Math.atan2(rise,half);});
-   mesh(rbox(rw+.04,.07,.07,.008),M.post,0,pH+rise+.03,0,g);mesh(rbox(S+.3,.09,.09,.01),M.post,0,pH,0,g);
-   /* the zinc bucket on the rim, its bail up */
-   const zn=std({color:C(0x9a9e9c),roughness:.35,metalness:.85,side:T.DoubleSide});const bu=new T.CylinderGeometry(.15,.11,.28,16,1,true);mesh(bu,zn,.28,1.29,.36,g);mesh(new T.CircleGeometry(.11,16).rotateX(-Math.PI/2),zn,.28,1.152,.36,g);
-   const ba=new T.TorusGeometry(.15,.006,4,16,Math.PI);mesh(ba,iron,.28,1.43,.36,g);
+  {const wx=VILL.well.x,wz=VILL.well.z,g=new T.Group();g.position.set(wx,H(wx,wz)-.06,wz);g.rotation.y=.35;scene.add(g);const q=rng(4242);
+   /* the frame: seven courses, the logs of the two pairs of walls half a log apart in height, each laid in the saddle
+      notch of the one below with its round end standing out past the corner; the courses bed into each other along a
+      groove, so they touch all the way along */
+   const S=1.12,lr=.105,st=.19,n=7,OH=.2,side=[],caps=[];
+   for(let k=0;k<n;k++){const yx=.1+k*st,yz=yx+st/2;
+     for(const sg of [-1,1]){const a=hqLog(V3(-S/2-OH,yx,sg*S/2),V3(S/2+OH,yx,sg*S/2),lr,q,{seg:.45,bow:.02});side.push(a.side);caps.push(a.cap);
+       const b=hqLog(V3(sg*S/2,yz,-S/2-OH),V3(sg*S/2,yz,S/2+OH),lr,q,{seg:.45,bow:.02});side.push(b.side);caps.push(b.cap);}}
+   const topY=.1+(n-1)*st+st/2+lr*.85;
+   shootables.push(mesh(merge(side),WM.log,0,0,0,g));mesh(merge(caps),WM.end,0,0,0,g);
+   /* flat stones set round the foot, the ground trodden and wet there */
+   {const sm=rockMat();const sl=[];for(let i=0;i<14;i++){const a=i/14*6.28+q()*.3,d=S/2+.45+q()*.25,x=Math.cos(a)*d,z=Math.sin(a)*d,sc=.16+q()*.12;const rg=rockGeo(70+i%7,{detail:3,flat:.5,col:[.3,.29,.27]}).clone();rg.applyMatrix4(TRS(x,.06-sc*.22,z,(q()-.5)*.1,q()*6,(q()-.5)*.1,sc));sl.push(rg);}
+    const rm=mesh(merge(sl),sm,0,0,0,g);rm.receiveShadow=true;}
+   /* dark water down the shaft */
+   mesh(new T.PlaneGeometry(S-.2,S-.2).rotateX(-Math.PI/2),std({color:C(0x0a0c0c),roughness:.04,metalness:.1,envMapIntensity:1.4}),0,-.9,0,g);
+   {const sh=new T.BoxGeometry(S-.2,1.0,S-.2);sh.scale(-1,1,1);sh.translate(0,-.45,0);mesh(sh,std({map:TX.bark,color:C(0x2e2a24),roughness:1,side:T.BackSide}),0,0,0,g);}
+   /* the lid: planks on two battens; the back half fixed, the front half on strap hinges, propped open */
+   const lw=WM.board,pw=S+.1;const lidHalf=(grp,z0,z1)=>{const nb=6,bw=(z1-z0)/nb;for(let i=0;i<nb;i++)mesh(rbox(pw,.035,bw-.008,.006),lw,0,0,z0+(i+.5)*bw,grp).rotation.z=(q()-.5)*.01;[-.36,.36].forEach(x=>mesh(rbox(.07,.035,z1-z0-.06,.006),lw,x,-.035,(z0+z1)/2,grp));};
+   {const fx=new T.Group();fx.position.set(0,topY,0);g.add(fx);lidHalf(fx,-S/2-.05,0);}
+   {const lid=new T.Group();lid.position.set(0,topY+.02,0);lid.rotation.x=-1.2;g.add(lid);lidHalf(lid,0,S/2+.05);const iron=std({color:C(0x2a2826),roughness:.6,metalness:.7});[-.36,.36].forEach(x=>mesh(rbox(.04,.006,.22,.002),iron,x,.022,.08,lid));}
+   /* posts: squared timbers dug in beside the frame, braced to it, carrying the windlass and the roof */
+   const pH=2.15,px=S/2+lr+.075;const iron=std({map:PB.rust.a,normalMap:PB.rust.n,color:C(0x6a6460),roughness:.7,metalness:.6,envMapIntensity:.5});
+   [-px,px].forEach(x=>{const pg=rbox(.14,pH+.5,.14,.018);mesh(pg,M.post,x,(pH+.5)/2-.5,0,g);});
+   /* the drum: a short log on an iron axle, rope wound on it in tight turns, the free end down to the pail's bail */
+   const dY=1.72,dr=.12,dL=2*px-.16;{const a=hqLog(V3(-dL/2,dY,0),V3(dL/2,dY,0),dr,q,{taper:.02,bow:0,seg:.3});mesh(a.side,WM.log,0,0,0,g);mesh(a.cap,WM.end,0,0,0,g);}
+   const rope=std({map:TX.cloth,color:C(0x9a8a6a),roughness:1,envMapIntensity:.15});
+   {const turns=11,w0=-.32,w1=.3,pts=[];for(let i=0;i<=turns*24;i++){const t=i/(turns*24),a=t*turns*6.28;pts.push(V3(lerp(w0,w1,t),dY+Math.sin(a)*(dr+.012),Math.cos(a)*(dr+.012)));}
+    mesh(new T.TubeGeometry(new T.CatmullRomCurve3(pts),turns*24,.011,6,false),rope,0,0,0,g);
+    const bx=.24,bz=-.2,by=topY+.035+.36;const hang=new T.CatmullRomCurve3([V3(w1,dY,dr+.012),V3(w1-.01,dY-.3,dr+.02),V3(lerp(w1,bx,.6),by+.35,lerp(dr,bz,.5)),V3(bx,by+.05,bz)]);mesh(new T.TubeGeometry(hang,24,.011,6,false),rope,0,0,0,g);
+    /* the zinc pail stood on the fixed half of the lid: rolled rim, a bead round its middle, ears and bail */
+    const zn=std({map:PB.galv.a,normalMap:PB.galv.n,color:C(0xb4b8b4),roughness:.42,metalness:.85,envMapIntensity:.9,side:T.DoubleSide});
+    const pail=lathe([[0,0],[.108,0],[.112,.006],[.118,.06],[.122,.13],[.126,.135],[.128,.142],[.138,.27],[.146,.3],[.15,.305],[.152,.3],[.146,.296],[.136,.27],[.12,.14],[.11,.012],[0,.012]],28);mesh(pail,zn,bx,topY+.035,bz,g);
+    [-1,1].forEach(sg=>mesh(rbox(.012,.04,.03,.004),zn,bx+sg*.15,topY+.035+.27,bz,g));const ba=new T.TorusGeometry(.15,.0045,6,24,Math.PI);mesh(ba,iron,bx,topY+.035+.28,bz,g).rotation.y=0;}
+   /* the crank: the axle through the post, a forged arm, a turned wooden grip */
+   {const ax=new T.CylinderGeometry(.02,.02,.26,10);ax.rotateZ(Math.PI/2);mesh(ax,iron,px+.1,dY,0,g);mesh(rbox(.036,.4,.026,.006),iron,px+.22,dY-.18,0,g);
+    const grip=lathe([[0,0],[.022,0],[.026,.03],[.024,.1],[.026,.15],[.02,.17],[0,.17]],12);grip.rotateZ(-Math.PI/2);mesh(grip,M.post,px+.23,dY-.36,0,g);}
+   /* the roof: rafters on a ridge beam between the post heads, sawn boards laid down the slopes with the gaps between
+      them, barge boards along the gable ends, a capping board along the ridge */
+   {const rise=.62,half=.92,rw=S+.95,sl=Math.hypot(half,rise),pa=Math.atan2(rise,half),rb=[];
+    /* the truss on each post: a tie beam across the post head under the rafter feet, a king post up to the ridge beam */
+    mesh(rbox(2*px+.14,.1,.1,.012),M.post,0,pH+.05,0,g);mesh(rbox(rw-.06,.1,.1,.012),M.post,0,pH+.1+rise-.07,0,g);
+    [-px,px].forEach(x=>{mesh(rbox(.09,.1,2*half-.05,.01),M.post,x,pH+.1+.05,0,g);mesh(rbox(.09,rise-.12,.09,.01),M.post,x,pH+.1+(rise-.12)/2+.04,0,g);});
+    [-1,1].forEach(sg=>{
+      const nb=7,bw=sl/nb;for(let i=0;i<nb;i++){const d0=(i+.5)*bw,b=rbox(rw,.026,bw-.012,.004);b.rotateX(sg*pa);b.translate(0,pH+.15+rise-Math.sin(pa)*d0,sg*Math.cos(pa)*d0);b.rotateZ((q()-.5)*.006);rb.push(b);}
+      [-1,1].forEach(ex=>{const bb=rbox(.03,.16,sl+.06,.006);bb.rotateX(sg*pa);bb.translate(ex*(rw/2+.015),pH+.1+rise-Math.sin(pa)*sl/2,sg*Math.cos(pa)*sl/2);rb.push(bb);});
+      for(const x of [-px,px]){const r_=rbox(.07,.09,sl-.05,.008);r_.rotateX(sg*pa);r_.translate(x,pH+.1+rise-Math.sin(pa)*sl/2,sg*Math.cos(pa)*sl/2);rb.push(r_);}});
+    shootables.push(mesh(merge(rb),WM.board,0,0,0,g));
+    [-1,1].forEach(sg=>{const c=rbox(rw+.04,.026,.16,.004);c.rotateX(sg*pa);mesh(c,WM.board,0,pH+.15+rise+.035,sg*.06,g);});}
+   g.traverse(o=>{if(o.isMesh){o.castShadow=true;o.receiveShadow=true;}});
    solids.push({cx:wx,cz:wz,r:1.0});}
   bk.flush(scene,true);
 })();
@@ -8001,7 +8648,7 @@ addWalker('guard3',[[-8,-24],[12,-24],[30,-24,'relaxed',5,Math.PI],[30,-4],[12,-
 function applyQuality(name){Q=QUAL[name]||QUAL.med;$('q').value=$('q2').value=name;buildGrass(Q.grassR);sun.shadow.mapSize.set(Q.shadow,Q.shadow);if(sun.shadow.map){sun.shadow.map.dispose();sun.shadow.map=null;}resize();try{localStorage.setItem('z12q',name);}catch(_){}}
 let DRS=1;/* dynamic resolution: keeps weaker GPUs near 50+ fps */
 const DRSs={n:0,t:performance.now()};
-function resize(){const w=innerWidth,h=innerHeight,pr=Math.min(devicePixelRatio,1.5)*Q.pr*DRS;renderer.setPixelRatio(pr);renderer.setSize(w,h,false);makeRT(Math.floor(w*pr),Math.floor(h*pr));
+function resize(){const w=innerWidth,h=innerHeight,pr=Math.min(devicePixelRatio,1.5)*Q.pr*DRS;postMat.uniforms.uAA.value=(!GL2||!Q.ms||pr<Math.min(devicePixelRatio,1.5)*.99)?1:0;renderer.setPixelRatio(pr);renderer.setSize(w,h,false);makeRT(Math.floor(w*pr),Math.floor(h*pr));
   camera.aspect=vmCam.aspect=w/h;camera.updateProjectionMatrix();vmCam.updateProjectionMatrix();fxScale(h*pr,camera.fov);postMat.uniforms.uRes.value.set(w*pr,h*pr);}
 addEventListener('resize',resize);
 ['q','q2'].forEach(id=>$(id).onchange=e=>applyQuality(e.target.value));
@@ -8065,9 +8712,9 @@ function frame(now){requestAnimationFrame(frame);
   const P=postMat.uniforms;P.uT.value=S.t;P.uSan.value=clamp((45-S.sanity)/45,0,1);P.uDmg.value=S.sinceDmg<.6?1-S.sinceDmg/.6:clamp((25-S.hp)/25,0,.7);P.uRad.value=clamp((S.rate-3)/40,0,1)*(S.state==='play'?1:0);P.uHP.value=S.hp/100;P.uDrunk.value=S.drunk>0?.6:0;
   if(S.state==='play'||S.state==='view')updateHUD();objMarker(dt);
   if(window.__camOv){const c=window.__camOv(),q=camera;q.position.copy(c[0]);q.up.set(0,1,0);q.lookAt(c[1]);vmRoot.visible=false;}
-  streamTick();distanceCull();regionOffload();humanLOD(camera.position);
+  streamTick();PORTRAIT.tick();distanceCull();regionOffload();humanLOD(camera.position);
   renderer.setRenderTarget(rt);renderer.clear();renderer.render(scene,camera);
-  if((S.state==='play'||S.state==='view'||S.state==='paused')&&vmRoot.visible&&VM.gun){renderer.clearDepth();renderer.render(vmScene,vmCam);}
+  if((S.state==='play'||S.state==='view'||S.state==='paused')&&((vmRoot.visible&&VM.gun)||(RIG.g&&RIG.g.visible))){renderer.clearDepth();renderer.render(vmScene,vmCam);}
   /* bloom / sun shafts (off on Low) */
   if(Q.ms||Q.pr>=1){P.tB.value=runBloom(rt.texture);P.uBloom.value=.4;P.uSharp.value=.35;
     const sv=AV3.copy(SUN).multiplyScalar(500).add(camera.position).project(camera);const fw=camera.getWorldDirection(AV2).dot(SUN);
@@ -10562,7 +11209,7 @@ function rigBuild(){if(RIG.g)return;const g=new T.Group();vmCam.add(g);RIG.g=g;g
   const em=new T.Mesh(new T.SphereGeometry(.0037,12,8),new T.MeshBasicMaterial({color:C(0xff5a1a),toneMapped:false}));em.scale.set(1,.45,1);em.visible=false;
   const gl=new T.Sprite(new T.SpriteMaterial({map:PTEX.soft,color:C(0xff6a20),transparent:true,blending:T.AdditiveBlending,depthWrite:false,toneMapped:false}));gl.scale.setScalar(.03);gl.visible=false;
   c.add(f,p,ash,em,gl);c.userData={paper:p,ash,em,gl,len:.06};RIG.cig=c;g.add(c);
-  RIG.lightV=new T.PointLight(0xffa050,0,.9,2);g.add(RIG.lightV);RIG.lightW=new T.PointLight(0xffa050,0,3.2,2);scene.add(RIG.lightW);}
+  RIG.lightV=new T.PointLight(0xffa050,0,.9,2);g.add(RIG.lightV);/* (no light of its own in the world: one more light there means every shader in the world recompiled, and a cost on every lit pixel ever after; the flame lights the hands) */RIG.lightW={position:V3(),intensity:0};}
 /* cigarette geometry: burnt fraction b (0 fresh .. 1 down to the filter) */
 function cigBurn(c,b){const u=c.userData,L=u.len*(1-b*.78);u.paper.scale.y=L;const ashL=Math.min(.008,b*.03);u.ash.position.y=.024+L;u.ash.scale.y=Math.max(ashL,.0001);
   u.em.position.y=.024+L+ashL;u.gl.position.y=.024+L+ashL+.002;return .024+L+ashL;}
@@ -11250,9 +11897,13 @@ function mergeLocal(){const ex=new Set();btr.userData.wheels.forEach(w=>w.traver
   return [merged,removed];}
 {const t0=performance.now();villageYards();vegBuild();vegLOD(true);const c=chunkInstanced();const [mg,rm]=mergeStatic();const [ml,rl]=mergeLocal();buildDistanceCull();buildRegionOffload();
  /* (a debug view of any place shows it all; otherwise the story's later country waits) */if(!DBG){window.__park={far:parkRegion('far',(x,z)=>x<-905),west:parkRegion('west',(x,z)=>x<-250||z<-600)};}window.__roff=ROFF;window.__batchL=[ml,rl];window.__batch={chunks:c,merged:mg,removed:rm,dcull:DCULL.list.length,roff:ROFF.L.length,ms:Math.round(performance.now()-t0)};}
+/* the smoking rig (both arms, the pack, the cigarette, the lighter, its flame light) is built and its shaders compiled
+   now, behind the loading card: built on first use it added a light to the view scene and stalled the game for seconds
+   while every shader was recompiled */
+try{rigBuild();RIG.g.visible=true;renderer.compile(vmScene,vmCam);RIG.g.visible=false;}catch(e){console.warn('rig',e);}
 /* ---------- start (after every module, including chapter 2, has initialised) ---------- */
 boot();
-window.__z={PARK,parkRegion,unparkRegion,streamTick,initAudio,warTick,get AUD(){return AUD;},shadow2Tick,Ragdoll,RAGS,buildHuman,floorAt,groundSeen,terrMeshY,warGun,warMG,warDrone,warClose,warGrad,WAR,CD,poseHand,handsVM,RLFIX,inGun,gunColliders,AP,cmdr,riders,VEG,FLOWERS,GRASS_:GRASS,get VM(){return VM;},playerBody,gait,GAIT,ANIMS,SHADOW,spawnShadow,FX,begin,rideToSector,rideToFOB,interact,doInteract,findInteract,toggleInv,RIDE,btr,scene,renderer,camera,sun,hemi,S,M,postMat,vmScene,GRASS,Q,QUAL,applyQuality,player,debugView,tentSmoke,gloveMat,VMG,WEAP,HANDS,mountWeapon,vmCam,vmRoot,tickVM,buildPM,buildAK,fireFlash,RL,vmAction,placeArm2,HANDS,WALKERS,buildHuman,animate,woundDress,saveGame,loadGame,saveData,ch2Lids,fpShoulder};
+window.__z={PARK,parkRegion,unparkRegion,streamTick,actTick,RIG,get vmRoot(){return vmRoot;},initAudio,warTick,get AUD(){return AUD;},shadow2Tick,Ragdoll,RAGS,buildHuman,floorAt,groundSeen,terrMeshY,warGun,warMG,warDrone,warClose,warGrad,WAR,CD,poseHand,handsVM,RLFIX,inGun,gunColliders,AP,cmdr,riders,VEG,FLOWERS,GRASS_:GRASS,get VM(){return VM;},playerBody,gait,GAIT,ANIMS,SHADOW,spawnShadow,FX,begin,rideToSector,rideToFOB,interact,doInteract,findInteract,toggleInv,RIDE,btr,scene,renderer,camera,sun,hemi,S,M,postMat,vmScene,GRASS,Q,QUAL,applyQuality,player,debugView,tentSmoke,gloveMat,VMG,WEAP,HANDS,mountWeapon,vmCam,vmRoot,tickVM,buildPM,buildAK,fireFlash,RL,vmAction,placeArm2,HANDS,WALKERS,buildHuman,animate,woundDress,saveGame,loadGame,saveData,ch2Lids,fpShoulder};
 
 }catch(e){const p=document.createElement('pre');p.style.cssText='position:fixed;left:8px;bottom:8px;right:8px;z-index:99;color:#f88;background:#000c;font:12px monospace;white-space:pre-wrap;padding:8px';p.textContent='Zone 12 failed to start: '+(e&&e.stack||e);document.body.appendChild(p);}},30));
 window.addEventListener('error',e=>{const p=document.createElement('pre');p.style.cssText='position:fixed;left:8px;top:8px;right:8px;z-index:99;color:#f88;background:#000c;font:12px monospace;white-space:pre-wrap;padding:8px';p.textContent='Error: '+e.message+' @'+e.lineno;document.body.appendChild(p);});
