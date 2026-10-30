@@ -5922,6 +5922,13 @@ PB.peel=pbr(512,(u,v)=>{const b=Math.floor(v*5),bv=v*5-b;
   c=mixc(c,[62,56,48],seam*.75);
   const h=peel>.5?.42+(grain-.5)*.22:.6+lip*.06-(1-sstep(0,.035,Math.abs(ck-.5)))*.04;
   return[c[0],c[1],c[2],h-seam*.35,peel>.5?.9:.58+seam*.2];},{bump:5});
+/* charred wood: the surface burned into alligator-cracked blocks running with the grain, deep black in the cracks, the
+   block faces a dull silvery black with a little sheen, grey ash bloom here and there, and patches the fire only
+   browned. (The cells are drawn stretched across the grain, so on a board mapped along its length they come out
+   longer along it, as char checks do) */
+PB.char=pbr(512,(u,v)=>{const [f1,e0]=wor(u,v*2,9,5);const e=sstep(0,.09,e0),g=N2(u,v*8,24,3),n=N2(u,v,6,4),ash=sstep(.6,.74,N2(u*2,v*2,5,4)),br=sstep(.7,.78,N2(u+.4,v,4,4));
+  let c=[30+n*20,26+n*16,22+n*13];c=mixc(c,[5,4,4],1-e);c=mixc(c,[128,124,118],ash*e*.55);c=mixc(c,[84,52,30],br*e*.65);c=c.map(x=>x*(.85+g*.3));
+  return[c[0],c[1],c[2],.25+e*.5+g*.12+f1*.08,.95-e*.32+ash*.2];},{bump:6});
 /* freshly burnt metal (the BTR burning after the ambush): no rust yet - the paint burned away to black soot and
    charcoal, heat-tinted grey steel showing through (a little straw and blue at the edges of the hottest patches),
    grey-white ash bloom, blistered scraps of the olive paint left at the cooler edges */
@@ -7282,7 +7289,7 @@ function wallLime(seed){return memo('lime',()=>{const t=tex(256,256,(c,w,h)=>{co
 function carpetTex(seed){return FAB.carpet(seed);}
 (function village(){const LR=.125,LS=.215,NL=12;const top=FL+.11+NL*LS;const bk=bucket(),ibk=ibucket();
   const CHEAD=(()=>{const g=new T.SphereGeometry(.12,14,10);g.scale(1,.85,1);return g;})(),CHEADD=(()=>{const g=new T.SphereGeometry(.12,14,10);g.scale(1,.65,1);return g;})();
-  const charred=std({map:TX.bark,color:C(0x2a2420),roughness:1,envMapIntensity:.1});
+  const charred=std({map:PB.char.a,normalMap:PB.char.n,roughnessMap:PB.char.r,normalScale:new T.Vector2(1.4,1.4),roughness:1,envMapIntensity:.3});
   const charEnd=std({map:TX.endgrain,color:C(0x2a2622),roughness:1,envMapIntensity:.08});
   /* a hewn log between two points: round but not a cylinder - it tapers butt to top, swells and dips along its length,
      its section is a little out of round and it bows; the sawn ends are capped with end grain (rings, checks) cut to the
