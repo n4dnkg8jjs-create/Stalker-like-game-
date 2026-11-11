@@ -1,0 +1,4 @@
+dev/out/
+dev/work/
+__pycache__/
+*.pyc

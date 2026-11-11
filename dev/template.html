@@ -1,0 +1,245 @@
+<meta charset="utf-8">
+<title>Zone 12</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700&family=Caveat:wght@500&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: full-bleed WebGL canvas; HUD pinned to screen corners; inventory as a centered two-column panel */
+:root{
+  --bg:#0a0c09; --fg:#d7d9cf; --dim:#8c907f; --panel:rgba(14,17,13,.92); --line:#3a4232;
+  --hp:#b8322a; --san:#5b7fb4; --rad:#d6b324; --stam:#8a9a5b; --accent:#c9a227;
+  --display:'Barlow Condensed',Impact,'Arial Narrow',sans-serif; --mono:'IBM Plex Mono',Consolas,monospace;
+  color-scheme:dark;
+}
+html,body{height:100%;overflow:hidden}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--display);user-select:none}
+#c{position:fixed;inset:0;width:100%;height:100%;display:block}
+.ov{position:fixed;inset:0;pointer-events:none}
+#hud{transition:opacity .4s}
+#stats{position:absolute;left:max(16px,env(safe-area-inset-left,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));width:min(280px,60vw);display:flex;flex-direction:column;gap:4px}
+.bar{height:6px;background:rgba(0,0,0,.5);border:1px solid rgba(80,90,70,.7)}
+.bar i{display:block;height:100%;width:100%;transition:width .2s}
+.lbl{display:flex;justify-content:space-between;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);text-shadow:0 1px 2px #000}
+.lbl b{color:var(--fg);font-family:var(--mono);font-size:11px;font-variant-numeric:tabular-nums}
+#geiger{margin-top:8px;background:rgba(14,17,13,.78);border:1px solid var(--line);padding:6px 10px;font-family:var(--mono);font-size:11px;display:grid;grid-template-columns:1fr auto;gap:2px 10px;font-variant-numeric:tabular-nums}
+#geiger .big{font-size:19px;color:var(--rad);font-weight:600;grid-column:1/-1}
+#geiger .big.hot{color:#ff5c2a;animation:blink .5s steps(2) infinite}
+#geiger .t{grid-column:1/-1;color:var(--dim);font-size:10px;letter-spacing:.12em}
+@keyframes blink{50%{opacity:.35}}
+#ammo{position:absolute;right:max(16px,env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));text-align:right;text-shadow:0 1px 3px #000}
+#ammo .n{font-family:var(--mono);font-size:30px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1}
+#ammo .n small{font-size:15px;color:var(--dim)}
+#ammo .w{font-size:14px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+#obj{position:absolute;left:max(16px,env(safe-area-inset-left,0px));top:calc(14px + env(safe-area-inset-top,0px));font-size:15px;letter-spacing:.04em;color:var(--fg);max-width:min(460px,70vw);text-shadow:0 1px 3px #000}
+#obj b{display:block;color:var(--accent);text-transform:uppercase;font-size:12px;letter-spacing:.16em}
+#prompt{position:absolute;left:50%;top:58%;transform:translateX(-50%);font-size:18px;letter-spacing:.05em;background:rgba(0,0,0,.55);padding:4px 12px;border-left:3px solid var(--accent);opacity:0;transition:opacity .15s;white-space:nowrap}
+#prompt.on{opacity:1}
+/* objective marker: a hollow diamond over the place, the distance under it; at the screen edge with a pointer when it is off to the side or behind */
+#omk{position:absolute;left:0;top:0;width:0;height:0;opacity:0;transition:opacity .35s;will-change:transform}
+#omk i{position:absolute;left:-7px;top:-7px;width:10px;height:10px;border:2px solid var(--accent);transform:rotate(45deg);box-shadow:0 0 3px rgba(0,0,0,.85),inset 0 0 2px rgba(0,0,0,.6)}
+#omk span{position:absolute;left:-40px;width:80px;top:10px;text-align:center;font:600 11px var(--mono);color:var(--fg);text-shadow:0 1px 2px #000,0 0 4px #000;font-variant-numeric:tabular-nums}
+#omk em{position:absolute;left:0;top:0;width:0;height:0;display:none}
+#omk em:after{content:'';position:absolute;left:-5px;top:-21px;border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:8px solid var(--accent);filter:drop-shadow(0 0 2px #000)}
+#omk.edge em{display:block}
+#toast{position:absolute;left:50%;top:calc(14px + env(safe-area-inset-top,0px));transform:translateX(-50%);font-family:var(--mono);font-size:13px;color:var(--accent);background:rgba(0,0,0,.55);padding:3px 10px;opacity:0;transition:opacity .2s;white-space:nowrap}
+#toast.on{opacity:1}
+#xh{position:absolute;left:50%;top:50%;width:3px;height:3px;margin:-1.5px;background:rgba(255,255,255,.8);border-radius:50%;box-shadow:0 0 2px #000;transition:opacity .15s}
+#xh.off{opacity:0}
+#bars{opacity:0;transition:opacity .6s}
+#bars:before,#bars:after{content:"";position:absolute;left:0;right:0;height:10vh;background:#000}
+#bars:before{top:0}#bars:after{bottom:0}
+#sub{position:absolute;left:0;right:0;bottom:12.5vh;text-align:center;font-size:clamp(16px,2.2vw,23px);letter-spacing:.03em;text-shadow:0 1px 4px #000;padding:0 16px}
+#sub small{display:block;font-size:.58em;color:var(--accent);letter-spacing:.18em;text-transform:uppercase}
+#fade{background:#000;opacity:1;transition:opacity 1s}
+/* eyelids for the wake-up: the opening between the lids is an almond - widest in the middle, closing to the corners -
+   drawn as a soft elliptical window in a black sheet (set from the script) */
+#lids{z-index:2;background:#000}
+#card{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;opacity:0;transition:opacity .8s;text-align:center;padding:0 16px}
+#card.on{opacity:1}
+#card small{font-size:13px;letter-spacing:.32em;color:var(--accent);text-transform:uppercase}
+#card h2{font-size:clamp(40px,7vw,78px);margin:0;font-weight:700;line-height:.95}
+#card p{margin:0;font-family:var(--mono);font-size:13px;color:var(--dim);letter-spacing:.06em}
+#cardbar{width:min(320px,60vw);height:2px;background:rgba(255,255,255,.12);margin-top:18px;opacity:0;transition:opacity .4s}#card.load #cardbar{opacity:1}#cardbar i{display:block;height:100%;width:0;background:var(--accent);transition:width .25s linear}
+.screen>*{margin-block:auto}.screen{position:fixed;inset:0;display:flex;align-items:flex-start;justify-content:center;overflow:auto;background:rgba(6,8,6,.94);padding-inline:max(16px,env(safe-area-inset-left,0px)) max(16px,env(safe-area-inset-right,0px))}
+.screen.off{display:none}
+.menu{max-width:640px;width:100%}
+.menu h1{font-size:clamp(44px,9vw,92px);line-height:.9;margin:0;font-weight:700;letter-spacing:-.01em}
+.menu h1 span{display:block;font-size:.3em;letter-spacing:.3em;color:var(--accent);font-weight:400;margin-bottom:8px}
+.menu p{font-size:17px;color:var(--dim);max-width:58ch;line-height:1.4}
+.keys{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:4px 18px;font-size:15px;margin:18px 0;color:var(--dim)}
+.keys b{color:var(--fg);font-family:var(--mono);font-size:12px;background:#1b2018;border:1px solid var(--line);padding:1px 6px;margin-right:6px}
+.opts{display:flex;flex-wrap:wrap;gap:12px 28px;margin:0 0 20px;font-size:14px;color:var(--dim);letter-spacing:.08em;text-transform:uppercase;align-items:center}
+.opts label{display:flex;gap:10px;align-items:center}
+.opts select,.opts input{font:13px var(--mono);background:#141812;color:var(--fg);border:1px solid var(--line);padding:3px 6px}
+.opts input[type=range]{accent-color:var(--accent);width:130px;padding:0}
+button.go{font:700 20px var(--display);letter-spacing:.2em;text-transform:uppercase;background:var(--accent);color:#141208;border:0;padding:12px 28px;cursor:pointer}
+button.go:hover,button.go:focus-visible{background:#e2b935;outline:2px solid #fff3}
+/* inventory: header (title, carry-weight bar, close) / three panes: operator + status, backpack grid with
+   category tabs, item details. Collapses to one column on narrow screens. */
+#inv{display:none;position:fixed;inset:0;z-index:3;background:radial-gradient(ellipse at 30% 20%,rgba(30,36,26,.94),rgba(5,7,5,.97) 70%);padding:calc(14px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(14px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));overflow:auto}
+#note{display:none;position:fixed;inset:0;z-index:4;background:rgba(4,5,4,.78);align-items:center;justify-content:center;padding:16px}
+#note.on{display:flex;animation:invin .18s ease-out}
+#note .nb{display:flex;flex-direction:column;align-items:center;gap:12px;width:min(520px,100%)}
+#note .pg{width:100%;aspect-ratio:.8;max-height:82vh;transform:rotate(-1.2deg);padding:56px 34px 30px 64px;box-sizing:border-box;border-radius:2px;
+  background:linear-gradient(90deg,transparent 47px,rgba(196,72,72,.55) 47px,rgba(196,72,72,.55) 49px,transparent 49px),repeating-linear-gradient(180deg,transparent 0 31px,rgba(92,120,170,.38) 31px 32px),radial-gradient(ellipse at 85% 95%,rgba(120,96,50,.28),transparent 55%),#e9e3d0;
+  background-position:0 0,0 22px,0 0,0 0;box-shadow:0 18px 50px rgba(0,0,0,.6),inset 0 0 40px rgba(110,90,50,.18);font:500 25px/32px Caveat,'Segoe Script','Bradley Hand',cursive;color:rgba(62,62,66,.86);text-shadow:0 0 .6px rgba(70,70,75,.5),.4px .3px 0 rgba(90,90,95,.18);overflow:auto}
+#note .pg p{margin:0 0 32px}
+#note small{font:600 12px 'IBM Plex Mono',monospace;letter-spacing:.08em;color:#b9c2ad;opacity:.8}
+#inv.on{display:block;animation:invin .18s ease-out}
+@keyframes invin{from{opacity:0;transform:scale(1.01)}}
+.inv{max-width:1320px;margin:0 auto;display:flex;flex-direction:column;gap:12px;min-height:100%}
+.invh{display:flex;align-items:center;gap:22px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:10px}
+.invh .ttl{font-size:34px;font-weight:700;line-height:.9;letter-spacing:.02em;text-transform:uppercase}
+.invh .ttl small{display:block;font-size:11px;font-weight:400;letter-spacing:.32em;color:var(--accent);margin-bottom:5px}
+.wbar{display:flex;align-items:center;gap:10px;margin-left:auto;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
+.wtrack{position:relative;width:min(240px,40vw);height:8px;background:rgba(0,0,0,.55);border:1px solid var(--line)}
+.wtrack i{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,#6f7d4c,#a7b46c);transition:width .25s,background .25s}
+.wtrack i.heavy{background:linear-gradient(90deg,#9a6a22,#d69a2c)}.wtrack i.over{background:linear-gradient(90deg,#8a2a20,#d2412e)}
+.wtrack em{position:absolute;top:-4px;bottom:-4px;width:1px;background:#d69a2c;opacity:.8}
+.wbar b{font:600 13px var(--mono);color:var(--fg);letter-spacing:0;font-variant-numeric:tabular-nums}
+.invx{font:600 13px var(--display);letter-spacing:.16em;text-transform:uppercase;background:transparent;color:var(--dim);border:1px solid var(--line);padding:7px 12px;cursor:pointer}
+.invx:hover,.invx:focus-visible{color:var(--fg);border-color:var(--accent);outline:none}
+kbd{font:600 10px var(--mono);background:#1b2018;border:1px solid var(--line);border-bottom-width:2px;padding:1px 5px;margin-left:4px;color:var(--fg);letter-spacing:0}
+.invb{display:grid;grid-template-columns:340px minmax(0,1fr) 320px;gap:14px;align-items:start}
+@media(max-width:1180px){.invb{grid-template-columns:320px minmax(0,1fr)}.detp{grid-column:1/-1}}
+@media(max-width:760px){.invb{grid-template-columns:1fr}}
+.pane{background:linear-gradient(180deg,rgba(18,22,16,.88),rgba(10,13,9,.88));border:1px solid var(--line);padding:10px;position:relative}
+.pane:before,.pane:after{content:"";position:absolute;width:10px;height:10px;border:1px solid var(--accent);opacity:.55}
+.pane:before{left:-1px;top:-1px;border-right:0;border-bottom:0}.pane:after{right:-1px;bottom:-1px;border-left:0;border-top:0}
+.ph{font-size:13px;letter-spacing:.22em;text-transform:uppercase;color:var(--accent);margin-bottom:8px;display:flex;justify-content:space-between;align-items:baseline}
+.ph span{color:var(--dim);font-family:var(--mono);font-size:11px;letter-spacing:.04em}
+#doll{background:radial-gradient(ellipse at 50% 38%,#29321f,#0b0e0a 72%);border:1px solid #2c3326;position:relative;height:470px;overflow:hidden}
+#doll:after{content:"";position:absolute;left:0;right:0;bottom:0;height:60px;background:linear-gradient(transparent,rgba(0,0,0,.5));pointer-events:none}
+#doll canvas{width:100%;height:100%;display:block}
+.eq{position:absolute;width:84px;height:84px;background:rgba(12,15,11,.86);border:1px solid #333b2c;cursor:pointer;box-sizing:border-box;z-index:1;transition:border-color .12s,box-shadow .12s}
+.eq.wide{width:112px}
+.eq:hover,.eq:focus-visible,.eq.sel{border-color:var(--accent);box-shadow:0 0 0 1px rgba(201,162,39,.35),0 0 14px rgba(201,162,39,.18);outline:none}
+.eq .cap{position:absolute;left:5px;top:3px;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
+.eq img{position:absolute;inset:14px 4px 4px;width:calc(100% - 8px);height:calc(100% - 18px);object-fit:contain;filter:drop-shadow(0 3px 4px rgba(0,0,0,.6))}
+.eq.empty img{opacity:.13;filter:grayscale(1) brightness(2)}
+.istat{display:grid;grid-template-columns:auto 1fr auto;gap:5px 10px;align-items:center;margin-top:10px;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+.istat b{font:600 12px var(--mono);color:var(--fg);letter-spacing:0;text-align:right;font-variant-numeric:tabular-nums}
+.istat .mb{height:5px;background:rgba(0,0,0,.55);border:1px solid #333b2c}.istat .mb i{display:block;height:100%}
+.tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px}
+.tab{font:600 12px var(--display);letter-spacing:.14em;text-transform:uppercase;background:#11150f;color:var(--dim);border:1px solid #2c3326;padding:5px 10px;cursor:pointer}
+.tab span{font:11px var(--mono);margin-left:6px;opacity:.7}
+.tab:hover,.tab:focus-visible{color:var(--fg);outline:none;border-color:#56603f}
+.tab.on{color:#141208;background:var(--accent);border-color:var(--accent)}
+#bag{display:grid;grid-template-columns:repeat(auto-fill,minmax(102px,1fr));gap:6px}
+.slot{aspect-ratio:1;background:linear-gradient(180deg,#141911,#0d110c);border:1px solid #2c3326;position:relative;cursor:pointer;box-sizing:border-box;transition:border-color .12s,box-shadow .12s,transform .08s}
+.slot:hover,.slot:focus-visible{border-color:#8a7a3a;outline:none}
+.slot.sel{border-color:var(--accent);box-shadow:inset 0 0 0 1px rgba(201,162,39,.4),0 0 16px rgba(201,162,39,.16)}
+.slot:active{transform:scale(.98)}
+.slot img{position:absolute;left:6px;right:6px;top:6px;height:58%;width:calc(100% - 12px);object-fit:contain;filter:drop-shadow(0 4px 5px rgba(0,0,0,.65))}
+.slot .nm{position:absolute;left:6px;right:6px;bottom:17px;font-size:12px;line-height:1.05;color:var(--fg);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.slot .kg{position:absolute;left:6px;bottom:4px;font:10px var(--mono);color:var(--dim)}
+.slot .ct{position:absolute;top:4px;right:5px;font:600 11px var(--mono);color:var(--accent);background:rgba(0,0,0,.5);padding:0 4px}
+.slot .cr{position:absolute;top:4px;left:5px;width:6px;height:6px;border-radius:50%}
+.slot.empty{cursor:default;background:repeating-linear-gradient(45deg,#0d100b 0 6px,#0f130d 6px 12px);border-style:dashed;border-color:#232a1f}
+.slot.empty:hover{border-color:#232a1f}
+#desc{min-height:200px;font-size:15px;color:var(--dim)}
+#desc .none{display:flex;align-items:center;justify-content:center;height:220px;text-align:center;font-size:14px;letter-spacing:.08em}
+.dimg{height:150px;background:radial-gradient(ellipse at 50% 55%,#273020,#0d110c 75%);border:1px solid #2c3326;display:flex;align-items:center;justify-content:center;margin-bottom:10px}
+.dimg img{max-width:88%;max-height:88%;filter:drop-shadow(0 6px 8px rgba(0,0,0,.7))}
+.dcat{display:inline-block;font-size:10px;letter-spacing:.24em;text-transform:uppercase;color:var(--accent);border:1px solid rgba(201,162,39,.45);padding:1px 6px}
+#desc h3{margin:6px 0 4px;font-size:24px;line-height:1;color:var(--fg)}
+#desc p{margin:0 0 10px;line-height:1.35}
+.dst{width:100%;border-collapse:collapse;font-size:12px;letter-spacing:.06em;margin-bottom:12px}
+.dst td{padding:4px 0;border-bottom:1px solid #20271c;text-transform:uppercase;color:var(--dim)}
+.dst td+td{text-align:right;font:600 12px var(--mono);color:var(--fg);text-transform:none}
+.dst td.good{color:#a7c46c}.dst td.bad{color:#d2614a}
+.dact{display:flex;gap:6px;flex-wrap:wrap}
+.dact button{font:600 14px var(--display);letter-spacing:.16em;text-transform:uppercase;background:#1b2018;color:var(--fg);border:1px solid var(--line);padding:8px 14px;cursor:pointer;flex:1}
+.dact button.pri{background:var(--accent);color:#141208;border-color:var(--accent)}
+.dact button:hover,.dact button:focus-visible{border-color:#e2b935;outline:none}.dact button.pri:hover{background:#e2b935}
+.invf{display:flex;gap:18px;flex-wrap:wrap;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);border-top:1px solid var(--line);padding-top:8px;margin-top:auto}
+#dead{flex-direction:column;gap:14px;text-align:center}
+#dead h2{font-size:64px;margin:0;color:var(--hp)}
+#load{position:fixed;inset:0;background:#000;color:var(--dim);display:flex;align-items:center;justify-content:center;font-size:16px;letter-spacing:.24em;z-index:5;text-transform:uppercase}
+#fps{position:fixed;right:max(8px,env(safe-area-inset-right,0px));top:calc(8px + env(safe-area-inset-top,0px));font:600 11px var(--mono);color:#b9e08a;background:rgba(0,0,0,.45);padding:2px 7px;border:1px solid rgba(80,90,70,.6);display:none;font-variant-numeric:tabular-nums;z-index:4;pointer-events:none}
+.opts input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;margin:0}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+<canvas id="c"></canvas>
+<div id="hud" class="ov" style="opacity:0">
+  <div id="obj"><b>Objective</b><span id="objt">Await insertion.</span></div>
+  <div id="omk"><i></i><em></em><span></span></div>
+  <div id="xh"></div>
+  <div id="prompt"></div>
+  <div id="toast"></div>
+  <div id="stats">
+    <div class="lbl"><span>Health</span><b id="hpv">100</b></div><div class="bar"><i id="hpb" style="background:var(--hp)"></i></div>
+    <div class="lbl"><span>Sanity</span><b id="snv">100</b></div><div class="bar"><i id="snb" style="background:var(--san)"></i></div>
+    <div class="lbl"><span>Stamina</span><b id="stv">100</b></div><div class="bar"><i id="stb" style="background:var(--stam)"></i></div>
+    <div id="geiger">
+      <div class="t">ДКГ-РМ1203 · GAMMA</div>
+      <div class="big" id="gv">0.12 μSv/h</div>
+      <span>Dose</span><span id="gd">0.000 mSv</span>
+      <span>Status</span><span id="gs">background</span>
+    </div>
+  </div>
+  <div id="ammo"><div class="n"><span id="am">8</span><small> / <span id="ar">0</span></small></div><div class="w" id="wn">PM Makarov · 9×18</div></div>
+</div>
+<div id="bars" class="ov"><div id="sub"></div></div>
+<div id="fade" class="ov"></div>
+<div id="lids" class="ov" style="display:none"></div>
+<div id="card" class="ov"><small id="cardk"></small><h2 id="cardh"></h2><p id="cardp"></p><div id="cardbar"><i></i></div></div>
+<div id="menu" class="screen">
+  <div class="menu">
+    <h1><span>Войска РХБЗ · Zone 12 Detachment</span>Zone 12</h1>
+    <p style="margin:-6px 0 10px;font-size:11px;letter-spacing:.12em;opacity:.6;text-transform:uppercase">Build 29 Oct 2026 · village rebuild</p>
+    <p>You are a contract soldier of the Russian CBRN defence troops, assigned to the exclusion perimeter of Zone 12. A patrol of three went into Sector 1 in the spring and never came back. Your Makarov has one magazine. Everything else, you find out there.</p>
+    <div class="keys">
+      <div><b>WASD</b>Move</div><div><b>Shift</b>Sprint</div><div><b>C</b>Crouch</div><div><b>Mouse</b>Look / fire</div>
+      <div><b>Q</b>Aim down sights (hold)</div><div><b>R</b>Reload</div><div><b>E</b>Interact / take</div><div><b>Tab</b>Inventory</div><div><b>F</b>Flashlight</div>
+    </div>
+    <div class="opts">
+      <label for="q">Graphics <select id="q"><option value="high">High</option><option value="med" selected>Medium</option><option value="low">Low</option></select></label>
+      <label for="sens">Mouse <input id="sens" type="range" min="0.3" max="2.5" step="0.05" value="1"></label>
+      <label for="fpsc">Frame rate <select id="fpsc"><option value="0">Unlimited</option><option value="30">30</option><option value="60">60</option><option value="90">90</option><option value="120">120</option><option value="144">144</option></select></label><label for="fpss" class="chk"><input id="fpss" type="checkbox"> Show FPS</label>
+    </div>
+    <button class="go" id="start">Deploy</button> <button class="go" id="cont" style="display:none"></button>
+    <p style="margin-top:14px;font-size:11px;opacity:.55">Character bodies built from the CC0 MakeHuman base mesh, targets, skeleton and eye assets (makehumancommunity.org).</p>
+  </div>
+</div>
+<div id="pause" class="screen off"><div class="menu"><h1><span>Paused</span>Zone 12</h1><p>Click Resume to continue. Tab opens the inventory. The game saves itself at each milestone; F5 saves where you stand, F9 loads.</p>
+  <div class="opts"><label for="q2">Graphics <select id="q2"><option value="high">High</option><option value="med">Medium</option><option value="low">Low</option></select></label>
+  <label for="sens2">Mouse <input id="sens2" type="range" min="0.3" max="2.5" step="0.05" value="1"></label>
+  <label for="fpsc2">Frame rate <select id="fpsc2"><option value="0">Unlimited</option><option value="30">30</option><option value="60">60</option><option value="90">90</option><option value="120">120</option><option value="144">144</option></select></label><label for="fpss2" class="chk"><input id="fpss2" type="checkbox"> Show FPS</label></div>
+  <button class="go" id="resume">Resume</button> <button class="go" id="savep">Save · F5</button> <button class="go" id="loadp">Load · F9</button></div></div>
+<div id="dead" class="screen off"><h2>KIA</h2><p id="deadwhy">Radiation sickness.</p><button class="go" id="loadd" style="display:none">Load last checkpoint</button> <button class="go" id="again">Redeploy</button></div>
+<div id="note" role="dialog" aria-label="Notebook"><div class="nb"><div class="pg"><p>I just wish the damned war was over, and I could embrace you all once again—</p><p>How’s Mama and Papa? And of course Grandma? Are they doing well? Still mad I left to join the separatists?</p></div><small>E · Esc — close</small></div></div>
+<div id="inv" role="dialog" aria-label="Inventory">
+  <div class="inv">
+    <header class="invh">
+      <div class="ttl"><small>Снаряжение · Kit</small>Inventory</div>
+      <div class="wbar"><span>Carry weight</span><div class="wtrack"><i id="wfill"></i><em style="left:87.5%" title="Slowed above 35 kg"></em></div><b id="wt">0.0 / 40 kg</b></div>
+      <button class="invx" id="invx">Close<kbd>Tab</kbd></button>
+    </header>
+    <div class="invb">
+      <section class="pane eqp"><div class="ph">Operator<span>6Б45 · 6Б47 · ВКПО</span></div>
+        <div id="doll"><canvas id="dc"></canvas>
+          <div class="eq" data-slot="helmet" style="left:8px;top:8px" tabindex="0"></div>
+          <div class="eq" data-slot="vest" style="left:8px;top:100px" tabindex="0"></div>
+          <div class="eq" data-slot="outfit" style="left:8px;top:192px" tabindex="0"></div>
+          <div class="eq wide" data-slot="weapon" style="right:8px;top:8px" tabindex="0"></div>
+          <div class="eq" data-slot="attach" style="right:8px;top:100px" tabindex="0"></div>
+          <div class="eq" data-slot="detector" style="right:8px;top:192px" tabindex="0"></div>
+          <div class="eq" data-slot="optic" style="right:8px;top:284px" tabindex="0"></div>
+        </div>
+        <div class="istat" id="istat"></div>
+      </section>
+      <section class="pane bagp"><div class="ph">Backpack<span id="bagct">0 / 20</span></div>
+        <div class="tabs" id="tabs" role="tablist"></div>
+        <div id="bag"></div>
+      </section>
+      <section class="pane detp"><div class="ph">Details</div><div id="desc"></div></section>
+    </div>
+    <footer class="invf"><span><kbd>Click</kbd> select</span><span><kbd>Double-click</kbd> use · equip</span><span><kbd>Tab</kbd><kbd>I</kbd><kbd>Esc</kbd> close</span></footer>
+  </div>
+</div>
+<div id="fps"></div>
+<div id="load">Loading Zone 12…</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+/*JS*/
+</script>
